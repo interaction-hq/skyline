@@ -4,7 +4,8 @@ The unified messaging SDK. One project, one credential pair, every platform —
 iMessage behind a single API. Open a `channel`, `send`/`react`/`reply`/`typing`
 on it, and read a merged `incoming` feed plus `on(...)` signals.
 
-**Documentation:** [docs.interactions.co.in](https://docs.interactions.co.in)
+- **Documentation:** [docs.interactions.co.in](https://docs.interactions.co.in)
+- **Repository:** [github.com/interactions-hq/skyline](https://github.com/interactions-hq/skyline)
 
 ## Install
 
