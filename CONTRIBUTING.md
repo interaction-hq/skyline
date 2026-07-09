@@ -35,14 +35,19 @@ Skyline follows [Semantic Versioning](https://semver.org/):
 ### Release process
 
 1. Update `CHANGELOG.md` under `[Unreleased]` with your changes.
-2. Bump `version` in `package.json` to the target semver.
-3. Tag the release:
+2. Bump `version` in `package.json`.
+3. Publish locally (fast — no CI):
    ```bash
-   git checkout main && git pull
+   bun install
+   npm login   # once, or set a valid token in ~/.npmrc
+   bun run release
+   ```
+4. Tag and push for GitHub Releases (optional, cosmetic):
+   ```bash
    git tag v0.1.1
    git push origin v0.1.1
+   gh release create v0.1.1 --generate-notes   # optional
    ```
-4. GitHub Actions publishes `@interactions-hq/skyline` to npm on tag push.
 
 Pre-1.0 (`0.x.y`): MINOR bumps may include small breaking changes; document them in CHANGELOG.
 
@@ -73,14 +78,15 @@ bun run format  # auto-fix
 
 ## npm publish
 
-Publishing is automated via the `release` workflow when a `v*` tag is pushed. Requires `NPM_TOKEN` secret on the repository (org maintainers only).
-
-Manual publish (emergency only):
+Publishing is **local only** — one command after you're logged into npm:
 
 ```bash
-bun run build
-npm publish --access public
+bun run release
 ```
+
+That runs lint → build → `npm publish --access public`. No GitHub Actions, no wait for CI.
+
+First time: `npm login` (or paste a granular token into `~/.npmrc` for `@interactions-hq`). You need publish access on the `@interactions-hq` npm org.
 
 ## Questions
 

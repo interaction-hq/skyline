@@ -77,6 +77,7 @@
     "lint": "ultracite check",
     "format": "ultracite fix",
     "broker:check": "bun run src/skyline.check.ts",
+    "release": "bun run lint && bun run build && npm publish --access public",
     "example:terminal": "bun run examples/terminal-agent.ts",
     "example:cloud": "bun run examples/cloud-agent.ts",
     "example:multi": "bun run examples/multi-platform-agent.ts",
