@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package interactions.whatsapp.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option swift_prefix = "PWApp_";
+
+
+message PollChoice {
+
+  int32 index = 1;
+
+  string text = 2;
+
+  int32 vote_count = 3;
+
+}
+
+
+message PollVoter {
+
+  // Voter WhatsApp JID (e.g. "<digits>@s.whatsapp.net" or "<id>@lid").
+  // Empty for anonymous polls where participant identity is hidden.
+  string jid = 1;
+
+  // Option indexes this voter selected.
+  repeated int32 selected_choice_indexes = 2;
+
+  // True if this is the local user's own vote.
+  bool from_me = 3;
+
+  // Vote timestamp (seconds since epoch); 0 if unknown.
+  int64 timestamp = 4;
+
+}
+
+
+message Poll {
+
+  string poll_id = 1;
+
+  string question = 2;
+
+  repeated PollChoice choices = 3;
+
+  bool allow_multiple_choices = 4;
+
+  bool hide_voter_names = 5;
+
+  // Per-voter attribution for the current vote state. Populated on real-time
+  // vote_changed events pushed from the on-device helper; empty when identity
+  // is unavailable (anonymous polls) or not yet synced.
+  repeated PollVoter voters = 6;
+
+  // True when at least one voter's identity is known (non-anonymous poll).
+  bool voter_identity_available = 7;
+
+}
+
+
+message PollChangeEvent {
+
+  string recipient = 1;
+
+  string poll_id = 2;
+
+  google.protobuf.Timestamp occurred_at = 3;
+
+  bool is_from_me = 4;
+
+  oneof change {
+
+    Poll created = 10;
+
+    Poll updated = 11;
+
+    Poll vote_changed = 12;
+
+    Poll choices_changed = 13;
+
+  }
+
+}

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Quick Poll</title>
+    <style>
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 16px/1.4 -apple-system, system-ui, sans-serif;
+        padding: 20px;
+        background: transparent;
+      }
+      h1 { font-size: 20px; margin: 0 0 16px; }
+      .option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 14px 16px;
+        margin: 8px 0;
+        border: none;
+        border-radius: 14px;
+        background: color-mix(in srgb, currentColor 8%, transparent);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 0.08s ease, background 0.15s ease;
+      }
+      .option:active { transform: scale(0.98); }
+      .option.selected { background: #0a84ff; color: #fff; }
+    </style>
+  </head>
+  <body>
+    <h1>lunch friday?</h1>
+    <div id="options"></div>
+
+    <script type="module">
+      import { app } from "https://esm.sh/@interactions-hq/skyline/app";
+
+      const OPTIONS = ["tacos", "sushi", "pizza"];
+      const root = document.getElementById("options");
+
+      for (const label of OPTIONS) {
+        const btn = document.createElement("button");
+        btn.className = "option";
+        btn.textContent = label;
+        btn.onclick = () => vote(label, btn);
+        root.appendChild(btn);
+      }
+
+      function vote(choice, el) {
+        document.querySelectorAll(".option").forEach((b) => b.classList.remove("selected"));
+        el.classList.add("selected");
+        app.sendMessage({
+          caption: `voted: ${choice}`,
+          subcaption: "lunch friday?",
+          trailingCaption: "1 vote",
+          summary: `voted ${choice}`,
+          data: { choice, poll: "lunch-friday" },
+        });
+      }
+
+      // React to the other person's vote arriving, and update our own bubble's
+      // tally in place instead of posting a new one.
+      let tally = 1;
+      app.on("message", (msg) => {
+        tally += 1;
+        app.updateBubble({
+          caption: "lunch friday?",
+          trailingCaption: `${tally} votes`,
+          data: { poll: "lunch-friday" },
+        });
+      });
+
+      app.ready();
+    </script>
+  </body>
+</html>

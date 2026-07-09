@@ -1,0 +1,117 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "google/protobuf/timestamp.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service ScheduledMessageService {
+  rpc Create(CreateScheduledMessageRequest) returns (ScheduledMessageResponse);
+  rpc Get(GetScheduledMessageRequest) returns (ScheduledMessageResponse);
+  rpc List(ListScheduledMessagesRequest) returns (ListScheduledMessagesResponse);
+  rpc Update(UpdateScheduledMessageRequest) returns (ScheduledMessageResponse);
+  rpc Delete(DeleteScheduledMessageRequest) returns (DeleteScheduledMessageResponse);
+  rpc DeleteAll(DeleteAllScheduledMessagesRequest) returns (DeleteAllScheduledMessagesResponse);
+  rpc ExecuteDue(ExecuteDueMessagesRequest) returns (ExecuteDueMessagesResponse);
+  rpc Execute(ExecuteScheduledMessageRequest) returns (ScheduledMessageResponse);
+  rpc SubscribeEvents(SubscribeScheduleEventsRequest) returns (stream ScheduleEvent);
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+enum ScheduledMessageType {
+  SCHEDULED_MESSAGE_TYPE_UNSPECIFIED = 0;
+  SCHEDULED_MESSAGE_TYPE_SEND_MESSAGE = 1;
+}
+
+enum ScheduledMessageStatus {
+  SCHEDULED_MESSAGE_STATUS_PENDING = 0;
+  SCHEDULED_MESSAGE_STATUS_IN_PROGRESS = 1;
+  SCHEDULED_MESSAGE_STATUS_COMPLETE = 2;
+  SCHEDULED_MESSAGE_STATUS_FAILED = 3;
+}
+
+message ScheduledMessageResponse {
+  int64 id = 1;
+  ScheduledMessageType type = 2;
+  bytes payload = 3;
+  google.protobuf.Timestamp scheduled_for = 4;
+  bytes schedule = 5;
+  ScheduledMessageStatus status = 6;
+  optional string error_message = 7;
+  optional google.protobuf.Timestamp sent_at = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message CreateScheduledMessageRequest {
+  ScheduledMessageType type = 1;
+  bytes payload = 2;
+  google.protobuf.Timestamp scheduled_for = 3;
+  bytes schedule = 4;
+}
+
+message GetScheduledMessageRequest {
+  int64 id = 1;
+}
+
+message ListScheduledMessagesRequest {}
+
+message ListScheduledMessagesResponse {
+  repeated ScheduledMessageResponse messages = 1;
+}
+
+message UpdateScheduledMessageRequest {
+  int64 id = 1;
+  ScheduledMessageType type = 2;
+  bytes payload = 3;
+  google.protobuf.Timestamp scheduled_for = 4;
+  bytes schedule = 5;
+}
+
+message DeleteScheduledMessageRequest {
+  int64 id = 1;
+}
+
+message DeleteScheduledMessageResponse {}
+
+message DeleteAllScheduledMessagesRequest {}
+
+message DeleteAllScheduledMessagesResponse {}
+
+message ExecuteDueMessagesRequest {}
+
+message ExecuteDueMessagesResponse {
+  repeated ScheduledMessageResponse messages = 1;
+}
+
+message ExecuteScheduledMessageRequest {
+  int64 id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Event streaming
+// ---------------------------------------------------------------------------
+
+message SubscribeScheduleEventsRequest {}
+
+message ScheduleEvent {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof payload {
+    ScheduledMessageEvent scheduled_message_changed = 2;
+  }
+}
+
+message ScheduledMessageEvent {
+  ScheduledMessageResponse scheduled_message = 1;
+  string action = 2;  // "created" | "updated" | "deleted" | "sent" | "failed"
+}

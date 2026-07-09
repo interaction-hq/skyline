@@ -1,0 +1,499 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "google/protobuf/timestamp.proto";
+import "common.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service MessageService {
+  rpc Send(SendMessageRequest) returns (MessageSendReceiptResponse);
+  rpc SendDigitalTouch(SendDigitalTouchRequest) returns (MessageSendReceiptResponse);
+  rpc SendReaction(SendReactionRequest) returns (MessageCommandReceiptResponse);
+  rpc EditMessage(EditMessageRequest) returns (EditMessageResponse);
+  rpc UnsendMessage(UnsendMessageRequest) returns (UnsendMessageResponse);
+  rpc NotifySilenced(NotifySilencedRequest) returns (NotifySilencedResponse);
+  rpc GetMessage(GetMessageRequest) returns (MessageResponse);
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc GetEmbeddedMedia(GetEmbeddedMediaRequest) returns (GetEmbeddedMediaResponse);
+  rpc GetMessageStats(GetMessageStatsRequest) returns (GetMessageStatsResponse);
+  rpc GetMediaStats(GetMediaStatsRequest) returns (GetMediaStatsResponse);
+  rpc DecodeDigitalTouch(DecodeDigitalTouchRequest) returns (DecodeDigitalTouchResponse);
+  rpc DecodeBalloon(DecodeBalloonRequest) returns (BalloonData);
+  rpc SubscribeEvents(SubscribeMessageEventsRequest) returns (stream MessageEvent);
+}
+
+// ---------------------------------------------------------------------------
+// Shared message types
+// ---------------------------------------------------------------------------
+
+message AddressInfo {
+  string address = 1;
+  optional string uncanonicalized_id = 2;
+  string service = 3;              // "iMessage" | "SMS"
+  optional string country = 4;
+}
+
+message AttachmentInfo {
+  string guid = 1;
+  optional string original_guid = 2;
+  string file_name = 3;
+  string mime_type = 4;
+  string uti = 5;
+  int64 total_bytes = 6;
+  TransferState transfer_state = 7;
+  bool is_outgoing = 8;
+  bool hide_attachment = 9;
+  bool is_sticker = 10;
+  optional int32 width = 11;
+  optional int32 height = 12;
+  bool has_live_photo = 13;
+}
+
+enum TransferState {
+  TRANSFER_STATE_PENDING = 0;
+  TRANSFER_STATE_TRANSFERRING = 1;
+  TRANSFER_STATE_FAILED = 2;
+  // 3, 4 reserved by Apple
+  TRANSFER_STATE_FINISHED = 5;
+}
+
+enum MessageItemType {
+  MESSAGE_ITEM_TYPE_NORMAL = 0;
+  MESSAGE_ITEM_TYPE_GROUP_NAME_CHANGE = 1;
+  MESSAGE_ITEM_TYPE_PARTICIPANT_CHANGE = 2;
+  MESSAGE_ITEM_TYPE_LEFT_GROUP = 3;
+}
+
+// Lightweight receipt returned by Send — only the fields the caller needs to
+// correlate the sent message with its local placeholder.
+message MessageSendReceiptResponse {
+  string guid = 1;
+  optional string client_message_id = 2;
+}
+
+// Lightweight receipt returned by mutating commands that produce a new
+// outgoing command message, such as reactions and poll actions.
+message MessageCommandReceiptResponse {
+  string guid = 1;
+}
+
+message MessageResponse {
+  string guid = 1;
+  optional string client_message_id = 2;
+
+  // Content
+  optional string text = 3;
+  optional bytes attributed_body = 4;
+  optional string subject = 5;
+
+  // Timeline
+  google.protobuf.Timestamp date_created = 10;
+  optional google.protobuf.Timestamp date_read = 11;
+  optional google.protobuf.Timestamp date_delivered = 12;
+  optional google.protobuf.Timestamp date_edited = 13;
+  optional google.protobuf.Timestamp date_retracted = 14;
+  optional google.protobuf.Timestamp date_played = 15;
+
+  // Sender
+  optional AddressInfo sender = 20;
+  bool is_from_me = 21;
+  optional string country = 22;
+
+  // Delivery status
+  bool is_sent = 30;
+  bool is_delivered = 31;
+  bool is_delivered_quietly = 32;
+  bool did_notify_recipient = 33;
+  int32 send_error_code = 34;
+
+  // Flags
+  bool is_audio_message = 40;
+  bool is_auto_reply = 41;
+  bool is_system_message = 42;
+  bool is_forward = 43;
+  bool is_delayed = 44;
+  bool is_spam = 45;
+  bool has_dd_results = 46;
+  bool is_archived = 47;
+  bool is_service_message = 48;
+  bool is_corrupt = 49;
+  bool is_expirable = 50;
+  optional int32 share_status = 51;
+  optional int32 share_direction = 52;
+
+  // Type
+  MessageItemType item_type = 60;
+  optional string group_title = 61;
+  optional int32 group_action_type = 62;
+
+  // Association / tapback
+  optional string associated_message_guid = 70;
+  optional string associated_message_type = 71;
+  // Emoji character for emoji tapback reactions (iOS 17+ / macOS 14+)
+  optional string associated_message_emoji = 76;
+  optional string thread_originator_guid = 72;
+  optional string thread_originator_part = 73;
+  optional string reply_to_guid = 74;
+  optional string destination_caller_id = 75;
+
+  // Rich content
+  optional string balloon_bundle_id = 80;
+  optional string expressive_send_style_id = 81;
+  optional bytes payload_data = 82;
+  optional bytes message_summary_info = 83;
+  optional int32 part_count = 84;
+  optional string cache_roomnames = 85;
+  optional google.protobuf.Timestamp time_expressive_send_played = 86;
+  // Decoded balloon / rich payload (auto-populated on inbound events; on
+  // list/get only when the request sets decode=true).
+  optional BalloonData balloon = 87;
+
+  // Relations
+  repeated AttachmentInfo attachments = 90;
+  repeated string chat_guids = 91;
+
+  // Runtime
+  optional int32 latency_ms = 95;
+}
+
+// Structured decode of a balloon / rich payload. `kind` is one of
+// rich-link | digital-touch | poll | handwriting | app | unknown.
+// `fields` carries kind-specific key/values (url, title, summary, siteName,
+// appName, caption, question, ...). `raw_base64` is the original blob.
+message BalloonData {
+  string kind = 1;
+  string text = 2;
+  map<string, string> fields = 3;
+  repeated BalloonPollOption options = 4;
+  // Raw base64 payload — only populated when `include_raw` is requested.
+  optional string raw_base64 = 5;
+  // Heavy media URLs (link images/icons, rendered drawings) — only populated
+  // when `include_media` is requested.
+  repeated string media = 6;
+}
+
+message BalloonPollOption {
+  string text = 1;
+  string option_identifier = 2;
+  // Handle of whoever added the option (optional).
+  string creator_handle = 3;
+  // Whether the option can still be edited.
+  bool can_be_edited = 4;
+  // Votes cast for this option (0 until anyone votes).
+  uint32 vote_count = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message StickerPlacement {
+  double x = 1;
+  double y = 2;
+  optional double scale = 3;
+  optional double rotation = 4;
+}
+
+message MessagePart {
+  optional string text = 1;
+  optional string attachment_path = 2;
+  optional string attachment_name = 3;
+  optional string mention = 5;
+  // Part index within the multipart message. Helper defaults to 0 when omitted.
+  optional int32 part_index = 6;
+  repeated TextFormat formatting = 7;
+}
+
+// Text formatting applied to a character range within the message body.
+// Multiple formats can be combined on overlapping ranges.
+message TextFormat {
+  // "bold" | "italic" | "underline" | "strikethrough" | "effect"
+  string type = 1;
+  // Start character index (0-based, inclusive)
+  int32 start = 2;
+  // Number of characters the format spans
+  int32 length = 3;
+  // Text effect animation name (only used when type = "effect")
+  // Values: "big" | "small" | "shake" | "nod" | "explode" | "ripple" | "bloom" | "jitter"
+  optional string effect_name = 4;
+}
+
+// Mirrors Helper's `send-message`, `send-attachment`, and `send-multipart`.
+// Helper action selection follows transport precedence:
+// - `parts` -> multipart
+// - `attachment_path` / `attachment_guid` -> attachment
+// - otherwise -> message
+message SendMessageRequest {
+  string chat_guid = 1;
+  optional string service = 18;
+  optional string client_message_id = 2;
+  optional string message = 3;
+  optional bytes attributed_body = 4;
+  optional string subject = 5;
+  optional string effect_id = 6;
+  bool dd_scan = 7;
+  bool rich_link = 8;
+  optional string attachment_path = 9;
+  optional string attachment_name = 10;
+  optional string attachment_guid = 11;
+  // 2+ attachment GUIDs to send as ONE grouped bubble (e.g. a photo group).
+  repeated string attachment_guids = 20;
+  bool is_audio_message = 12;
+  bool is_sticker = 13;
+  optional StickerPlacement sticker_placement = 14;
+  repeated MessagePart parts = 15;
+  optional string selected_message_guid = 16;
+  int32 part_index = 17;
+  // Text formatting (bold, italic, underline, strikethrough, text effects)
+  repeated TextFormat formatting = 19;
+  // When set, the server composes an interactive mini-app card instead of a plain
+  // message. Selection precedence: `mini_app` -> card; else `parts`/attachments/
+  // message as before.
+  optional MiniAppCard mini_app = 21;
+}
+
+// A server-composed mini-app card — the backend-send counterpart to a card a
+// user stages from the launcher. The server renders it as a rich, tappable
+// bubble whose caption slots mirror `MSMessageTemplateLayout`; tapping opens the
+// mini-app at `url` (in the Interactions shell, or the client's own extension
+// when `team_id` + `bundle_id` identify a dedicated app the recipient has).
+message MiniAppCard {
+  // Registry id of the mini-app (Interactions-hosted apps). Round-trips to the
+  // opened mini-app so it can restore state.
+  optional string app_id = 1;
+  // HTTPS deep link the mini-app opens to. Opaque to Messages.
+  string url = 2;
+  // Caption slots (mirror MSMessageTemplateLayout).
+  optional string caption = 10;
+  optional string subcaption = 11;
+  optional string trailing_caption = 12;
+  optional string trailing_subcaption = 13;
+  optional string image_title = 14;
+  optional string image_subtitle = 15;
+  // HTTPS artwork for the card; server fetches and embeds it.
+  optional string image_url = 16;
+  // Notification / lock-screen fallback text.
+  optional string summary = 17;
+  // App data round-tripped in the card URL to the opened mini-app.
+  map<string, string> data = 18;
+  // Dedicated mode (client's own extension): identity + optional store id so
+  // recipients without the app get a "Get the app" affordance.
+  optional string team_id = 30;
+  optional string bundle_id = 31;
+  optional int64 app_store_id = 32;
+  // When false, always show the static card (never open the live experience).
+  bool interactive = 40;
+  // Optional bubble/screen effect id, same set as `effect_id`.
+  optional string effect_id = 41;
+}
+
+// Digital Touch gesture (reverse-engineered ETMessage archive → DigitalTouch balloon).
+message SendDigitalTouchRequest {
+  string chat_guid = 1;
+  // "tap" | "heartbeat" | "sketch" | "kiss" | "anger" | "video"
+  string kind = 2;
+  // tap: number of taps (>= 1); kiss: number of kisses
+  optional int32 tap_count = 3;
+  // heartbeat: beats per minute; anger: duration seconds
+  optional double bpm = 4;
+  // optional "r,g,b,a" each 0..1; defaults to Digital Touch blue
+  optional string color = 5;
+  // video: absolute path (on the Mac) to the clip to send
+  optional string media_path = 6;
+  // video: optional absolute path to a poster/still image
+  optional string still_path = 7;
+}
+
+message SendReactionRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+  // "love" | "like" | "dislike" | "laugh" | "emphasize" | "question" | "emoji" | "sticker"
+  // Prefix with "-" to remove: "-love" | "-like" | "-dislike" | "-laugh" | "-emphasize" | "-question" | "-emoji"
+  string reaction = 3;
+  int32 part_index = 4;
+  // Emoji character (only used when reaction = "emoji")
+  optional string emoji = 5;
+}
+
+message EditMessageRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+  string new_text = 3;
+  // Optional fallback text for clients that do not support edit history.
+  // When omitted, Helper uses its own default text.
+  optional string backward_compat_text = 4;
+  int32 part_index = 5;
+}
+
+message UnsendMessageRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+  int32 part_index = 3;
+}
+
+message EditMessageResponse {}
+
+message UnsendMessageResponse {}
+
+message NotifySilencedRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+}
+
+message NotifySilencedResponse {}
+
+message GetMessageRequest {
+  string guid = 1;
+  // When true, decode any balloon payload and populate `balloon` inline.
+  bool decode = 2;
+  // Include heavy media URLs in the decoded balloon (implies decode).
+  bool include_media = 3;
+  // Include the raw base64 payload in the decoded balloon (implies decode).
+  bool include_raw = 4;
+}
+
+message ListMessagesRequest {
+  optional string chat_guid = 1;
+  optional google.protobuf.Timestamp before = 2;
+  optional google.protobuf.Timestamp after = 3;
+  SortDirection sort = 4;
+  // Page size. Defaults to `100` when omitted.
+  optional int32 limit = 5;
+  int32 offset = 6;
+  bool with_chats = 7;
+  bool with_attachments = 8;
+  // Optional case-insensitive substring match against message.text (server-side search).
+  optional string search_text = 9;
+  // When true, decode balloon payloads and populate each `balloon` inline.
+  bool decode = 10;
+  // Include heavy media URLs / raw payloads in decoded balloons (imply decode).
+  bool include_media = 11;
+  bool include_raw = 12;
+}
+
+message ListMessagesResponse {
+  repeated MessageResponse messages = 1;
+  PaginatedMeta meta = 2;
+}
+
+message GetEmbeddedMediaRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+}
+
+message EmbeddedMediaItem {
+  bytes data = 1;
+  string mime_type = 2;
+}
+
+message GetEmbeddedMediaResponse {
+  repeated EmbeddedMediaItem items = 1;
+}
+
+message GetMessageStatsRequest {}
+
+message GetMessageStatsResponse {
+  int64 total = 1;
+  int64 sent = 2;
+  int64 received = 3;
+}
+
+// Media (attachment) statistics, grouped by media category derived from the
+// attachment mime_type (image | video | audio | text | other).
+message GetMediaStatsRequest {
+  // Optional category filter; empty = all. e.g. ["image","video"].
+  repeated string only = 1;
+  // When true, results are additionally broken down per-chat.
+  bool by_chat = 2;
+}
+
+message MediaStatBucket {
+  string category = 1;   // image | video | audio | text | other
+  int64 count = 2;
+  int64 total_bytes = 3;
+}
+
+message MediaStatChatGroup {
+  string chat_guid = 1;
+  repeated MediaStatBucket buckets = 2;
+}
+
+message GetMediaStatsResponse {
+  // Overall totals by category (always populated).
+  repeated MediaStatBucket totals = 1;
+  // Per-chat breakdown (populated only when by_chat = true).
+  repeated MediaStatChatGroup by_chat = 2;
+}
+
+// Decode a received Digital Touch balloon payload into a structured gesture.
+// Provide EITHER a message_guid (server reads payload_data from chat.db) OR the
+// raw payload bytes directly.
+message DecodeDigitalTouchRequest {
+  optional string message_guid = 1;
+  optional bytes payload = 2;
+}
+
+message DecodeDigitalTouchResponse {
+  string kind = 1;          // tap | heartbeat | sketch | kiss | anger | video | unknown
+  string class_name = 2;    // ETMessage subclass (e.g. ETTapMessage)
+  int32 type_code = 3;
+  optional string type_string = 4;
+  optional int32 tap_count = 5;
+  optional double duration = 6;
+}
+
+// Provide EITHER a message_guid (server reads payload_data + balloon_bundle_id
+// from chat.db) OR raw payload bytes (+ optional bundle_id). Returns BalloonData.
+message DecodeBalloonRequest {
+  optional string message_guid = 1;
+  optional bytes payload = 2;
+  optional string bundle_id = 3;
+  bool include_media = 4;
+  bool include_raw = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Event streaming
+// ---------------------------------------------------------------------------
+
+message SubscribeMessageEventsRequest {}
+
+message MessageEvent {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof payload {
+    MessageSentEvent message_sent = 10;
+    MessageReceivedEvent message_received = 11;
+    MessageUpdatedEvent message_updated = 12;
+    MessageSendErrorEvent message_send_error = 13;
+  }
+}
+
+message MessageSentEvent {
+  MessageResponse message = 1;
+  optional string client_message_id = 2;
+  string chat_guid = 3;
+}
+
+message MessageReceivedEvent {
+  MessageResponse message = 1;
+  string chat_guid = 2;
+}
+
+message MessageUpdatedEvent {
+  MessageResponse message = 1;
+  string update_type = 2;  // currently: "edited" | "unsent" | "notified" | "reaction"
+  string chat_guid = 3;
+}
+
+message MessageSendErrorEvent {
+  string chat_guid = 1;
+  optional string client_message_id = 2;
+  // ErrorCode raw value, e.g. "timeout" | "privateApiUnavailable" | "internalError"
+  string error_code = 3;
+  string error_message = 4;
+}

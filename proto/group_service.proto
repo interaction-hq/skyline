@@ -1,0 +1,120 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "google/protobuf/timestamp.proto";
+import "chat_service.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service GroupService {
+  rpc SetDisplayName(SetDisplayNameRequest) returns (ChatResponse);
+  rpc AddParticipant(AddParticipantRequest) returns (ChatResponse);
+  rpc RemoveParticipant(RemoveParticipantRequest) returns (ChatResponse);
+  rpc SetIcon(SetIconRequest) returns (SetIconResponse);
+  rpc GetIcon(GetIconRequest) returns (GetIconResponse);
+  rpc RemoveIcon(RemoveIconRequest) returns (RemoveIconResponse);
+  rpc SetBackground(SetBackgroundRequest) returns (SetBackgroundResponse);
+  rpc GetBackground(GetBackgroundRequest) returns (GetBackgroundResponse);
+  rpc RemoveBackground(RemoveBackgroundRequest) returns (RemoveBackgroundResponse);
+  rpc SubscribeEvents(SubscribeGroupEventsRequest) returns (stream GroupEvent);
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message SetDisplayNameRequest {
+  string chat_guid = 1;
+  string name = 2;
+}
+
+message AddParticipantRequest {
+  string chat_guid = 1;
+  string address = 2;
+}
+
+message RemoveParticipantRequest {
+  string chat_guid = 1;
+  string address = 2;
+}
+
+message SetIconRequest {
+  string chat_guid = 1;
+  bytes data = 2;
+}
+
+message SetIconResponse {}
+
+message GetIconRequest {
+  string chat_guid = 1;
+}
+
+message GetIconResponse {
+  optional bytes data = 1;
+}
+
+message RemoveIconRequest {
+  string chat_guid = 1;
+}
+
+message RemoveIconResponse {}
+
+// Applies to any chat GUID that Helper supports, not just groups.
+message SetBackgroundRequest {
+  string chat_guid = 1;
+  bytes data = 2;
+}
+
+message SetBackgroundResponse {
+  optional string channel_guid = 1;
+  optional string image_url = 2;
+  optional string background_id = 3;
+}
+
+// Applies to any chat GUID that Helper supports, not just groups.
+message GetBackgroundRequest {
+  string chat_guid = 1;
+}
+
+message GetBackgroundResponse {
+  optional string channel_guid = 1;
+  optional string image_url = 2;
+  optional string background_id = 3;
+}
+
+// Applies to any chat GUID that Helper supports, not just groups.
+message RemoveBackgroundRequest {
+  string chat_guid = 1;
+}
+
+message RemoveBackgroundResponse {}
+
+// ---------------------------------------------------------------------------
+// Event streaming
+// ---------------------------------------------------------------------------
+
+message SubscribeGroupEventsRequest {}
+
+message GroupEvent {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof payload {
+    GroupChangeEvent group_changed = 2;
+  }
+}
+
+message GroupChangeEvent {
+  string chat_guid = 1;
+  oneof change {
+    string renamed_to = 10;
+    string participant_added = 11;
+    string participant_removed = 12;
+    bool icon_changed = 13;
+    bool icon_removed = 14;
+    bool background_changed = 15;
+    bool background_removed = 16;
+  }
+}

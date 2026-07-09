@@ -1,0 +1,48 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "message_service.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service AddressService {
+  rpc GetAddress(GetAddressRequest) returns (AddressInfo);
+  rpc GetFocusStatus(GetFocusStatusRequest) returns (FocusStatusResponse);
+  rpc CheckAvailability(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message GetAddressRequest {
+  string address = 1;
+}
+
+message GetFocusStatusRequest {
+  string address = 1;
+}
+
+message FocusStatusResponse {
+  bool is_focused = 1;
+}
+
+enum AvailabilityType {
+  AVAILABILITY_TYPE_UNSPECIFIED = 0;
+  AVAILABILITY_TYPE_IMESSAGE = 1;
+  AVAILABILITY_TYPE_FACETIME = 2;
+}
+
+message CheckAvailabilityRequest {
+  string address = 1;
+  // When omitted, matches helper behavior and defaults to iMessage.
+  AvailabilityType type = 2;
+}
+
+message CheckAvailabilityResponse {
+  bool available = 1;
+}

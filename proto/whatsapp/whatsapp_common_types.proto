@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package interactions.whatsapp.v1;
+
+option swift_prefix = "PWApp_";
+
+
+message Heartbeat {
+
+}

@@ -1,0 +1,338 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+import "google/protobuf/timestamp.proto";
+import "message_service.proto";
+
+option swift_prefix = "PIMsg_";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service ChatService {
+  rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
+  rpc GetChat(GetChatRequest) returns (ChatResponse);
+  rpc GetChatCount(GetChatCountRequest) returns (GetChatCountResponse); // chat.db-backed count
+  rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
+  rpc LeaveChat(LeaveChatRequest) returns (LeaveChatResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  rpc CanShareContactInfo(CanShareContactInfoRequest) returns (CanShareContactInfoResponse);
+  rpc ShareContactInfo(ShareContactInfoRequest) returns (ShareContactInfoResponse);
+  rpc SetNamePhoto(SetNamePhotoRequest) returns (SetNamePhotoResponse);
+  rpc StartTyping(StartTypingRequest) returns (StartTypingResponse);
+  rpc StopTyping(StopTypingRequest) returns (StopTypingResponse);
+  rpc GetParticipants(GetParticipantsRequest) returns (GetParticipantsResponse);
+
+  // --- Extended capabilities (reverse-engineered from live IMCore) ---
+  rpc MarkUnread(MarkUnreadRequest) returns (MarkUnreadResponse);
+  rpc SendLocation(SendLocationRequest) returns (SendLocationResponse);
+  rpc StopLocation(StopLocationRequest) returns (StopLocationResponse);
+  rpc AcceptInvitation(InvitationRequest) returns (InvitationResponse);
+  rpc DeclineInvitation(InvitationRequest) returns (InvitationResponse);
+  rpc GetMessageStatus(GetMessageStatusRequest) returns (GetMessageStatusResponse);
+  rpc PinChat(PinChatRequest) returns (PinChatResponse);
+  rpc UnpinChat(PinChatRequest) returns (PinChatResponse);
+  rpc ListPinned(ListPinnedRequest) returns (ListPinnedResponse);
+  rpc ReportJunk(ReportJunkRequest) returns (ReportJunkResponse);
+  rpc RecoverJunk(RecoverJunkRequest) returns (RecoverJunkResponse);
+  rpc SetBlocked(SetBlockedRequest) returns (SetBlockedResponse);
+  rpc GetBlocked(GetBlockedRequest) returns (GetBlockedResponse);
+  rpc SendReadReceipt(SendReadReceiptRequest) returns (SendReadReceiptResponse);
+  rpc MarkPlayed(MarkPlayedRequest) returns (MarkPlayedResponse);
+  rpc GetHandleCard(GetHandleCardRequest) returns (GetHandleCardResponse);
+  rpc GetContacts(GetContactsRequest) returns (GetContactsResponse);
+  rpc GetContactCard(GetContactCardRequest) returns (ContactCard);
+
+  rpc SubscribeEvents(SubscribeChatEventsRequest) returns (stream ChatEvent);
+}
+
+// ---------------------------------------------------------------------------
+// Shared chat types
+// ---------------------------------------------------------------------------
+
+message ChatResponse {
+  string guid = 1;
+  optional string chat_identifier = 2;
+  optional string group_id = 3;
+  optional string display_name = 4;
+  bool is_group = 5;
+  string service = 6; // "iMessage" | "SMS"
+  bool is_archived = 7;
+  bool is_filtered = 8;
+  optional int32 unread_count = 9;
+  repeated AddressInfo participants = 10;
+  optional MessageResponse last_message = 11;
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message CreateChatRequest {
+  repeated string addresses = 1;
+  optional string message = 2;
+  string service = 3; // "iMessage" | "SMS"; defaults to "iMessage" when omitted or empty
+  optional bytes attributed_body = 4;
+  optional string effect_id = 5;
+  optional string subject = 6;
+  optional string client_message_id = 7;
+}
+
+message CreateChatResponse {
+  ChatResponse chat = 1;
+  optional MessageSendReceiptResponse send_receipt = 2;
+}
+
+message GetChatRequest {
+  string guid = 1;
+}
+
+message GetChatCountRequest {
+  bool include_archived = 1; // false = count only non-archived rows from chat.db
+}
+
+message GetChatCountResponse {
+  int32 count = 1;
+}
+
+message DeleteChatRequest {
+  string guid = 1;
+}
+
+message DeleteChatResponse {}
+
+message LeaveChatRequest {
+  string guid = 1;
+}
+
+message LeaveChatResponse {}
+
+message MarkReadRequest {
+  string chat_guid = 1;
+}
+
+message MarkReadResponse {}
+
+message CanShareContactInfoRequest {
+  string chat_guid = 1;
+}
+
+message CanShareContactInfoResponse {
+  bool can_share = 1;
+}
+
+message ShareContactInfoRequest {
+  string chat_guid = 1;
+}
+
+message ShareContactInfoResponse {}
+
+// Set your iMessage "Share Name and Photo" nickname (name + optional avatar) and
+// optionally push it to one handle. The receiver then sees "Maybe: <name>" with
+// your photo instead of the raw iCloud ID.
+message SetNamePhotoRequest {
+  string first_name = 1;
+  optional string last_name = 2;
+  optional bytes photo = 3;   // raw JPEG/PNG bytes (no data: prefix)
+  optional string handle = 4; // when set, also pushes the nickname to this handle
+}
+message SetNamePhotoResponse {
+  bool set = 1;
+  bool has_photo = 2;
+  bool sent_to_handle = 3;
+  string send_error = 4;
+}
+
+message StartTypingRequest {
+  string chat_guid = 1;
+}
+
+message StartTypingResponse {}
+
+message StopTypingRequest {
+  string chat_guid = 1;
+}
+
+message StopTypingResponse {}
+
+message GetParticipantsRequest {
+  string chat_guid = 1;
+}
+
+message GetParticipantsResponse {
+  repeated AddressInfo participants = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Extended capability request / response messages
+// ---------------------------------------------------------------------------
+
+message MarkUnreadRequest {
+  string chat_guid = 1;
+}
+message MarkUnreadResponse {}
+
+message SendLocationRequest {
+  string chat_guid = 1;
+  // When set (> 0), shares live location for this many seconds; otherwise sends
+  // a one-shot current-location message. Arbitrary lat/lon is not supported by
+  // iMessage's safe runtime surface.
+  optional uint32 duration_seconds = 2;
+}
+message SendLocationResponse {
+  string mode = 1; // "current" or "live"
+  optional uint32 duration_seconds = 2;
+}
+message StopLocationRequest {
+  string chat_guid = 1;
+}
+message StopLocationResponse {}
+
+message InvitationRequest {
+  string chat_guid = 1;
+}
+message InvitationResponse {
+  bool accepted = 1;
+}
+
+message GetMessageStatusRequest {
+  string message_guid = 1;
+}
+message GetMessageStatusResponse {
+  string guid = 1;
+  bool is_from_me = 2;
+  bool is_sent = 3;
+  bool is_delivered = 4;
+  bool is_read = 5;
+  optional double time_delivered = 6;
+  optional double time_read = 7;
+  optional double time_played = 8;
+  uint32 error_code = 9;
+}
+
+message PinChatRequest {
+  string chat_guid = 1;
+}
+message PinChatResponse {
+  bool pinned = 1;
+  string identifier = 2;
+}
+
+message ListPinnedRequest {}
+message ListPinnedResponse {
+  repeated string identifiers = 1;
+}
+
+message ReportJunkRequest {
+  string chat_guid = 1;
+}
+message ReportJunkResponse {}
+
+message RecoverJunkRequest {
+  string chat_guid = 1;
+}
+message RecoverJunkResponse {}
+
+message SetBlockedRequest {
+  string address = 1;
+  bool blocked = 2;
+}
+message SetBlockedResponse {
+  string address = 1;
+  bool blocked = 2;
+}
+
+message GetBlockedRequest {
+  string address = 1;
+}
+message GetBlockedResponse {
+  string address = 1;
+  bool blocked = 2;
+}
+
+message SendReadReceiptRequest {
+  string chat_guid = 1;
+}
+message SendReadReceiptResponse {}
+
+message MarkPlayedRequest {
+  string chat_guid = 1;
+  string message_guid = 2;
+}
+message MarkPlayedResponse {}
+
+message GetHandleCardRequest {
+  string address = 1;
+}
+message GetHandleCardResponse {
+  string address = 1;
+  optional string first_name = 2;
+  optional string last_name = 3;
+  optional string full_name = 4;
+  optional string nickname = 5;
+  optional bool is_contact = 6;
+  optional bool is_mobile = 7;
+  optional string country_code = 8;
+  optional bool blocked = 9;
+  optional bool has_location = 10;
+}
+
+// A full local address-book entry (CNContact-backed), optionally augmented with
+// an iMessage-shared nickname/avatar.
+message ContactCard {
+  string identifier = 1;
+  optional string address = 2;      // populated for single-card lookups
+  string first_name = 3;
+  string last_name = 4;
+  string full_name = 5;
+  string nickname = 6;
+  string organization = 7;
+  repeated string emails = 8;
+  repeated string phones = 9;
+  bool has_image = 10;
+  optional string avatar_base64 = 11; // present when includeImages requested
+  optional string avatar_path = 12;    // iMessage nickname avatar on disk
+  optional bool is_contact = 13;        // true when matched in the address book
+}
+
+message GetContactsRequest {
+  // 0 = all. Caps result size; address books can be large.
+  uint32 limit = 1;
+  // Include base64 thumbnail bytes per contact (heavier payload).
+  bool include_images = 2;
+}
+message GetContactsResponse {
+  repeated ContactCard contacts = 1;
+  uint32 count = 2;
+}
+
+message GetContactCardRequest {
+  string address = 1;
+  bool include_images = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Event streaming
+// ---------------------------------------------------------------------------
+
+message SubscribeChatEventsRequest {}
+
+message ChatEvent {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof payload {
+    ChatReadStatusEvent chat_read_status_changed = 10;
+    TypingEvent typing_indicator = 11;
+  }
+}
+
+message ChatReadStatusEvent {
+  string chat_guid = 1;
+  bool is_read = 2;
+}
+
+message TypingEvent {
+  string chat_guid = 1;
+  bool is_typing = 2;
+  optional string display_name = 3;
+}

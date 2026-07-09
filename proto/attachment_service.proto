@@ -1,0 +1,65 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "message_service.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service AttachmentService {
+  rpc GetAttachment(GetAttachmentRequest) returns (GetAttachmentResponse);
+  rpc GetAttachmentCount(GetAttachmentCountRequest) returns (GetAttachmentCountResponse);
+  rpc Upload(UploadAttachmentRequest) returns (UploadAttachmentResponse);
+  rpc Download(DownloadAttachmentRequest) returns (stream DownloadAttachmentChunk);
+  rpc GetLivePhoto(GetLivePhotoRequest) returns (stream DownloadAttachmentChunk);
+  rpc ForceDownload(ForceDownloadRequest) returns (stream DownloadAttachmentChunk);
+}
+
+// ---------------------------------------------------------------------------
+// Request / Response messages
+// ---------------------------------------------------------------------------
+
+message GetAttachmentRequest {
+  string guid = 1;
+}
+
+message GetAttachmentResponse {
+  AttachmentInfo attachment = 1;
+}
+
+message GetAttachmentCountRequest {}
+
+message GetAttachmentCountResponse {
+  int32 count = 1;
+}
+
+message UploadAttachmentRequest {
+  string file_name = 1;
+  string mime_type = 2;
+  bytes data = 3;
+}
+
+message UploadAttachmentResponse {
+  AttachmentInfo attachment = 1;
+}
+
+message DownloadAttachmentRequest {
+  string attachment_guid = 1;
+}
+
+message DownloadAttachmentChunk {
+  bytes data = 1;
+  int64 total_bytes = 2;
+  int64 offset = 3;
+}
+
+message GetLivePhotoRequest {
+  string attachment_guid = 1;
+}
+
+message ForceDownloadRequest {
+  string attachment_guid = 1;
+}

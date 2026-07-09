@@ -1,0 +1,15 @@
+node_modules
+dist
+*.tgz
+coverage
+*.lcov
+logs
+*.log
+.env
+.env.*
+.cache
+*.tsbuildinfo
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json

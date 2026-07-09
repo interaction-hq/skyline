@@ -1,0 +1,58 @@
+syntax = "proto3";
+package interactions.imessage.v1;
+
+option swift_prefix = "PIMsg_";
+
+import "google/protobuf/timestamp.proto";
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service FaceTimeService {
+  rpc SubscribeEvents(SubscribeFaceTimeEventsRequest) returns (stream FaceTimeEvent);
+  // Mint a shareable FaceTime link (https://facetime.apple.com/join#...).
+  rpc CreateLink(CreateFaceTimeLinkRequest) returns (CreateFaceTimeLinkResponse);
+}
+
+message CreateFaceTimeLinkRequest {
+  // Optional handles to pre-invite to the link (phone/email). Empty = open link.
+  repeated string handles = 1;
+}
+
+message CreateFaceTimeLinkResponse {
+  // Full shareable FaceTime link URL.
+  string url = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+message FaceTimeCall {
+  string uuid = 1;
+  int32 status_id = 2;
+  string status = 3;
+  optional string ended_error = 4;
+  optional string ended_reason = 5;
+  optional string address = 6;
+  optional string display_name = 7;
+  optional string service = 8;
+  bool is_outgoing = 9;
+  bool is_audio = 10;
+  bool is_video = 11;
+}
+
+// ---------------------------------------------------------------------------
+// Event streaming
+// ---------------------------------------------------------------------------
+
+message SubscribeFaceTimeEventsRequest {}
+
+message FaceTimeEvent {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof payload {
+    FaceTimeCall incoming = 2;
+    FaceTimeCall status_changed = 3;
+  }
+}
