@@ -27,6 +27,27 @@ export {
   wa,
 } from "./content";
 export { definePlatform } from "./define-platform";
+export type {
+  DedicatedLine,
+  ImessageConfig,
+  TerminalConfig,
+  WhatsappBusinessCloudConfig,
+  WhatsappBusinessConfig,
+  WhatsappBusinessDedicatedConfig,
+  WhatsappBusinessLine,
+  WhatsappCloudConfig,
+  WhatsappConfig,
+  WhatsappDedicatedConfig,
+  WhatsappDedicatedLine,
+} from "./providers";
+export {
+  imessage,
+  terminal,
+  whatsapp,
+  whatsappBusiness,
+  whatsappBusinessDedicatedLines,
+  whatsappDedicatedLines,
+} from "./providers";
 export type { LiveSessionOptions, SessionSnapshot } from "./session";
 export { LiveSession, session } from "./session";
 export { type ProviderConfig, Skyline, type SkylineOptions } from "./skyline";

@@ -11,15 +11,15 @@
     "ultracite": "7.9.3"
   },
   "name": "@interactions-hq/skyline",
-  "version": "0.1.0",
-  "description": "Unified messaging SDK — one project, one credential pair, every interface.",
+  "version": "0.1.1",
+  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, and more through one API.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/interactions-hq/skyline.git"
+    "url": "git+https://github.com/interactions-hq/skyline.git"
   },
-  "homepage": "https://docs.interactions.co.in",
+  "homepage": "https://docs.interactions.co.in/skyline/introduction",
   "bugs": {
     "url": "https://github.com/interactions-hq/skyline/issues"
   },
@@ -92,6 +92,15 @@
     "skyline",
     "interactions",
     "agents",
-    "unified-api"
+    "unified-api",
+    "unified-messaging",
+    "multi-platform",
+    "imessage",
+    "whatsapp",
+    "whatsapp-business",
+    "typescript",
+    "chatbot",
+    "webhooks",
+    "mini-app"
   ]
 }
