@@ -10,7 +10,7 @@ export interface PlatformDef<
 
 /**
  * Register a custom messaging interface with Skyline's provider model.
- * Built-in providers ship in `@interactions-hq/skyline/providers`.
+ * Built-in providers ship in `skyline-ts/providers`.
  */
 export function definePlatform<P extends Platform, C extends { platform: P }>(
   def: PlatformDef<P, C>

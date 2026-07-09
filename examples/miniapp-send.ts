@@ -3,7 +3,7 @@
 // This is how an agent, a webhook, or a cron sends an interactive card into a
 // conversation. Run: `bun examples/miniapp-send.ts` (with real creds/lines).
 
-import { app, imessage, Skyline } from "@interactions-hq/skyline";
+import { app, imessage, Skyline } from "skyline-ts";
 
 const skyline = await Skyline({
   projectId: process.env.SKYLINE_PROJECT_ID,

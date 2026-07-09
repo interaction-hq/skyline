@@ -197,7 +197,7 @@ class AppRuntime {
  * The app runtime singleton. Import and use inside your `web`-mode app:
  *
  * ```ts
- * import { app } from "@interactions-hq/skyline/app";
+ * import { app } from "skyline-ts/app";
  * app.sendMessage({ caption: "voted: tacos", data: { choice: "tacos" } });
  * app.ready();
  * ```

@@ -1,4 +1,4 @@
-import { Skyline, terminal } from "@interactions-hq/skyline";
+import { Skyline, terminal } from "skyline-ts";
 
 const app = await Skyline({
   providers: [terminal.config({ prompt: "you> " })],

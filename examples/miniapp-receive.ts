@@ -12,7 +12,7 @@
 // Run (dedicated line, dev server over Tailscale):
 //   MINI=100.120.138.80:50051 LINE=+918527438574 bun examples/miniapp-receive.ts
 
-import { flow, imessage, readState, Skyline } from "@interactions-hq/skyline";
+import { flow, imessage, readState, Skyline } from "skyline-ts";
 
 const app = await Skyline({
   providers: [

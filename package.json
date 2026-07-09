@@ -10,8 +10,8 @@
     "typescript": "^5.6.0",
     "ultracite": "7.9.3"
   },
-  "name": "@interactions-hq/skyline",
-  "version": "0.1.1",
+  "name": "skyline-ts",
+  "version": "0.1.2",
   "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, and more through one API.",
   "type": "module",
   "license": "MIT",
@@ -90,6 +90,7 @@
     "messaging",
     "sdk",
     "skyline",
+    "skyline-ts",
     "interactions",
     "agents",
     "unified-api",

@@ -5,7 +5,7 @@
 // Run (dedicated line, dev server over Tailscale):
 //   MINI=100.120.138.80:50051 LINE=+918527438574 bun examples/unified-agent.ts
 
-import { imessage, Skyline } from "@interactions-hq/skyline";
+import { imessage, Skyline } from "skyline-ts";
 
 const app = await Skyline({
   providers: [

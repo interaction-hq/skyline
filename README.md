@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@interactions-hq/skyline"><img src="https://img.shields.io/npm/v/@interactions-hq/skyline.svg" alt="npm version" /></a>
-  <a href="https://github.com/interactions-hq/skyline/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@interactions-hq/skyline.svg" alt="license" /></a>
+  <a href="https://www.npmjs.com/package/skyline-ts"><img src="https://img.shields.io/npm/v/skyline-ts.svg" alt="npm version" /></a>
+  <a href="https://github.com/interactions-hq/skyline/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/skyline-ts.svg" alt="license" /></a>
   <a href="https://docs.interactions.co.in"><img src="https://img.shields.io/badge/docs-interactions.co.in-2563EB" alt="documentation" /></a>
 </p>
 
@@ -33,7 +33,7 @@ Cloud mode talks to the Interactions platform at `https://api.interactions.co.in
 - **One credential pair** — `projectId` + `projectSecret` in cloud mode; dedicated endpoints when you self-host
 - **Native features when you need them** — send, reply, react, edit, unsend, typing, read receipts, attachments, mini-app cards
 - **Ship locally first** — the terminal provider needs zero credentials
-- **Webhook-native** — verify and parse signed deliveries from `@interactions-hq/skyline/webhooks`
+- **Webhook-native** — verify and parse signed deliveries from `skyline-ts/webhooks`
 - **Tree-shakeable subpaths** — import only runtime, providers, content, authoring, or webhooks
 
 ## Supported interfaces
@@ -50,8 +50,8 @@ More interfaces follow the same provider model. See [custom platforms](https://d
 ## Install
 
 ```bash
-npm install @interactions-hq/skyline
-# or: bun add @interactions-hq/skyline
+npm install skyline-ts
+# or: bun add skyline-ts
 ```
 
 **Requirements:** Node.js 18+, TypeScript 5+ recommended.
@@ -63,7 +63,7 @@ npm install @interactions-hq/skyline
 Run an echo agent in your terminal in under a minute:
 
 ```ts
-import { Skyline, terminal } from "@interactions-hq/skyline";
+import { Skyline, terminal } from "skyline-ts";
 
 const app = await Skyline({
   providers: [terminal.config({ prompt: "you> " })],
@@ -82,7 +82,7 @@ bun run example:terminal
 ### Cloud — iMessage and WhatsApp Business
 
 ```ts
-import { imessage, Skyline, whatsappBusiness } from "@interactions-hq/skyline";
+import { imessage, Skyline, whatsappBusiness } from "skyline-ts";
 
 const app = await Skyline({
   projectId: process.env.SKYLINE_PROJECT_ID!,
@@ -122,10 +122,10 @@ for await (const [space, message] of app.messages) {
 
 ### Content
 
-Plain strings send as text. Rich outbound content uses builders from `@interactions-hq/skyline/content`:
+Plain strings send as text. Rich outbound content uses builders from `skyline-ts/content`:
 
 ```ts
-import { text, app, wa } from "@interactions-hq/skyline/content";
+import { text, app, wa } from "skyline-ts/content";
 
 await space.send(text("Hello"));
 await space.send(app({ url: "https://…", caption: "Open app" }));
@@ -167,7 +167,7 @@ Platform support varies — see each [provider guide](https://docs.interactions.
 Receive inbound events over HTTP with HMAC signature verification:
 
 ```ts
-import { verifyWebhook, parseWebhook } from "@interactions-hq/skyline/webhooks";
+import { verifyWebhook, parseWebhook } from "skyline-ts/webhooks";
 
 const event = verifyWebhook(rawBody, signature, secret);
 const parsed = parseWebhook(event);
@@ -179,24 +179,24 @@ Full guide: [webhooks docs](https://docs.interactions.co.in/webhooks/overview).
 
 | Import | Purpose |
 | --- | --- |
-| `@interactions-hq/skyline` | Runtime — `Skyline()`, providers, types, content helpers, webhooks |
-| `@interactions-hq/skyline/providers` | All built-in providers |
-| `@interactions-hq/skyline/providers/imessage` | iMessage only |
-| `@interactions-hq/skyline/providers/whatsapp-business` | WhatsApp Business only |
-| `@interactions-hq/skyline/providers/whatsapp` | Personal WhatsApp only |
-| `@interactions-hq/skyline/providers/terminal` | Terminal only |
-| `@interactions-hq/skyline/content` | Content builders only |
-| `@interactions-hq/skyline/webhooks` | Webhook verify + parse |
-| `@interactions-hq/skyline/authoring` | Mini-app authoring (`defineApp`, `defineFlow`) |
-| `@interactions-hq/skyline/app` | Mini-app runtime (alias: `/miniapp`) |
+| `skyline-ts` | Runtime — `Skyline()`, providers, types, content helpers, webhooks |
+| `skyline-ts/providers` | All built-in providers |
+| `skyline-ts/providers/imessage` | iMessage only |
+| `skyline-ts/providers/whatsapp-business` | WhatsApp Business only |
+| `skyline-ts/providers/whatsapp` | Personal WhatsApp only |
+| `skyline-ts/providers/terminal` | Terminal only |
+| `skyline-ts/content` | Content builders only |
+| `skyline-ts/webhooks` | Webhook verify + parse |
+| `skyline-ts/authoring` | Mini-app authoring (`defineApp`, `defineFlow`) |
+| `skyline-ts/app` | Mini-app runtime (alias: `/miniapp`) |
 
 ## Mini-apps
 
 Author interactive in-message experiences with declarative flows and registry signing:
 
 ```ts
-import { defineFlow } from "@interactions-hq/skyline/authoring";
-import { app } from "@interactions-hq/skyline/content";
+import { defineFlow } from "skyline-ts/authoring";
+import { app } from "skyline-ts/content";
 
 const poll = defineFlow({ /* screens, actions */ });
 await space.send(app({ url: "https://…", caption: "Take the poll" }));
@@ -209,7 +209,7 @@ See [app content](https://docs.interactions.co.in/skyline/content/app).
 Bring your own interface with `definePlatform()`:
 
 ```ts
-import { definePlatform } from "@interactions-hq/skyline";
+import { definePlatform } from "skyline-ts";
 
 export const myPlatform = definePlatform({
   platform: "my-platform",

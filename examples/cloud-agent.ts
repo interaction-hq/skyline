@@ -1,4 +1,4 @@
-import { imessage, Skyline } from "@interactions-hq/skyline";
+import { imessage, Skyline } from "skyline-ts";
 
 const projectId = process.env.SKYLINE_PROJECT_ID;
 const projectSecret = process.env.SKYLINE_PROJECT_SECRET;
