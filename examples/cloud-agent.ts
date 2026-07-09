@@ -1,9 +1,9 @@
-import { Skyline, imessage } from "@interactions-hq/skyline";
+import { imessage, Skyline } from "@interactions-hq/skyline";
 
 const projectId = process.env.SKYLINE_PROJECT_ID;
 const projectSecret = process.env.SKYLINE_PROJECT_SECRET;
 
-if (!projectId || !projectSecret) {
+if (!(projectId && projectSecret)) {
   console.error("Set SKYLINE_PROJECT_ID and SKYLINE_PROJECT_SECRET");
   process.exit(1);
 }
@@ -11,7 +11,6 @@ if (!projectId || !projectSecret) {
 const app = await Skyline({
   projectId,
   projectSecret,
-  baseUrl: process.env.SKYLINE_BASE_URL,
   providers: [imessage.config()],
 });
 
@@ -26,7 +25,9 @@ app.on("typing", (t) =>
 );
 
 for await (const [channel, message] of app.incoming) {
-  if (message.isFromMe || message.content.type !== "text") continue;
+  if (message.isFromMe || message.content.type !== "text") {
+    continue;
+  }
 
   console.log(`[imessage] ${message.sender.id}: ${message.content.text}`);
 

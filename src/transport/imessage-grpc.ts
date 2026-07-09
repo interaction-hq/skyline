@@ -16,16 +16,16 @@ function toBase64Url(input: string): string {
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 /** Per-send wire options folded onto a `Send` (already resolved to ids). */
 export interface SendWireOptions {
-  replyTo?: string;
   effectId?: string;
-  subject?: string;
+  replyTo?: string;
   richLink?: boolean;
   scan?: boolean;
+  subject?: string;
 }
 
 /** A decoded inbound reaction (tapback/emoji), add or remove. */
@@ -44,8 +44,8 @@ export interface InboundEdit {
 /** A decoded inbound typing indicator. */
 export interface InboundTyping {
   chatId: string;
-  typing: boolean;
   displayName?: string;
+  typing: boolean;
 }
 
 /** A decoded inbound read-status change. */
@@ -57,63 +57,63 @@ export interface InboundRead {
 /** A contact card resolved for a handle. */
 export interface InboundContact {
   address?: string;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
-  nickname?: string;
-  organization?: string;
   emails?: string[];
-  phones?: string[];
+  first_name?: string;
+  full_name?: string;
   has_image?: boolean;
   is_contact?: boolean;
+  last_name?: string;
+  nickname?: string;
+  organization?: string;
+  phones?: string[];
 }
 
 /** The app card fields the transport maps to a `mini_app` proto payload. */
 export interface AppCardWire {
   appId?: string;
-  url: string;
+  appStoreId?: number;
+  bundleId?: string;
   caption?: string;
+  data?: Record<string, string>;
+  effect?: string;
+  image?: string;
+  imageSubtitle?: string;
+  imageTitle?: string;
+  interactive?: boolean;
   subcaption?: string;
+  summary?: string;
+  teamId?: string;
   trailingCaption?: string;
   trailingSubcaption?: string;
-  imageTitle?: string;
-  imageSubtitle?: string;
-  image?: string;
-  summary?: string;
-  data?: Record<string, string>;
-  teamId?: string;
-  bundleId?: string;
-  appStoreId?: number;
-  interactive?: boolean;
-  effect?: string;
+  url: string;
 }
 
 /** The flow-card fields the transport folds into a `mini_app` payload. */
 export interface FlowCardWire {
   /** Registered flow id (optional when `spec` is inline). */
   appId?: string;
-  /** Inline screen graph the shell interprets directly. */
-  spec?: Flow;
+  appStoreId?: number;
+  bundleId?: string;
+  caption?: string;
+  image?: string;
   /** Opening screen id (defaults to the flow's start). */
   screen?: string;
+  /** Inline screen graph the shell interprets directly. */
+  spec?: Flow;
   /** Seed state the opened flow resumes from. */
   state?: Record<string, string>;
-  caption?: string;
   subcaption?: string;
-  image?: string;
   summary?: string;
   teamId?: string;
-  bundleId?: string;
-  appStoreId?: number;
 }
 
 /** A decoded inbound app bubble: the state the sender staged, plus text. */
 export interface InboundApp {
   appId?: string;
   caption?: string;
-  summary?: string;
   /** App state the sender produced (the bridge's `data`, transport keys removed). */
   data: Record<string, string>;
+  summary?: string;
 }
 
 /**
@@ -152,30 +152,30 @@ export function parseInboundApp(
   return {
     appId,
     caption: fields.caption || balloon?.text || undefined,
-    summary: fields.summary || undefined,
     data,
+    summary: fields.summary || undefined,
   };
 }
 
 /** A confirmed in-flow payment, derived from the submitted state. */
 export interface InboundPayment {
-  paid: boolean;
-  provider: string;
   amount: string;
   currency: string;
+  paid: boolean;
+  provider: string;
 }
 
 /** A decoded inbound flow submission — one step of a declarative flow. */
 export interface InboundFlow {
   appId?: string;
-  /** The collected input values (each input's `key` -> value). */
-  state: Record<string, string>;
-  /** The next screen the sender advanced to (interim submit), if any. */
-  screen?: string;
   /** True when the flow completed (final submit). */
   done: boolean;
   /** Present when the flow carried a confirmed `payment` step. */
   payment?: InboundPayment;
+  /** The next screen the sender advanced to (interim submit), if any. */
+  screen?: string;
+  /** The collected input values (each input's `key` -> value). */
+  state: Record<string, string>;
 }
 
 /**
@@ -229,7 +229,7 @@ export function parseInboundFlow(
   if (!(sawState || done || screen)) {
     return null;
   }
-  return { appId, state, screen, done, payment: paymentFromState(state) };
+  return { appId, done, payment: paymentFromState(state), screen, state };
 }
 
 /**
@@ -241,13 +241,13 @@ export function paymentFromState(
   state: Record<string, string>
 ): InboundPayment | undefined {
   if (state.__paid !== "true" && state["payment.amount"] === undefined) {
-    return undefined;
+    return;
   }
   return {
-    paid: state.__paid === "true",
-    provider: state["payment.provider"] ?? "link",
     amount: state["payment.amount"] ?? "0",
     currency: state["payment.currency"] ?? "USD",
+    paid: state.__paid === "true",
+    provider: state["payment.provider"] ?? "link",
   };
 }
 
@@ -261,17 +261,22 @@ export function resolveGroup(
   msg: any,
   senderId: string | undefined
 ): InboundGroup | undefined {
-  const chatGuids: string[] = Array.isArray(msg?.chat_guids) ? msg.chat_guids : [];
+  const chatGuids: string[] = Array.isArray(msg?.chat_guids)
+    ? msg.chat_guids
+    : [];
   const chatId = chatGuids[0];
   if (!chatId) {
-    return undefined;
+    return;
   }
   const participants: string[] = Array.isArray(msg?.chat_participants)
-    ? msg.chat_participants.map((p: { address?: string } | string) =>
-        typeof p === "string" ? p : (p.address ?? "")
-      ).filter(Boolean)
+    ? msg.chat_participants
+        .map((p: { address?: string } | string) =>
+          typeof p === "string" ? p : (p.address ?? "")
+        )
+        .filter(Boolean)
     : [];
-  const isGroup = participants.length > 1 || /^(chat|iMessage;\+;|SMS;\+;)/.test(chatId);
+  const isGroup =
+    participants.length > 1 || /^(chat|iMessage;\+;|SMS;\+;)/.test(chatId);
   return {
     chatId,
     isGroup,
@@ -309,12 +314,12 @@ export class ImessageGrpcClient {
       .map((f) => join(protoDir, f));
 
     const def = protoLoader.loadSync(protoFiles, {
+      defaults: true,
+      enums: String,
+      includeDirs: [protoDir],
       keepCase: true,
       longs: String,
-      enums: String,
-      defaults: true,
       oneofs: false,
-      includeDirs: [protoDir],
     });
 
     // biome-ignore lint/suspicious/noExplicitAny: dynamic proto package traversal.
@@ -370,9 +375,9 @@ export class ImessageGrpcClient {
   ): Promise<{ guid: string }> {
     const request: Record<string, unknown> = {
       chat_guid: chatGuid,
-      message,
       client_message_id: clientMessageId,
       dd_scan: opts.scan ?? true,
+      message,
       rich_link: opts.richLink ?? true,
     };
     if (opts.replyTo) {
@@ -401,15 +406,15 @@ export class ImessageGrpcClient {
     opts: SendWireOptions = {}
   ): Promise<{ guid: string }> {
     const request: Record<string, unknown> = {
+      attachment_guid: attachment.attachmentGuid,
+      attachment_name: attachment.attachmentName,
+      attachment_path: attachment.attachmentPath,
       chat_guid: chatGuid,
       client_message_id: clientMessageId,
       dd_scan: opts.scan ?? false,
-      rich_link: false,
-      attachment_guid: attachment.attachmentGuid,
-      attachment_path: attachment.attachmentPath,
-      attachment_name: attachment.attachmentName,
       is_audio_message: attachment.isAudioMessage ?? false,
       is_sticker: attachment.isSticker ?? false,
+      rich_link: false,
     };
     if (opts.replyTo) {
       request.selected_message_guid = opts.replyTo;
@@ -457,10 +462,10 @@ export class ImessageGrpcClient {
     const value = opts.remove ? `-${wire}` : wire;
     return this.unaryVoid(this.service, "SendReaction", {
       chat_guid: chatGuid,
-      message_guid: messageGuid,
-      reaction: value,
-      part_index: 0,
       emoji: isTapback ? undefined : (opts.emoji ?? reaction),
+      message_guid: messageGuid,
+      part_index: 0,
+      reaction: value,
     });
   }
 
@@ -498,7 +503,9 @@ export class ImessageGrpcClient {
   }
 
   sendReadReceipt(chatGuid: string): Promise<void> {
-    return this.unaryVoid(this.chat, "SendReadReceipt", { chat_guid: chatGuid });
+    return this.unaryVoid(this.chat, "SendReadReceipt", {
+      chat_guid: chatGuid,
+    });
   }
 
   /** Invoke a unary RPC that returns an ignored ack. */
@@ -537,28 +544,28 @@ export class ImessageGrpcClient {
     }
     const payload = {
       app_id: card.appId,
-      url: url.toString(),
+      app_store_id: card.appStoreId,
+      bundle_id: card.bundleId,
       caption: card.caption,
+      data: card.data ?? {},
+      effect_id: card.effect,
+      image_subtitle: card.imageSubtitle,
+      image_title: card.imageTitle,
+      image_url: card.image,
+      interactive: card.interactive ?? true,
       subcaption: card.subcaption,
+      summary: card.summary,
+      team_id: card.teamId,
       trailing_caption: card.trailingCaption,
       trailing_subcaption: card.trailingSubcaption,
-      image_title: card.imageTitle,
-      image_subtitle: card.imageSubtitle,
-      image_url: card.image,
-      summary: card.summary,
-      data: card.data ?? {},
-      team_id: card.teamId,
-      bundle_id: card.bundleId,
-      app_store_id: card.appStoreId,
-      interactive: card.interactive ?? true,
-      effect_id: card.effect,
+      url: url.toString(),
     };
     return this.invokeSend(
       {
         chat_guid: chatGuid,
         client_message_id: clientMessageId,
-        rich_link: true,
         mini_app: payload,
+        rich_link: true,
       },
       clientMessageId
     );
@@ -587,7 +594,8 @@ export class ImessageGrpcClient {
     // Small inline specs still ride the URL (works even against older servers);
     // larger ones use the dedicated `inline_flow_json` field so they can't blow
     // the URL length cap. Either way the shell renders declarative data only.
-    const inlineInURL = specJSON !== undefined && specJSON.length <= INLINE_FLOW_URL_MAX;
+    const inlineInURL =
+      specJSON !== undefined && specJSON.length <= INLINE_FLOW_URL_MAX;
     if (specJSON && inlineInURL) {
       url.searchParams.set("spec", toBase64Url(specJSON));
     }
@@ -599,16 +607,16 @@ export class ImessageGrpcClient {
     }
     const payload: Record<string, unknown> = {
       app_id: card.appId,
-      url: url.toString(),
-      caption: card.caption,
-      subcaption: card.subcaption,
-      image_url: card.image,
-      summary: card.summary,
-      data: card.state ?? {},
-      team_id: card.teamId,
-      bundle_id: card.bundleId,
       app_store_id: card.appStoreId,
+      bundle_id: card.bundleId,
+      caption: card.caption,
+      data: card.state ?? {},
+      image_url: card.image,
       interactive: true,
+      subcaption: card.subcaption,
+      summary: card.summary,
+      team_id: card.teamId,
+      url: url.toString(),
     };
     if (specJSON && !inlineInURL) {
       payload.inline_flow_json = specJSON;
@@ -617,7 +625,12 @@ export class ImessageGrpcClient {
       }
     }
     return this.invokeSend(
-      { chat_guid: chatGuid, client_message_id: clientMessageId, rich_link: true, mini_app: payload },
+      {
+        chat_guid: chatGuid,
+        client_message_id: clientMessageId,
+        mini_app: payload,
+        rich_link: true,
+      },
       clientMessageId
     );
   }
@@ -686,7 +699,11 @@ export class ImessageGrpcClient {
       group?: InboundGroup
     ) => void;
     /** A send that failed on the line. */
-    onSendError?: (err: { code?: string; message?: string; chatId?: string }) => void;
+    onSendError?: (err: {
+      code?: string;
+      message?: string;
+      chatId?: string;
+    }) => void;
     onError?: (err: grpc.ServiceError) => void;
     // biome-ignore lint/suspicious/noExplicitAny: streamed event is dynamically typed.
   }): grpc.ClientReadableStream<any> {
@@ -701,9 +718,9 @@ export class ImessageGrpcClient {
       if (event?.message_send_error) {
         const e = event.message_send_error;
         handlers.onSendError?.({
+          chatId: e.chat_guid,
           code: e.error_code,
           message: e.error_message,
-          chatId: e.chat_guid,
         });
         return;
       }
@@ -831,8 +848,8 @@ export class ImessageGrpcClient {
         handlers.onTyping?.(
           {
             chatId: typing.chat_guid,
-            typing: Boolean(typing.is_typing),
             displayName: typing.display_name,
+            typing: Boolean(typing.is_typing),
           },
           date
         );
@@ -852,7 +869,10 @@ export class ImessageGrpcClient {
 
   // ── Group management (GroupService) ──────────────────────────────────────
 
-  private group(method: string, request: Record<string, unknown>): Promise<void> {
+  private group(
+    method: string,
+    request: Record<string, unknown>
+  ): Promise<void> {
     return this.unaryVoid(this.groupSvc, method, request);
   }
 
@@ -861,11 +881,11 @@ export class ImessageGrpcClient {
   }
 
   addParticipant(chatGuid: string, address: string): Promise<void> {
-    return this.group("AddParticipant", { chat_guid: chatGuid, address });
+    return this.group("AddParticipant", { address, chat_guid: chatGuid });
   }
 
   removeParticipant(chatGuid: string, address: string): Promise<void> {
-    return this.group("RemoveParticipant", { chat_guid: chatGuid, address });
+    return this.group("RemoveParticipant", { address, chat_guid: chatGuid });
   }
 
   getParticipants(chatGuid: string): Promise<{ address: string }[]> {

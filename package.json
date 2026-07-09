@@ -1,7 +1,18 @@
 {
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/proto-loader": "^0.7.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.2",
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "ultracite": "7.9.3"
+  },
   "name": "@interactions-hq/skyline",
   "version": "0.1.0",
-  "description": "Skyline unified messaging SDK — one project, one credential pair, every platform. Cloud-brokered or dedicated transport.",
+  "description": "Unified messaging SDK — one project, one credential pair, every interface.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -24,17 +35,25 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./authoring": {
+      "types": "./dist/authoring.d.ts",
+      "import": "./dist/authoring.js"
+    },
+    "./content": {
+      "types": "./dist/content.d.ts",
+      "import": "./dist/content.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "import": "./dist/webhooks.js"
+    },
     "./providers": {
       "types": "./dist/providers/index.d.ts",
       "import": "./dist/providers/index.js"
     },
-    "./providers/imessage": {
-      "types": "./dist/providers/imessage.d.ts",
-      "import": "./dist/providers/imessage.js"
-    },
-    "./providers/terminal": {
-      "types": "./dist/providers/terminal.d.ts",
-      "import": "./dist/providers/terminal.js"
+    "./providers/*": {
+      "types": "./dist/providers/*/index.d.ts",
+      "import": "./dist/providers/*/index.js"
     },
     "./app": {
       "types": "./dist/miniapp/index.d.ts",
@@ -54,30 +73,24 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build",
-    "check": "bun run src/skyline.check.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "ultracite check",
+    "format": "ultracite fix",
+    "broker:check": "bun run src/skyline.check.ts",
     "example:terminal": "bun run examples/terminal-agent.ts",
     "example:cloud": "bun run examples/cloud-agent.ts",
+    "example:multi": "bun run examples/multi-platform-agent.ts",
     "registry": "bun run scripts/registry-publish.ts"
-  },
-  "dependencies": {
-    "@grpc/grpc-js": "^1.12.0",
-    "@grpc/proto-loader": "^0.7.13"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0"
   },
   "engines": {
     "node": ">=18"
   },
   "keywords": [
-    "imessage",
     "messaging",
     "sdk",
     "skyline",
     "interactions",
-    "agents"
+    "agents",
+    "unified-api"
   ]
 }

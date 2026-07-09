@@ -1,10 +1,10 @@
 import * as readline from "node:readline";
 
 export interface TerminalSession {
-  prompt: string;
-  onLine: (line: string) => void;
-  write: (text: string) => void;
   close: () => void;
+  onLine: (line: string) => void;
+  prompt: string;
+  write: (text: string) => void;
 }
 
 export function startTerminalSession(opts: {
@@ -34,9 +34,9 @@ export function startTerminalSession(opts: {
   });
 
   return {
-    prompt,
-    onLine: opts.onLine,
-    write,
     close: () => rl.close(),
+    onLine: opts.onLine,
+    prompt,
+    write,
   };
 }

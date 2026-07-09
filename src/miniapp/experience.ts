@@ -54,28 +54,28 @@ export type Action =
  * styled arrangements of primitives — the native runtime never grows per case.
  */
 export interface Style {
-  color?: string;
+  align?: TextAlign;
   background?: string;
-  cornerRadius?: number;
   borderColor?: string;
   borderWidth?: number;
-  padding?: number;
-  paddingTop?: number;
-  paddingLeading?: number;
-  paddingBottom?: number;
-  paddingTrailing?: number;
+  color?: string;
+  cornerRadius?: number;
   fontSize?: number;
   fontWeight?: "regular" | "medium" | "semibold" | "bold";
-  align?: TextAlign;
   height?: number;
+  padding?: number;
+  paddingBottom?: number;
+  paddingLeading?: number;
+  paddingTop?: number;
+  paddingTrailing?: number;
   width?: number;
 }
 
 /** One selectable option in an `options` component. */
 export interface Option {
+  detail?: string;
   id: string;
   label: string;
-  detail?: string;
 }
 
 /** Payment rails a `payment` component can request. More added over time. */
@@ -84,11 +84,29 @@ export type PaymentProvider = "appleCash" | "link";
 /** The component vocabulary. `type` is the discriminator. */
 export type Component =
   // Primitives — the frozen layout vocabulary everything composes from.
-  | { type: "stack"; axis?: "vertical" | "horizontal"; spacing?: number; style?: Style; components: Component[] }
+  | {
+      type: "stack";
+      axis?: "vertical" | "horizontal";
+      spacing?: number;
+      style?: Style;
+      components: Component[];
+    }
   | { type: "box"; style?: Style; onTap?: string; component?: Component }
   // Display
-  | { type: "text"; text: string; style?: TextStyle; align?: TextAlign; box?: Style }
-  | { type: "image"; url: string; height?: number; mode?: "fit" | "fill"; box?: Style }
+  | {
+      type: "text";
+      text: string;
+      style?: TextStyle;
+      align?: TextAlign;
+      box?: Style;
+    }
+  | {
+      type: "image";
+      url: string;
+      height?: number;
+      mode?: "fit" | "fill";
+      box?: Style;
+    }
   | {
       type: "payment";
       provider?: PaymentProvider;
@@ -161,9 +179,9 @@ export type ComponentTemplate = Component;
 
 /** A single rendered screen. */
 export interface Screen {
+  components: Component[];
   id: string;
   title?: string;
-  components: Component[];
 }
 
 export interface FlowTheme {
@@ -174,9 +192,9 @@ export interface FlowTheme {
 
 /** A complete declarative screen graph — the `flow` render mode of an app. */
 export interface Flow {
+  screens: Screen[];
   /** Screen shown first; defaults to the first screen. */
   start?: string;
-  screens: Screen[];
   theme?: FlowTheme;
 }
 
@@ -185,11 +203,17 @@ export interface Flow {
  * registry, or build one inline in an agent and send it via `app(...)`.
  */
 export function defineFlow(flow: Flow): Flow {
-  if (!flow.screens?.length) throw new Error("flow: at least one screen is required");
+  if (!flow.screens?.length) {
+    throw new Error("flow: at least one screen is required");
+  }
   const ids = new Set<string>();
   for (const s of flow.screens) {
-    if (!s.id) throw new Error("flow: every screen needs an id");
-    if (ids.has(s.id)) throw new Error(`flow: duplicate screen id "${s.id}"`);
+    if (!s.id) {
+      throw new Error("flow: every screen needs an id");
+    }
+    if (ids.has(s.id)) {
+      throw new Error(`flow: duplicate screen id "${s.id}"`);
+    }
     ids.add(s.id);
   }
   if (flow.start && !ids.has(flow.start)) {
@@ -203,25 +227,38 @@ export function defineFlow(flow: Flow): Flow {
   const check = (c: Component): void => {
     switch (c.type) {
       case "button":
-        if (c.action.kind === "next") target(c.action.screen);
-        if (c.action.kind === "submit" || c.action.kind === "pay") {
-          if (c.action.screen) target(c.action.screen);
+        if (c.action.kind === "next") {
+          target(c.action.screen);
         }
-        if (c.action.kind === "capability" && c.action.then) target(c.action.then);
+        if (
+          (c.action.kind === "submit" || c.action.kind === "pay") &&
+          c.action.screen
+        ) {
+          target(c.action.screen);
+        }
+        if (c.action.kind === "capability" && c.action.then) {
+          target(c.action.then);
+        }
         break;
       case "options":
-        if (c.onSelect) target(c.onSelect);
+        if (c.onSelect) {
+          target(c.onSelect);
+        }
         break;
       case "payment":
         if (c.provider === "link" && !c.url) {
-          throw new Error("flow: payment provider 'link' requires a checkout url");
+          throw new Error(
+            "flow: payment provider 'link' requires a checkout url"
+          );
         }
         break;
       case "stack":
         c.components.forEach(check);
         break;
       case "box":
-        if (c.component) check(c.component);
+        if (c.component) {
+          check(c.component);
+        }
         break;
       case "group":
         c.components.forEach(check);

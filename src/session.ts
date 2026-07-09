@@ -10,17 +10,15 @@
 //   GET   {base}/{id}/state?since=<version>  -> { version, values }
 // so agents and devices share one source of truth.
 
-const DEFAULT_SESSION_BASE = "https://apps.interactions.co.in/session";
+import { PLATFORM_SESSION_BASE } from "./platform";
 
 /** A merged session snapshot: monotonically increasing `version` + values. */
 export interface SessionSnapshot {
-  version: number;
   values: Record<string, string>;
+  version: number;
 }
 
 export interface LiveSessionOptions {
-  /** Store base URL. Defaults to the hosted Interactions session store. */
-  baseUrl?: string;
   /** Poll cadence for `watch()`, in ms. */
   intervalMs?: number;
 }
@@ -35,7 +33,7 @@ export class LiveSession {
     readonly id: string,
     opts: LiveSessionOptions = {}
   ) {
-    this.base = (opts.baseUrl ?? DEFAULT_SESSION_BASE).replace(/\/+$/, "");
+    this.base = PLATFORM_SESSION_BASE.replace(/\/+$/, "");
     this.intervalMs = opts.intervalMs ?? 2000;
   }
 
@@ -45,9 +43,9 @@ export class LiveSession {
     participant?: string
   ): Promise<void> {
     await fetch(`${this.base}/${encodeURIComponent(this.id)}/publish`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ participant: participant ?? "", values }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
     });
   }
 

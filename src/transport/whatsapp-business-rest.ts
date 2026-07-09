@@ -13,26 +13,26 @@ const DEFAULT_API_VERSION = "v23.0";
 
 /** Resolved credentials for one business number. */
 export interface WhatsappBusinessCreds {
-  /** Meta phone_number_id the messages send from. */
-  phoneNumberId: string;
   /** Bearer access token (system-user or broker-minted, short-lived). */
   accessToken: string;
   /** Graph API version, e.g. "v23.0". Defaults to a pinned recent version. */
   apiVersion?: string;
   /** Override the Graph host (tests / regional endpoints). */
   baseUrl?: string;
+  /** Meta phone_number_id the messages send from. */
+  phoneNumberId: string;
 }
 
 /** A Cloud API media reference: an uploaded media id or a hosted https link. */
 export interface WaMediaRef {
-  /** Uploaded media object id (from the Media Upload API). */
-  id?: string;
-  /** Public https URL Meta fetches the media from. */
-  link?: string;
   /** Caption shown with the media (image/video/document). */
   caption?: string;
   /** Document display filename. */
   filename?: string;
+  /** Uploaded media object id (from the Media Upload API). */
+  id?: string;
+  /** Public https URL Meta fetches the media from. */
+  link?: string;
 }
 
 export type WaInteractive = Record<string, unknown>;
@@ -40,10 +40,10 @@ export type WaTemplate = Record<string, unknown>;
 export type WaContact = Record<string, unknown>;
 
 export interface WaLocation {
+  address?: string;
   latitude: number | string;
   longitude: number | string;
   name?: string;
-  address?: string;
 }
 
 /** The normalized result of a Cloud API send. */
@@ -68,9 +68,9 @@ export class WhatsappBusinessError extends Error {
 }
 
 interface GraphMessagesResponse {
-  messages?: { id: string }[];
   contacts?: { wa_id?: string }[];
   error?: { message?: string; code?: number; error_data?: unknown };
+  messages?: { id: string }[];
 }
 
 /**
@@ -97,23 +97,27 @@ export class WhatsappBusinessClient {
     return to.replace(/^\+/, "");
   }
 
-  private context(replyTo?: string): { context: { message_id: string } } | undefined {
+  private context(
+    replyTo?: string
+  ): { context: { message_id: string } } | undefined {
     return replyTo ? { context: { message_id: replyTo } } : undefined;
   }
 
   private async post(body: Record<string, unknown>): Promise<WaSendResult> {
     const url = `${this.base}/${this.version}/${this.phoneNumberId}/messages`;
     const res = await fetch(url, {
-      method: "POST",
+      body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
       headers: {
         authorization: `Bearer ${this.token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
+      method: "POST",
       signal: AbortSignal.timeout(15_000),
     });
 
-    const json = (await res.json().catch(() => null)) as GraphMessagesResponse | null;
+    const json = (await res
+      .json()
+      .catch(() => null)) as GraphMessagesResponse | null;
     if (!res.ok || json?.error) {
       const err = json?.error;
       throw new WhatsappBusinessError(
@@ -150,7 +154,10 @@ export class WhatsappBusinessClient {
   ): Promise<WaSendResult> {
     return this.message(
       to,
-      { type: "text", text: { body: text, preview_url: opts?.previewUrl ?? false } },
+      {
+        text: { body: text, preview_url: opts?.previewUrl ?? false },
+        type: "text",
+      },
       opts?.replyTo
     );
   }
@@ -180,10 +187,14 @@ export class WhatsappBusinessClient {
   }
 
   /** React to a message with an emoji ("" clears the reaction). */
-  sendReaction(to: string, messageId: string, emoji: string): Promise<WaSendResult> {
+  sendReaction(
+    to: string,
+    messageId: string,
+    emoji: string
+  ): Promise<WaSendResult> {
     return this.message(to, {
+      reaction: { emoji, message_id: messageId },
       type: "reaction",
-      reaction: { message_id: messageId, emoji },
     });
   }
 
@@ -196,13 +207,13 @@ export class WhatsappBusinessClient {
     return this.message(
       to,
       {
-        type: "location",
         location: {
+          address: location.address,
           latitude: String(location.latitude),
           longitude: String(location.longitude),
           name: location.name,
-          address: location.address,
         },
+        type: "location",
       },
       opts?.replyTo
     );
@@ -214,7 +225,7 @@ export class WhatsappBusinessClient {
     contacts: WaContact[],
     opts?: { replyTo?: string }
   ): Promise<WaSendResult> {
-    return this.message(to, { type: "contacts", contacts }, opts?.replyTo);
+    return this.message(to, { contacts, type: "contacts" }, opts?.replyTo);
   }
 
   /**
@@ -226,7 +237,11 @@ export class WhatsappBusinessClient {
     interactive: WaInteractive,
     opts?: { replyTo?: string }
   ): Promise<WaSendResult> {
-    return this.message(to, { type: "interactive", interactive }, opts?.replyTo);
+    return this.message(
+      to,
+      { interactive, type: "interactive" },
+      opts?.replyTo
+    );
   }
 
   /**
@@ -238,34 +253,39 @@ export class WhatsappBusinessClient {
     template: WaTemplate,
     opts?: { replyTo?: string }
   ): Promise<WaSendResult> {
-    return this.message(to, { type: "template", template }, opts?.replyTo);
+    return this.message(to, { template, type: "template" }, opts?.replyTo);
   }
 
   /**
    * Mark an inbound message read, optionally showing a typing indicator to the
    * user while a reply is composed. This is the Cloud API status endpoint shape.
    */
-  async markRead(messageId: string, opts?: { typing?: boolean }): Promise<void> {
+  async markRead(
+    messageId: string,
+    opts?: { typing?: boolean }
+  ): Promise<void> {
     const url = `${this.base}/${this.version}/${this.phoneNumberId}/messages`;
     const body: Record<string, unknown> = {
+      message_id: messageId,
       messaging_product: "whatsapp",
       status: "read",
-      message_id: messageId,
     };
     if (opts?.typing) {
       body.typing_indicator = { type: "text" };
     }
     const res = await fetch(url, {
-      method: "POST",
+      body: JSON.stringify(body),
       headers: {
         authorization: `Bearer ${this.token}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify(body),
+      method: "POST",
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
-      const json = (await res.json().catch(() => null)) as GraphMessagesResponse | null;
+      const json = (await res
+        .json()
+        .catch(() => null)) as GraphMessagesResponse | null;
       const err = json?.error;
       throw new WhatsappBusinessError(
         res.status,

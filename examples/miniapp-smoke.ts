@@ -11,7 +11,7 @@ import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
-} from "../src/transport/imessage-grpc";
+} from "../src/transport/imessage-grpc.ts";
 
 const target = grpcTarget(process.env.MINI ?? "100.120.138.80:50051");
 const to = process.env.TO ?? "+918527438574";
@@ -26,15 +26,15 @@ const interactive = await client.sendApp(
   chat,
   {
     appId: "lunch-poll",
-    url: "https://apps.interactions.co.in/lunch-poll",
     caption: "lunch friday?",
-    subcaption: "tap to vote",
-    trailingCaption: "poll",
-    imageTitle: "Quick Poll",
-    imageSubtitle: "3 options",
-    summary: "Vote on lunch",
     data: { session: `smoke-${stamp}` },
+    imageSubtitle: "3 options",
+    imageTitle: "Quick Poll",
     interactive: true,
+    subcaption: "tap to vote",
+    summary: "Vote on lunch",
+    trailingCaption: "poll",
+    url: "https://apps.interactions.co.in/lunch-poll",
   },
   `smoke-interactive-${stamp}`
 );
@@ -44,11 +44,11 @@ const richLink = await client.sendApp(
   chat,
   {
     appId: "checkout",
-    url: "https://apps.interactions.co.in/checkout",
     caption: "your order is ready",
-    subcaption: "tap to check out",
     data: { order: "42" },
     interactive: false,
+    subcaption: "tap to check out",
+    url: "https://apps.interactions.co.in/checkout",
   },
   `smoke-richlink-${stamp}`
 );

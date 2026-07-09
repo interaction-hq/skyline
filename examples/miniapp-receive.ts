@@ -20,10 +20,10 @@ const app = await Skyline({
       lines: [
         {
           address: process.env.MINI ?? "100.120.138.80:50051",
+          phone: process.env.LINE ?? "+918527438574",
           // Empty token: a dev/open server (no AUTH_PUBLIC_KEY_PATH) scopes to
           // the local identity. A production line carries a real token.
           token: process.env.TOKEN ?? "",
-          phone: process.env.LINE ?? "+918527438574",
         },
       ],
     }),
@@ -39,7 +39,7 @@ for await (const [channel, msg] of app.incoming) {
   switch (msg.content.type) {
     case "app": {
       const { appId, data, caption } = msg.content;
-      console.log("app received:", { appId, data, caption });
+      console.log("app received:", { appId, caption, data });
 
       // React to what the user did.
       if (appId === "counter") {
@@ -76,12 +76,12 @@ for await (const [channel, msg] of app.incoming) {
       // Typed reads over the string wire — no manual coercion.
       const s = readState(state);
       console.log("flow submission:", {
-        from: who,
-        size: s.string("size"),
-        qty: s.number("qty"),
-        extras: s.list("extras"),
         done,
+        extras: s.list("extras"),
+        from: who,
         payment,
+        qty: s.number("qty"),
+        size: s.string("size"),
       });
 
       // A confirmed payment step lands with a receipt — advance the order.
@@ -98,49 +98,54 @@ for await (const [channel, msg] of app.incoming) {
       }
 
       // Branch on what they picked and compose the next screen on the fly.
-      if (!state.reason) {
+      if (state.reason) {
         await channel.send(
           flow({
-            caption: "one more thing",
+            caption: "last step",
+            data: state,
             flow: {
               screens: [
                 {
-                  id: "why",
-                  title: "What's it about?",
                   components: [
                     {
-                      type: "options",
-                      key: "reason",
-                      options: [
-                        { id: "sales", label: "Sales" },
-                        { id: "support", label: "Support" },
-                        { id: "other", label: "Something else" },
-                      ],
-                      onSelect: "submit",
+                      action: { kind: "submit" },
+                      label: "Confirm",
+                      style: "primary",
+                      type: "button",
                     },
                   ],
+                  id: "confirm",
+                  title: `Great — a ${state.reason} chat. Confirm?`,
                 },
               ],
             },
-            data: state,
           })
         );
       } else {
         await channel.send(
           flow({
-            caption: "last step",
+            caption: "one more thing",
+            data: state,
             flow: {
               screens: [
                 {
-                  id: "confirm",
-                  title: `Great — a ${state.reason} chat. Confirm?`,
                   components: [
-                    { type: "button", label: "Confirm", style: "primary", action: { kind: "submit" } },
+                    {
+                      key: "reason",
+                      onSelect: "submit",
+                      options: [
+                        { id: "sales", label: "Sales" },
+                        { id: "support", label: "Support" },
+                        { id: "other", label: "Something else" },
+                      ],
+                      type: "options",
+                    },
                   ],
+                  id: "why",
+                  title: "What's it about?",
                 },
               ],
             },
-            data: state,
           })
         );
       }

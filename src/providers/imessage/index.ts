@@ -1,24 +1,24 @@
-import type { ResolvedLine } from "../types";
+import type { ResolvedLine } from "../../types";
 
 /** A dedicated line the customer supplies directly (self-host / advanced). */
 export interface DedicatedLine {
   /** gRPC endpoint, e.g. "100.x.y.z:50051". */
   address: string;
-  /** Token forwarded to the server (x-project-id metadata). */
-  token: string;
   /** The handle (phone/email) this line serves. */
   phone: string;
+  /** Token forwarded to the server (x-project-id metadata). */
+  token: string;
 }
 
 export interface ImessageCloudConfig {
-  platform: "imessage";
   mode: "cloud";
+  platform: "imessage";
 }
 
 export interface ImessageDedicatedConfig {
-  platform: "imessage";
-  mode: "dedicated";
   lines: DedicatedLine[];
+  mode: "dedicated";
+  platform: "imessage";
 }
 
 export type ImessageConfig = ImessageCloudConfig | ImessageDedicatedConfig;
@@ -31,17 +31,19 @@ export type ImessageConfig = ImessageCloudConfig | ImessageDedicatedConfig;
 export const imessage = {
   config(opts?: { lines?: DedicatedLine[] }): ImessageConfig {
     if (opts?.lines && opts.lines.length > 0) {
-      return { platform: "imessage", mode: "dedicated", lines: opts.lines };
+      return { lines: opts.lines, mode: "dedicated", platform: "imessage" };
     }
-    return { platform: "imessage", mode: "cloud" };
+    return { mode: "cloud", platform: "imessage" };
   },
 };
 
 /** Dedicated config → resolved lines (no broker call). */
-export function dedicatedLines(config: ImessageDedicatedConfig): ResolvedLine[] {
+export function dedicatedLines(
+  config: ImessageDedicatedConfig
+): ResolvedLine[] {
   return config.lines.map((l) => ({
     address: l.address,
-    token: l.token,
     phone: l.phone,
+    token: l.token,
   }));
 }

@@ -1,8 +1,8 @@
+import { PLATFORM_API_BASE } from "./platform";
 import type { Platform, ResolvedLine } from "./types";
 
 /** Response shape of the Skyline broker `POST /v1/auth/token`. */
 interface TokenResponse {
-  succeed: boolean;
   data?: {
     token: string;
     ttl: number;
@@ -18,6 +18,7 @@ interface TokenResponse {
     }[];
   };
   error?: { code: string; message: string };
+  succeed: boolean;
 }
 
 export interface BrokerCredentials {
@@ -26,8 +27,8 @@ export interface BrokerCredentials {
 }
 
 export interface BrokerOptions {
-  /** Skyline control-plane base URL, e.g. https://api.interactions.co.in. */
-  baseUrl: string;
+  /** Test-only override; production uses the hardcoded platform API host. */
+  baseUrl?: string;
 }
 
 /**
@@ -39,8 +40,8 @@ export class Broker {
   private readonly baseUrl: string;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(opts: BrokerOptions) {
-    this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
+  constructor(opts: BrokerOptions = {}) {
+    this.baseUrl = (opts.baseUrl ?? PLATFORM_API_BASE).replace(/\/+$/, "");
   }
 
   /**
@@ -53,14 +54,14 @@ export class Broker {
     space?: string
   ): Promise<{ token: string; ttl: number; lines: ResolvedLine[] }> {
     const res = await fetch(`${this.baseUrl}/v1/auth/token`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...creds, platform, space }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
       signal: AbortSignal.timeout(10_000),
     });
 
     const body = (await res.json().catch(() => null)) as TokenResponse | null;
-    if (!res.ok || !body?.succeed || !body.data) {
+    if (!(res.ok && body?.succeed && body.data)) {
       const code = body?.error?.code ?? `HTTP_${res.status}`;
       const message = body?.error?.message ?? "broker rejected request";
       throw new BrokerError(code, message, res.status);
@@ -69,11 +70,11 @@ export class Broker {
     const { token, ttl, endpoints } = body.data;
     const lines: ResolvedLine[] = endpoints.map((e) => ({
       address: e.address,
-      token,
-      phone: e.phone ?? "",
       business: e.business,
+      phone: e.phone ?? "",
+      token,
     }));
-    return { token, ttl, lines };
+    return { lines, token, ttl };
   }
 
   /** Schedule `onRefresh` at 80% of the token TTL, ahead of expiry. */

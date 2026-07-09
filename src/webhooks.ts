@@ -30,35 +30,35 @@ export type SkylineService = "imessage" | "sms" | "whatsapp";
 export interface SkylineAttachment {
   /** Opaque id — use it to fetch the bytes on demand (they are not in the payload). */
   id: string;
-  name: string | null;
   mimeType: string | null;
+  name: string | null;
   /** Size in bytes when known, else null. */
   size: number | null;
 }
 
 export interface SkylineMessageEvent {
-  /** Stable message id — use for idempotency / dedup. */
-  id: string;
+  attachments: SkylineAttachment[];
   /** Conversation id (the `channel` this belongs to). */
   channelId: string;
   /** Sender handle (phone/email), or null for your own outbound. */
   from: string | null;
-  /** Plain text body ("" when the message is media-only). */
-  text: string;
-  attachments: SkylineAttachment[];
   /** True when the message came from your own line. */
   fromMe: boolean;
-  service: SkylineService;
+  /** Stable message id — use for idempotency / dedup. */
+  id: string;
   isGroup: boolean;
   /** Message id this replies to, when threaded. */
   replyTo: string | null;
+  service: SkylineService;
+  /** Plain text body ("" when the message is media-only). */
+  text: string;
   timestamp: string;
 }
 
 export interface SkylineReactionEvent {
-  messageId: string;
   channelId: string;
   from: string | null;
+  messageId: string;
   /** Friendly name (love, like, laugh, …) or an emoji. */
   reaction: string;
   timestamp: string;
@@ -74,9 +74,9 @@ export interface SkylineReadEvent {
 }
 
 export interface SkylineGroupUpdateEvent {
-  channelId: string;
   /** name | participant_added | participant_removed | icon | background. */
   change: string;
+  channelId: string;
   value: string | null;
 }
 
@@ -88,30 +88,28 @@ export interface SkylineFailedEvent {
 
 /** Map an event type to its `data` payload, for exhaustive handling. */
 export interface SkylineEventDataMap {
+  "group.updated": SkylineGroupUpdateEvent;
+  "message.failed": SkylineFailedEvent;
   "message.received": SkylineMessageEvent;
   "message.sent": SkylineMessageEvent;
   "message.updated": SkylineMessageEvent;
-  "message.failed": SkylineFailedEvent;
   "reaction.added": SkylineReactionEvent;
   "reaction.removed": SkylineReactionEvent;
+  read: SkylineReadEvent;
   "typing.started": SkylineTypingEvent;
   "typing.stopped": SkylineTypingEvent;
-  read: SkylineReadEvent;
-  "group.updated": SkylineGroupUpdateEvent;
 }
 
 /** The full envelope POSTed to your webhook URL. */
-export interface SkylineEvent<
-  T extends SkylineEventType = SkylineEventType,
-> {
+export interface SkylineEvent<T extends SkylineEventType = SkylineEventType> {
+  data: SkylineEventDataMap[T];
   /** Unique delivery id — dedupe on this (also sent as a header). */
   eventId: string;
-  type: T;
   platform: Platform;
   projectId: string;
   /** ISO-8601 time Skyline observed the event. */
   receivedAt: string;
-  data: SkylineEventDataMap[T];
+  type: T;
 }
 
 const SIG_VERSION = "v0";
@@ -119,10 +117,10 @@ const SIG_VERSION = "v0";
 const DEFAULT_TOLERANCE_SECONDS = 5 * 60;
 
 export interface VerifyOptions {
-  /** Max age of a delivery, in seconds (default 300). */
-  toleranceSeconds?: number;
   /** Override "now" (seconds since epoch) — for tests. */
   nowSeconds?: number;
+  /** Max age of a delivery, in seconds (default 300). */
+  toleranceSeconds?: number;
 }
 
 /**

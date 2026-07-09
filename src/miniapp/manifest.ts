@@ -29,9 +29,9 @@ export type Rendering =
 
 /** The `native` mode: prompt + options, drawn natively (poll / menu / form). */
 export interface NativeSpec {
+  options: { id: string; label: string }[];
   prompt: string;
   style: "poll" | "menu" | "form";
-  options: { id: string; label: string }[];
 }
 
 /**
@@ -47,68 +47,68 @@ export type BubbleSize = "small" | "medium" | "large" | "live";
  */
 export interface BubbleCaptions {
   caption?: string;
+  imageSubtitle?: string;
+  /** Drawn over the artwork (requires an image). */
+  imageTitle?: string;
   subcaption?: string;
   trailingCaption?: string;
   trailingSubcaption?: string;
-  /** Drawn over the artwork (requires an image). */
-  imageTitle?: string;
-  imageSubtitle?: string;
 }
 
 export interface BubblePresentation extends BubbleCaptions {
-  size: BubbleSize;
   /**
    * Optional https artwork for sized bubbles. When omitted the shell generates a
    * gradient banner from the icon + title, so a bubble always looks intentional
    * with zero required assets.
    */
   image?: string;
-  /** Fallback text for surfaces that can't render the card. Defaults to caption. */
-  summary?: string;
   /**
    * When `false`, the bubble always shows the static caption card instead of
    * opening the live app on tap. Defaults to `true`.
    */
   interactive?: boolean;
+  size: BubbleSize;
+  /** Fallback text for surfaces that can't render the card. Defaults to caption. */
+  summary?: string;
 }
 
 /** Capabilities an app declares it needs; the shell gates on these. */
 export interface Capabilities {
-  send?: boolean;
   expand?: boolean;
-  receive?: boolean;
   /**
    * Hosts the app's `http` capability may call. The shell rejects any request to
    * a host not on this list, so a signed manifest bounds the app's reach — the
    * universal integration hatch without an open-ended egress.
    */
   httpHosts?: string[];
+  receive?: boolean;
+  send?: boolean;
 }
 
 /** The full declarative description of an app. */
 export interface AppManifest {
-  id: string;
-  title: string;
-  subtitle?: string;
-  symbol: SymbolName;
-  mode: ShipMode;
-  rendering: Rendering;
   bubble: BubblePresentation;
   capabilities: Capabilities;
+  id: string;
+  mode: ShipMode;
+  rendering: Rendering;
+  subtitle?: string;
+  symbol: SymbolName;
+  title: string;
 }
 
 /** What a client passes to `defineApp` — sensible defaults fill the rest. */
 export interface AppInput {
-  id: string;
-  title: string;
-  subtitle?: string;
-  symbol: SymbolName;
-  /** Defaults to `hosted`. */
-  mode?: ShipMode;
-  rendering: Rendering;
   /** Defaults to `{ size: "small" }`. */
   bubble?: Partial<BubblePresentation> & { size?: BubbleSize };
   capabilities?: Capabilities;
+  id: string;
+  /** Defaults to `hosted`. */
+  mode?: ShipMode;
+  rendering: Rendering;
+  subtitle?: string;
+  symbol: SymbolName;
+  title: string;
 }
 
 /**
@@ -116,41 +116,45 @@ export interface AppInput {
  * place a company declares how their app is discovered and rendered.
  */
 export function defineApp(input: AppInput): AppManifest {
-  if (!input.id) throw new Error("app: id is required");
-  if (input.rendering.kind === "web" && !input.rendering.url.startsWith("https://")) {
+  if (!input.id) {
+    throw new Error("app: id is required");
+  }
+  if (
+    input.rendering.kind === "web" &&
+    !input.rendering.url.startsWith("https://")
+  ) {
     throw new Error("app: web rendering requires an https url");
   }
 
   return {
-    id: input.id,
-    title: input.title,
-    subtitle: input.subtitle,
-    symbol: input.symbol,
-    mode: input.mode ?? "hosted",
-    rendering: input.rendering,
     bubble: {
-      size: input.bubble?.size ?? "small",
-      image: input.bubble?.image,
       caption: input.bubble?.caption,
+      image: input.bubble?.image,
+      imageSubtitle: input.bubble?.imageSubtitle,
+      imageTitle: input.bubble?.imageTitle,
+      interactive: input.bubble?.interactive ?? true,
+      size: input.bubble?.size ?? "small",
       subcaption: input.bubble?.subcaption,
+      summary: input.bubble?.summary,
       trailingCaption: input.bubble?.trailingCaption,
       trailingSubcaption: input.bubble?.trailingSubcaption,
-      imageTitle: input.bubble?.imageTitle,
-      imageSubtitle: input.bubble?.imageSubtitle,
-      summary: input.bubble?.summary,
-      interactive: input.bubble?.interactive ?? true,
     },
     capabilities: {
-      send: input.capabilities?.send ?? true,
       expand: input.capabilities?.expand ?? true,
       receive: input.capabilities?.receive ?? true,
+      send: input.capabilities?.send ?? true,
     },
+    id: input.id,
+    mode: input.mode ?? "hosted",
+    rendering: input.rendering,
+    subtitle: input.subtitle,
+    symbol: input.symbol,
+    title: input.title,
   };
 }
 
 /** A versioned registry document — the wire shape the shell fetches. */
 export interface Registry {
-  version: 1;
   apps: AppManifest[];
   /**
    * Named component templates a `use` component expands on device. Each is a
@@ -159,14 +163,15 @@ export interface Registry {
    * in the signed registry and reference it with `{ type: "use", template }`.
    */
   templates?: Record<string, ComponentTemplate>;
+  version: 1;
 }
 
 /** Assemble a registry document from manifests (for hosting as JSON). */
 export function defineRegistry(
   apps: AppManifest[],
-  templates?: Record<string, ComponentTemplate>,
+  templates?: Record<string, ComponentTemplate>
 ): Registry {
-  return templates ? { version: 1, apps, templates } : { version: 1, apps };
+  return templates ? { apps, templates, version: 1 } : { apps, version: 1 };
 }
 
 /**
@@ -176,7 +181,7 @@ export function defineRegistry(
  */
 export function expandTemplate(
   template: ComponentTemplate,
-  props: Record<string, string>,
+  props: Record<string, string>
 ): Component {
   const fill = (value: unknown): unknown => {
     if (typeof value === "string") {
@@ -191,7 +196,7 @@ export function expandTemplate(
     }
     if (value && typeof value === "object") {
       return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, fill(v)]),
+        Object.entries(value).map(([k, v]) => [k, fill(v)])
       );
     }
     return value;

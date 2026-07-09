@@ -8,7 +8,9 @@ console.log("Skyline terminal agent — type a message, Ctrl+C to exit.");
 console.log("Ready:", [...app.ready].join(", "));
 
 for await (const [channel, message] of app.incoming) {
-  if (message.isFromMe || message.content.type !== "text") continue;
+  if (message.isFromMe || message.content.type !== "text") {
+    continue;
+  }
 
   await channel.typing(true);
   await new Promise((r) => setTimeout(r, 400));

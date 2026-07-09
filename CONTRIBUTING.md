@@ -1,28 +1,26 @@
 # Contributing to Skyline
 
-Skyline is a production SDK. All changes land through pull requests — no direct commits to `main`.
+Skyline is a production SDK. Keep changes focused and run checks before pushing.
 
 ## Workflow
 
-1. **Branch** from `main`:
+1. Branch from `main` when you want an isolated change set:
    ```bash
    git checkout main && git pull
    git checkout -b feat/your-change
    ```
 
-2. **Develop** — keep changes focused. Run checks before opening a PR:
+2. Develop and verify:
    ```bash
    bun install
    bun run typecheck
+   bun run lint
    bun run build
-   bun run example:terminal   # smoke test
+   bun run example:terminal
+   bun run broker:check
    ```
 
-3. **Open a pull request** against `main`. Fill in the PR template.
-
-4. **Review** — at least one approval required before merge (self-review is fine for solo maintenance, but the PR gate stays enforced).
-
-5. **Merge** — squash merge preferred. Delete the branch after merge.
+3. Open a pull request or push to `main` — either is fine for solo maintenance.
 
 ## Versioning
 
@@ -37,8 +35,8 @@ Skyline follows [Semantic Versioning](https://semver.org/):
 ### Release process
 
 1. Update `CHANGELOG.md` under `[Unreleased]` with your changes.
-2. In your release PR, bump `version` in `package.json` to the target semver.
-3. After merge to `main`, tag the release:
+2. Bump `version` in `package.json` to the target semver.
+3. Tag the release:
    ```bash
    git checkout main && git pull
    git tag v0.1.1
@@ -64,12 +62,14 @@ Use [Keep a Changelog](https://keepachangelog.com/) sections:
 
 Move `[Unreleased]` entries to a versioned heading when releasing.
 
-## Branch rules
+## Code quality
 
-| Branch | Purpose | Direct push |
-| --- | --- | --- |
-| `main` | Production-ready code | **Blocked** — PR only |
-| `feat/*`, `fix/*`, `chore/*` | Development branches | Allowed |
+Skyline uses [Ultracite](https://www.ultracite.ai/) (Biome) for linting and formatting:
+
+```bash
+bun run lint    # check
+bun run format  # auto-fix
+```
 
 ## npm publish
 

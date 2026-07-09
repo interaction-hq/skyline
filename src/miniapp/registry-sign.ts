@@ -14,10 +14,10 @@ import type { Registry } from "./manifest";
 /** The signed document the shell fetches. */
 export interface SignedRegistry {
   keyId: string;
-  /** Base64 Ed25519 signature over `registry`'s UTF-8 bytes. */
-  signature: string;
   /** The registry document as an exact JSON string (the signed bytes). */
   registry: string;
+  /** Base64 Ed25519 signature over `registry`'s UTF-8 bytes. */
+  signature: string;
 }
 
 /**
@@ -43,7 +43,7 @@ export function signRegistry(
   const signature = edSign(null, Buffer.from(registryText, "utf8"), key);
   return {
     keyId: opts.keyId,
-    signature: signature.toString("base64"),
     registry: registryText,
+    signature: signature.toString("base64"),
   };
 }

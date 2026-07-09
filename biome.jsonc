@@ -1,0 +1,61 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core"],
+  "files": {
+    "includes": [
+      "src/**",
+      "scripts/**",
+      "examples/**/*.ts",
+      "!!examples/**/*.html",
+      "!!dist"
+    ]
+  },
+  "javascript": {
+    "globals": ["Bun"]
+  },
+  "linter": {
+    "rules": {
+      "correctness": {
+        "useImportExtensions": "off"
+      },
+      "style": {
+        "useConsistentMethodSignatures": "off",
+        "noParameterProperties": "off",
+        "useDestructuring": "off",
+        "noExportedImports": "off",
+        "useReadonlyClassProperties": "off",
+        "noNonNullAssertion": "off",
+        "useCollapsedIf": "off"
+      },
+      "suspicious": {
+        "useAwait": "off",
+        "noEmptyBlockStatements": "off",
+        "noUnnecessaryConditions": "off",
+        "noShadow": "off"
+      },
+      "performance": {
+        "useTopLevelRegex": "off",
+        "noNamespaceImport": "off",
+        "noBarrelFile": "off",
+        "noAwaitInLoops": "off"
+      },
+      "complexity": {
+        "noVoid": "off",
+        "noExcessiveCognitiveComplexity": "off",
+        "noForEach": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["examples/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnresolvedImports": "off"
+          }
+        }
+      }
+    }
+  ]
+}

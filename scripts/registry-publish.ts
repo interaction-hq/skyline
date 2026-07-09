@@ -20,21 +20,23 @@
 
 import { generateKeyPairSync } from "node:crypto";
 import { readFileSync } from "node:fs";
-import type { Registry } from "../src/miniapp/manifest";
-import { signRegistry } from "../src/miniapp/registry-sign";
+import type { Registry } from "../src/miniapp/manifest.ts";
+import { signRegistry } from "../src/miniapp/registry-sign.ts";
 
 function keygen(): void {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  const raw = publicKey.export({ type: "spki", format: "der" });
+  const raw = publicKey.export({ format: "der", type: "spki" });
   // The last 32 bytes of a DER SPKI Ed25519 key are the raw public key.
   const rawPublic = Buffer.from(raw.subarray(raw.length - 32));
-  const privatePem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const privatePem = privateKey
+    .export({ format: "pem", type: "pkcs8" })
+    .toString();
   process.stdout.write(
     JSON.stringify(
       {
-        publicKeyBase64: rawPublic.toString("base64"),
-        privateKeyPem: privatePem,
         note: "Pin publicKeyBase64 in RegistryVerifier; keep privateKeyPem secret.",
+        privateKeyPem: privatePem,
+        publicKeyBase64: rawPublic.toString("base64"),
       },
       null,
       2
@@ -61,7 +63,7 @@ switch (command) {
     break;
   case "sign": {
     const [path, keyId] = rest;
-    if (!path || !keyId) {
+    if (!(path && keyId)) {
       throw new Error("usage: sign <registry.json> <keyId>");
     }
     sign(path, keyId);

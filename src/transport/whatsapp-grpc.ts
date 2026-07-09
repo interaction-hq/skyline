@@ -9,8 +9,8 @@ const PACKAGE = "interactions.whatsapp.v1";
 /** A decoded inbound WhatsApp text message. */
 export interface WaInboundText {
   messageId: string;
-  text: string;
   senderId: string;
+  text: string;
 }
 
 /**
@@ -35,12 +35,12 @@ export class WhatsappGrpcClient {
       .map((f) => join(protoDir, f));
 
     const def = protoLoader.loadSync(protoFiles, {
+      defaults: true,
+      enums: String,
+      includeDirs: [protoDir],
       keepCase: true,
       longs: String,
-      enums: String,
-      defaults: true,
       oneofs: false,
-      includeDirs: [protoDir],
     });
     // biome-ignore lint/suspicious/noExplicitAny: dynamic proto package traversal.
     const loaded = grpc.loadPackageDefinition(def) as any;
@@ -77,16 +77,16 @@ export class WhatsappGrpcClient {
     replyTo?: string
   ): Promise<{ messageId: string }> {
     const request = {
-      recipient,
+      client_message_id: clientMessageId,
       content: [
         {
-          type: "TEXT_BLOCK_TYPE_NORMAL",
           text: [{ text }],
+          type: "TEXT_BLOCK_TYPE_NORMAL",
         },
       ],
-      reply_to: replyTo,
       enable_link_preview: true,
-      client_message_id: clientMessageId,
+      recipient,
+      reply_to: replyTo,
     };
     return new Promise((resolve, reject) => {
       this.service.SendTextMessage(
@@ -109,7 +109,7 @@ export class WhatsappGrpcClient {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       this.service.SendReaction(
-        { recipient, message_id: messageId, emoji },
+        { emoji, message_id: messageId, recipient },
         this.metadata(),
         { deadline: new Date(Date.now() + 15_000) },
         (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
@@ -140,8 +140,8 @@ export class WhatsappGrpcClient {
       handlers.onText(
         {
           messageId: changed.text?.message_id ?? "",
-          text,
           senderId: changed.recipient ?? "",
+          text,
         },
         toDate(changed.occurred_at) ?? new Date()
       );
@@ -161,7 +161,9 @@ function toDate(
   if (!ts || ts.seconds === undefined) {
     return null;
   }
-  return new Date(Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1e6));
+  return new Date(
+    Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1e6)
+  );
 }
 
 /** WhatsApp protos ship under ./proto/whatsapp; allow override via WA_PROTO_DIR. */
@@ -177,5 +179,7 @@ function resolveWaProtoDir(): string {
       return dir;
     }
   }
-  throw new Error("whatsapp proto dir not found — set WA_PROTO_DIR or ship ./proto/whatsapp");
+  throw new Error(
+    "whatsapp proto dir not found — set WA_PROTO_DIR or ship ./proto/whatsapp"
+  );
 }

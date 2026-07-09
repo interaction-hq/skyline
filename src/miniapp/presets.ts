@@ -19,34 +19,48 @@ export function paymentCard(input: {
   const provider = input.provider ?? "appleCash";
   const label = provider === "appleCash" ? "Pay with Apple Cash" : "Pay";
   return {
-    type: "box",
-    style: { background: "#F2F2F7", cornerRadius: 16, padding: 20 },
     component: {
-      type: "stack",
       axis: "vertical",
-      spacing: 8,
       components: [
-        { type: "text", text: formatAmount(input.amount, input.currency), style: "title", align: "center" },
-        ...(input.note ? [{ type: "text", text: input.note, style: "caption", align: "center" } as Component] : []),
-        { type: "spacer", height: 8 },
         {
-          type: "button",
-          label,
-          style: "primary",
+          align: "center",
+          style: "title",
+          text: formatAmount(input.amount, input.currency),
+          type: "text",
+        },
+        ...(input.note
+          ? [
+              {
+                align: "center",
+                style: "caption",
+                text: input.note,
+                type: "text",
+              } as Component,
+            ]
+          : []),
+        { height: 8, type: "spacer" },
+        {
           action: {
-            kind: "capability",
-            name: "pay",
             args: {
-              provider,
               amount: input.amount,
               currency: input.currency ?? "USD",
+              provider,
               ...(input.note ? { note: input.note } : {}),
               ...(input.url ? { url: input.url } : {}),
             },
+            kind: "capability",
+            name: "pay",
           },
+          label,
+          style: "primary",
+          type: "button",
         },
       ],
+      spacing: 8,
+      type: "stack",
     },
+    style: { background: "#F2F2F7", cornerRadius: 16, padding: 20 },
+    type: "box",
   };
 }
 
@@ -59,19 +73,34 @@ export function heroCard(input: {
   onTap?: string;
 }): Component {
   return {
-    type: "box",
-    style: { background: input.accent ?? "#0A84FF", cornerRadius: 16, padding: 16 },
-    onTap: input.onTap,
     component: {
-      type: "stack",
       axis: "vertical",
-      spacing: 4,
       components: [
-        ...(input.imageUrl ? [{ type: "image", url: input.imageUrl, height: 140 } as Component] : []),
-        { type: "text", text: input.title, style: "title", align: "leading" },
-        ...(input.subtitle ? [{ type: "text", text: input.subtitle, style: "caption", align: "leading" } as Component] : []),
+        ...(input.imageUrl
+          ? [{ height: 140, type: "image", url: input.imageUrl } as Component]
+          : []),
+        { align: "leading", style: "title", text: input.title, type: "text" },
+        ...(input.subtitle
+          ? [
+              {
+                align: "leading",
+                style: "caption",
+                text: input.subtitle,
+                type: "text",
+              } as Component,
+            ]
+          : []),
       ],
+      spacing: 4,
+      type: "stack",
     },
+    onTap: input.onTap,
+    style: {
+      background: input.accent ?? "#0A84FF",
+      cornerRadius: 16,
+      padding: 16,
+    },
+    type: "box",
   };
 }
 
@@ -82,8 +111,8 @@ function formatAmount(amount: string, currency?: string): string {
   }
   try {
     return new Intl.NumberFormat(undefined, {
-      style: "currency",
       currency: currency ?? "USD",
+      style: "currency",
     }).format(value);
   } catch {
     return `${amount} ${currency ?? "USD"}`;

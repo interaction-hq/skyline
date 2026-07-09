@@ -13,29 +13,29 @@ import type { BubbleSize } from "./manifest";
 export interface AppContext {
   /** Registry id of this app. */
   appId: string;
-  /** Display title as configured in the manifest. */
-  title: string;
   /** Always "imessage" today; reserved for future hosts. */
   platform: "imessage";
+  /** Display title as configured in the manifest. */
+  title: string;
 }
 
 /** A bubble the mini-app asks the shell to compose into the conversation. */
 export interface OutgoingMessage {
   /** Primary line shown on the bubble (top-left, bold). */
   caption: string;
-  /** Secondary line, below the caption. */
-  subcaption?: string;
-  /** Top-right caption. */
-  trailingCaption?: string;
-  /** Right, below the trailing caption. */
-  trailingSubcaption?: string;
-  /** Fallback text for notifications / lock screen. Defaults to the caption. */
-  summary?: string;
   /**
    * App data round-tripped in the bubble URL. The recipient's mini-app reads it
    * back via the `message` event. Values are strings (URL-query friendly).
    */
   data?: Record<string, string>;
+  /** Secondary line, below the caption. */
+  subcaption?: string;
+  /** Fallback text for notifications / lock screen. Defaults to the caption. */
+  summary?: string;
+  /** Top-right caption. */
+  trailingCaption?: string;
+  /** Right, below the trailing caption. */
+  trailingSubcaption?: string;
 }
 
 /**
@@ -62,14 +62,14 @@ export interface AppEvents {
 
 /** The native bridge shape injected as `window.interactions`. Internal. */
 interface NativeBridge {
+  _emit(name: string, detail: unknown): void;
+  close(): void;
   context: AppContext;
-  ready(): void;
   getContext(): AppContext;
+  ready(): void;
+  requestPresentation(style: PresentationStyle): void;
   sendMessage(message: OutgoingMessage): void;
   updateBubble(update: BubbleUpdate): void;
-  requestPresentation(style: PresentationStyle): void;
-  close(): void;
-  _emit(name: string, detail: unknown): void;
 }
 
 // This module targets the browser (it runs inside the shell's WebView), but the
@@ -77,8 +77,8 @@ interface NativeBridge {
 // the SDK's typecheck (which would mask Bun's `Request`/`Response` etc.), declare
 // the small browser surface this runtime actually uses.
 interface AppWindow {
-  interactions?: NativeBridge;
   addEventListener(type: string, listener: (event: AppEvent) => void): void;
+  interactions?: NativeBridge;
 }
 interface AppEvent {
   detail?: unknown;
@@ -106,8 +106,10 @@ class AppRuntime {
 
   /** The current app context (id, title, platform). */
   getContext(): AppContext {
-    if (this.bridge) return this.bridge.getContext();
-    return { appId: "dev", title: "Dev App", platform: "imessage" };
+    if (this.bridge) {
+      return this.bridge.getContext();
+    }
+    return { appId: "dev", platform: "imessage", title: "Dev App" };
   }
 
   /**
@@ -167,16 +169,23 @@ class AppRuntime {
   }
 
   private get bridge(): NativeBridge | undefined {
-    return typeof window !== "undefined" ? window.interactions : undefined;
+    return typeof window === "undefined" ? undefined : window.interactions;
   }
 
   private bindNativeEvents(): void {
-    const win = typeof window !== "undefined" ? window : undefined;
-    if (!win) return;
+    const win = typeof window === "undefined" ? undefined : window;
+    if (!win) {
+      return;
+    }
     const forward = <K extends keyof AppEvents>(name: K) => {
       win.addEventListener(`interactions:${name}`, (event) => {
         const detail = event.detail as AppEvents[K];
-        this.listeners.get(name)?.forEach((h) => h(detail));
+        const handlers = this.listeners.get(name);
+        if (handlers) {
+          for (const h of handlers) {
+            h(detail);
+          }
+        }
       });
     };
     forward("message");

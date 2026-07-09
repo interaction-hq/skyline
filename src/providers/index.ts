@@ -1,10 +1,21 @@
-export { imessage } from "./imessage";
 export type { DedicatedLine, ImessageConfig } from "./imessage";
-export { terminal } from "./terminal";
+export { imessage } from "./imessage";
 export type { TerminalConfig } from "./terminal";
-export { whatsapp, whatsappBusiness } from "./whatsapp";
+export { terminal } from "./terminal";
 export type {
-  WhatsappBusinessConfig,
+  WhatsappCloudConfig,
   WhatsappConfig,
+  WhatsappDedicatedConfig,
   WhatsappDedicatedLine,
 } from "./whatsapp";
+export { whatsapp, whatsappDedicatedLines } from "./whatsapp";
+export type {
+  WhatsappBusinessCloudConfig,
+  WhatsappBusinessConfig,
+  WhatsappBusinessDedicatedConfig,
+  WhatsappBusinessLine,
+} from "./whatsapp-business";
+export {
+  whatsappBusiness,
+  whatsappBusinessDedicatedLines,
+} from "./whatsapp-business";

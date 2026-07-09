@@ -17,15 +17,15 @@ const channel = skyline.channel("+15551234567");
 await channel.send(
   app({
     appId: "lunch-poll",
-    url: "https://apps.interactions.co.in/lunch-poll?session=abc123",
     caption: "lunch friday?",
-    subcaption: "tap to vote",
-    trailingCaption: "poll",
-    image: "https://apps.interactions.co.in/lunch-poll/card.png",
-    imageTitle: "Quick Poll",
-    imageSubtitle: "3 options",
-    summary: "Vote on lunch",
     data: { session: "abc123" },
+    image: "https://apps.interactions.co.in/lunch-poll/card.png",
+    imageSubtitle: "3 options",
+    imageTitle: "Quick Poll",
+    subcaption: "tap to vote",
+    summary: "Vote on lunch",
+    trailingCaption: "poll",
+    url: "https://apps.interactions.co.in/lunch-poll?session=abc123",
   })
 );
 
@@ -33,12 +33,12 @@ await channel.send(
 // a "Get the app" affordance from the App Store id.
 await channel.send(
   app({
-    url: "https://acme.example.com/checkout?order=42",
-    teamId: "A1B2C3D4E5",
+    appStoreId: 1_234_567_890,
     bundleId: "com.acme.app.MessageExtension",
-    appStoreId: 1234567890,
     caption: "Your order is ready",
     subcaption: "Tap to check out",
+    teamId: "A1B2C3D4E5",
+    url: "https://acme.example.com/checkout?order=42",
   })
 );
 

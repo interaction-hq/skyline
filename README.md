@@ -1,84 +1,57 @@
 # @interactions-hq/skyline
 
-The unified messaging SDK. One project, one credential pair, every platform —
-iMessage behind a single API. Open a `channel`, `send`/`react`/`reply`/`typing`
-on it, and read a merged `incoming` feed plus `on(...)` signals.
+Unified messaging SDK for TypeScript. One project, one credential pair, every interface your users already use.
 
-- **Documentation:** [docs.interactions.co.in](https://docs.interactions.co.in)
-- **Repository:** [github.com/interactions-hq/skyline](https://github.com/interactions-hq/skyline)
+- **Docs:** [docs.interactions.co.in](https://docs.interactions.co.in)
+- **Repo:** [github.com/interactions-hq/skyline](https://github.com/interactions-hq/skyline)
 
 ## Install
 
 ```bash
 npm install @interactions-hq/skyline
-# or: bun add @interactions-hq/skyline
 ```
 
-## Quick start (terminal — no credentials)
+## Quick start
 
 ```ts
-import { Skyline, terminal } from "@interactions-hq/skyline";
-
-const app = await Skyline({
-  providers: [terminal.config({ prompt: "you> " })],
-});
-
-for await (const [channel, message] of app.incoming) {
-  if (message.content.type !== "text") continue;
-  await channel.send(`echo: ${message.content.text}`);
-}
-```
-
-```bash
-bun run examples/terminal-agent.ts
-```
-
-## Quick start (iMessage cloud)
-
-```ts
-import { Skyline, imessage } from "@interactions-hq/skyline";
+import { Skyline } from "@interactions-hq/skyline";
+import { imessage, terminal } from "@interactions-hq/skyline/providers";
 
 const app = await Skyline({
   projectId: process.env.SKYLINE_PROJECT_ID,
   projectSecret: process.env.SKYLINE_PROJECT_SECRET,
-  baseUrl: process.env.SKYLINE_BASE_URL, // optional
-  providers: [imessage.config()],
+  providers: [imessage.config(), terminal.config()],
 });
 
-const channel = app.channel("+15551234567");
-await channel.send("hi");
-
-for await (const [channel, msg] of app.incoming) {
-  if (msg.isFromMe || msg.content.type !== "text") continue;
-  await channel.send(`you said: ${msg.content.text}`);
+for await (const [space, message] of app.messages) {
+  if (message.content.type !== "text") continue;
+  await space.send(`Got it on ${message.platform}.`);
 }
 ```
 
-## Environment variables
+## Package layout
 
-| Variable | Description |
+| Import | Purpose |
 | --- | --- |
-| `SKYLINE_PROJECT_ID` | Project UUID |
-| `SKYLINE_PROJECT_SECRET` | Project secret (`sk_…`) |
-| `SKYLINE_BASE_URL` | Control-plane URL (default `https://api.interactions.co.in`) |
+| `@interactions-hq/skyline` | Runtime — `Skyline()`, types, content builders, webhooks |
+| `@interactions-hq/skyline/providers` | All built-in providers |
+| `@interactions-hq/skyline/providers/imessage` | iMessage only |
+| `@interactions-hq/skyline/providers/whatsapp-business` | WhatsApp Business only |
+| `@interactions-hq/skyline/providers/terminal` | Terminal only |
+| `@interactions-hq/skyline/authoring` | Mini-app authoring (`defineApp`, `defineFlow`) |
+| `@interactions-hq/skyline/content` | Content builders only |
+| `@interactions-hq/skyline/webhooks` | Webhook verify + parse |
 
-## Providers
-
-```ts
-import { imessage, terminal } from "@interactions-hq/skyline";
-// or: import { imessage, terminal } from "@interactions-hq/skyline/providers";
-```
-
-- **iMessage** — cloud (broker-resolved) or dedicated (self-hosted gRPC lines)
-- **Terminal** — local stdin/stdout for development and demos
+Cloud mode uses `https://api.interactions.co.in` — pass `projectId` + `projectSecret` only.
 
 ## Development
 
 ```bash
-bun run build          # compile to dist/
+bun install
+bun run lint
 bun run typecheck
+bun run build
 bun run example:terminal
-bun run check          # broker client self-check
 ```
 
 ## License

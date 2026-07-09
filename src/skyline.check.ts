@@ -4,7 +4,7 @@
  * creds correctly, surfaces broker errors, and schedules refresh at ~80% TTL.
  * Run: `bun run src/skyline.check.ts`.
  */
-import { strict as assert } from "node:assert";
+import { strict as assert } from "node:assert/strict";
 import { Broker, BrokerError } from "./broker";
 
 interface CapturedRequest {
@@ -12,29 +12,32 @@ interface CapturedRequest {
   path: string;
 }
 const requests: CapturedRequest[] = [];
-const lastRequest = (): CapturedRequest | undefined => requests[requests.length - 1];
+const lastRequest = (): CapturedRequest | undefined => requests.at(-1);
 let mode: "ok" | "denied" = "ok";
 
 const server = Bun.serve({
-  port: 0,
   async fetch(req) {
     const url = new URL(req.url);
     requests.push({ body: await req.json(), path: url.pathname });
     if (mode === "denied") {
       return Response.json(
-        { succeed: false, error: { code: "PLATFORM_NOT_ENABLED", message: "no" } },
+        {
+          error: { code: "PLATFORM_NOT_ENABLED", message: "no" },
+          succeed: false,
+        },
         { status: 403 }
       );
     }
     return Response.json({
-      succeed: true,
       data: {
+        endpoints: [{ address: "100.1.2.3:50051", phone: "+15551230000" }],
         token: "rt.signed.jwt",
         ttl: 600,
-        endpoints: [{ address: "100.1.2.3:50051", phone: "+15551230000" }],
       },
+      succeed: true,
     });
   },
+  port: 0,
 });
 
 const baseUrl = `http://127.0.0.1:${server.port}`;
@@ -55,9 +58,9 @@ const broker = new Broker({ baseUrl });
   assert.equal(out.lines[0].token, "rt.signed.jwt");
   // The request carried exactly the broker contract.
   assert.deepEqual(lastRequest()?.body, {
+    platform: "imessage",
     projectId: "proj_x",
     projectSecret: "sk_y",
-    platform: "imessage",
     space: "iMessage;-;+15551230000",
   });
   assert.equal(lastRequest()?.path, "/v1/auth/token");
