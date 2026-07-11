@@ -60,7 +60,7 @@ export interface AppEvents {
   presentation: { style: PresentationStyle };
 }
 
-/** The native bridge shape injected as `window.interactions`. Internal. */
+/** The native bridge shape injected as `window.interactions`. */
 interface NativeBridge {
   _emit(name: string, detail: unknown): void;
   close(): void;

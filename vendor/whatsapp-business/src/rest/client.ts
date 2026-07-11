@@ -1,12 +1,9 @@
-// WhatsApp Business transport — direct HTTPS to the Meta Graph Cloud API.
+// WhatsApp Business — HTTPS client for the Meta Graph Cloud API.
 //
-// Unlike iMessage and WhatsApp-personal (which stream over gRPC to a mini), a
-// business number is a cloud-hosted line: sends are `POST /{v}/{phoneNumberId}/
-// messages` against `graph.facebook.com`, authorized by a bearer access token.
-// Inbound is not a stream — it arrives out-of-band via the webhook ingress and
-// is fanned out as public events. So this client is send-only: the full Cloud
-// API message catalog (text, media, reactions, templates, interactive, location,
-// contacts, stickers, flows), plus typing/read acknowledgements.
+// Sends go to `POST /{v}/{phoneNumberId}/messages` on `graph.facebook.com`
+// with a bearer access token. Inbound arrives via webhook and is fanned out
+// separately. This client is send-oriented: text, media, reactions, templates,
+// interactive, location, contacts, stickers, flows, plus typing/read acks.
 
 const GRAPH_BASE = "https://graph.facebook.com";
 const DEFAULT_API_VERSION = "v23.0";

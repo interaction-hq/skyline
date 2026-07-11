@@ -2,7 +2,7 @@
   "name": "@interactions-hq/slack",
   "version": "0.1.0",
   "private": true,
-  "description": "Internal Slack wire client for Skyline. Not a public API.",
+  "description": "TypeScript SDK for Slack via Skyline",
   "type": "module",
   "exports": {
     ".": {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync sibling wire clients into ./vendor for a self-contained npm pack.
+# Sync sibling platform clients into ./vendor for a self-contained npm pack.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PARENT="$(cd "$ROOT/.." && pwd)"
@@ -7,7 +7,7 @@ DEST="$ROOT/vendor"
 
 if [[ ! -d "$PARENT/slack-ts" || ! -d "$PARENT/imessage-ts" || ! -d "$PARENT/whatsapp-personal-ts" || ! -d "$PARENT/whatsapp-business-ts" ]]; then
   if [[ -d "$DEST/slack" && -d "$DEST/imessage" && -d "$DEST/whatsapp" && -d "$DEST/whatsapp-business" ]]; then
-    echo "sibling wire packages missing — keeping existing vendor/"
+    echo "sibling packages missing — keeping existing vendor/"
     exit 0
   fi
   echo "vendor sync failed: sibling packages not found and vendor/ incomplete" >&2
@@ -40,13 +40,44 @@ cp "$PARENT/whatsapp-business-ts/package.json" "$DEST/whatsapp-business/"
 cp "$PARENT/whatsapp-business-ts/src/skyline.ts" "$DEST/whatsapp-business/src/"
 cp "$PARENT/whatsapp-business-ts/src/rest/client.ts" "$DEST/whatsapp-business/src/rest/"
 
-# Slim WABA package to the Graph send client only.
+cat > "$DEST/whatsapp-business/README.md" <<'EOF'
+# @interactions-hq/whatsapp-business
+
+TypeScript SDK for the WhatsApp Business API, via [Skyline](https://github.com/interactions-hq/skyline).
+
+Send text, media, templates, interactive messages, reactions, and typing / read
+acknowledgements over the Meta Cloud API.
+
+## Install
+
+```sh
+bun add @interactions-hq/whatsapp-business
+```
+
+## Quick start
+
+```ts
+import { WhatsappBusinessClient } from "@interactions-hq/whatsapp-business";
+
+const client = new WhatsappBusinessClient({
+  accessToken: process.env.WA_ACCESS_TOKEN!,
+  phoneNumberId: process.env.WA_PHONE_NUMBER_ID!,
+});
+
+await client.sendText("+15551234567", "hello from Skyline");
+```
+
+## Documentation
+
+See the [Skyline docs](https://docs.interactions.co.in/skyline/providers/whatsapp-business/setup).
+EOF
+
 DEST="$DEST" node <<'NODE'
 const fs = require("node:fs");
 const dest = process.env.DEST;
 const pkgPath = `${dest}/whatsapp-business/package.json`;
 const p = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-p.description = "Internal WhatsApp Business client for Skyline. Not a public API.";
+p.description = "TypeScript SDK for the WhatsApp Business API";
 p.files = ["src/skyline.ts", "src/rest", "README.md"];
 p.exports = {
   ".": {
@@ -60,15 +91,6 @@ delete p.scripts;
 delete p.devDependencies;
 delete p.dependencies;
 fs.writeFileSync(pkgPath, `${JSON.stringify(p, null, 2)}\n`);
-for (const name of ["slack", "imessage", "whatsapp", "whatsapp-business"]) {
-  const readme = `${dest}/${name}/README.md`;
-  if (!fs.existsSync(readme)) {
-    fs.writeFileSync(
-      readme,
-      `# @interactions-hq/${name}\n\nInternal wire client for Skyline. Not a public API.\n`
-    );
-  }
-}
 NODE
 
 find "$DEST" -name '._*' -delete 2>/dev/null || true

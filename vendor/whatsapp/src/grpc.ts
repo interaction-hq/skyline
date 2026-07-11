@@ -14,10 +14,9 @@ export interface WaInboundText {
 }
 
 /**
- * Thin gRPC client for one WhatsApp personal line (the per-mini WhatsApp server,
- * `interactions.whatsapp.v1`). Mirrors the iMessage client: insecure channel
- * (Tailscale secures transport), Bearer runtime token + `x-project-id` metadata.
- * Recipients are WhatsApp JIDs / E.164 numbers.
+ * gRPC client for one WhatsApp personal line (`interactions.whatsapp.v1`).
+ * Insecure channel (Tailscale secures transport); Bearer runtime token plus
+ * `x-project-id` metadata. Recipients are WhatsApp JIDs / E.164 numbers.
  */
 export class WhatsappGrpcClient {
   private readonly client: grpc.Client;

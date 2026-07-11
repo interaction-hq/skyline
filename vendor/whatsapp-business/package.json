@@ -2,7 +2,7 @@
   "name": "@interactions-hq/whatsapp-business",
   "version": "0.1.1",
   "private": true,
-  "description": "Internal WhatsApp Business client for Skyline. Not a public API.",
+  "description": "TypeScript SDK for the WhatsApp Business API",
   "type": "module",
   "exports": {
     ".": {
