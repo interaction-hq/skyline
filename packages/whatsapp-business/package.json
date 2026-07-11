@@ -12,12 +12,5 @@
       "default": "./src/skyline.ts"
     }
   },
-  "files": [
-    "src/skyline.ts",
-    "src/rest",
-    "README.md"
-  ],
-  "engines": {
-    "node": ">=18"
-  }
+  "files": ["src/skyline.ts", "src/rest", "README.md"]
 }

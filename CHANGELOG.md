@@ -10,7 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ### Changed
 
-- Platform clients ship as `@interactions-hq/imessage`, `@interactions-hq/slack`, `@interactions-hq/whatsapp`, and `@interactions-hq/whatsapp-business`, bundled with the SDK.
+- Platform clients live in `packages/` (`@interactions-hq/imessage`, `@interactions-hq/slack`, `@interactions-hq/whatsapp`, `@interactions-hq/whatsapp-business`) and ship bundled with the SDK.
 - Package exports stay on providers, content, webhooks, and miniapp.
 - Provider setup docs use “project credentials” vs “pass your own credentials”.
 

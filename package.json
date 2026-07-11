@@ -2,10 +2,10 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.12.0",
     "@grpc/proto-loader": "^0.7.13",
-    "@interactions-hq/imessage": "file:./vendor/imessage",
-    "@interactions-hq/slack": "file:./vendor/slack",
-    "@interactions-hq/whatsapp": "file:./vendor/whatsapp",
-    "@interactions-hq/whatsapp-business": "file:./vendor/whatsapp-business"
+    "@interactions-hq/imessage": "file:./packages/imessage",
+    "@interactions-hq/slack": "file:./packages/slack",
+    "@interactions-hq/whatsapp": "file:./packages/whatsapp",
+    "@interactions-hq/whatsapp-business": "file:./packages/whatsapp-business"
   },
   "bundleDependencies": [
     "@interactions-hq/imessage",
@@ -80,10 +80,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "sync:vendor": "bash scripts/sync-vendor.sh",
     "build": "tsc -p tsconfig.build.json",
-    "prepack": "bun run sync:vendor && bun run build",
-    "prepublishOnly": "bun run sync:vendor && bun run build",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "ultracite check",
     "format": "ultracite fix",
