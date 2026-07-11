@@ -51,7 +51,7 @@ export function slackGrpcTarget(endpoint?: string): string {
   const raw =
     endpoint?.trim() ||
     process.env.SKYLINE_SLACK_ENDPOINT?.trim() ||
-    "slack-grpc.skyline.interactions.co.in:443";
+    "slack-grpc.skyline.interactions.co.in:50051";
   return raw.replace(/^https?:\/\//, "");
 }
 
