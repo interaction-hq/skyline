@@ -1,8 +1,18 @@
 {
   "dependencies": {
     "@grpc/grpc-js": "^1.12.0",
-    "@grpc/proto-loader": "^0.7.13"
+    "@grpc/proto-loader": "^0.7.13",
+    "@interactions-hq/imessage": "file:./vendor/imessage",
+    "@interactions-hq/slack": "file:./vendor/slack",
+    "@interactions-hq/whatsapp": "file:./vendor/whatsapp",
+    "@interactions-hq/whatsapp-business": "file:./vendor/whatsapp-business"
   },
+  "bundleDependencies": [
+    "@interactions-hq/imessage",
+    "@interactions-hq/slack",
+    "@interactions-hq/whatsapp",
+    "@interactions-hq/whatsapp-business"
+  ],
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
     "@types/bun": "latest",
@@ -11,8 +21,8 @@
     "ultracite": "7.9.3"
   },
   "name": "skyline-ts",
-  "version": "0.1.2",
-  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, Slack, Discord, and more through one API.",
+  "version": "0.1.3",
+  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, Slack, and more through one API.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -66,18 +76,19 @@
   },
   "files": [
     "dist",
-    "proto",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "sync:vendor": "bash scripts/sync-vendor.sh",
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "bun run build",
+    "prepack": "bun run sync:vendor && bun run build",
+    "prepublishOnly": "bun run sync:vendor && bun run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "ultracite check",
     "format": "ultracite fix",
     "broker:check": "bun run src/skyline.check.ts",
-    "release": "bun run lint && bun run build && npm publish --access public",
+    "release": "bun run lint && bun run prepublishOnly && npm publish --access public",
     "example:terminal": "bun run examples/terminal-agent.ts",
     "example:cloud": "bun run examples/cloud-agent.ts",
     "example:multi": "bun run examples/multi-platform-agent.ts",
@@ -99,7 +110,6 @@
     "imessage",
     "whatsapp",
     "slack",
-    "discord",
     "typescript",
     "chatbot",
     "webhooks",

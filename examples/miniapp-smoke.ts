@@ -11,7 +11,7 @@ import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
-} from "../src/transport/imessage-grpc.ts";
+} from "@interactions-hq/imessage";
 
 const target = grpcTarget(process.env.MINI ?? "100.120.138.80:50051");
 const to = process.env.TO ?? "+918527438574";

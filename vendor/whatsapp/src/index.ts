@@ -1,0 +1,1 @@
+export { WhatsappGrpcClient } from "./grpc";

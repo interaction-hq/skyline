@@ -15,15 +15,6 @@ interface TokenResponse {
         accessToken: string;
         apiVersion?: string;
       };
-      discord?: {
-        applicationId?: string;
-        botToken: string;
-        guildId?: string;
-        guild?: {
-          applicationId: string;
-          guildName?: string;
-        };
-      };
       slack?: {
         appToken?: string;
         botToken?: string;
@@ -62,8 +53,8 @@ export interface BrokerOptions {
  * Exchange long-lived project creds for a short-lived runtime token + the
  * resolved data-plane endpoints. The broker is never in the message hot path:
  * after this call, the SDK talks directly to each provider's data plane
- * (gRPC for iMessage / personal WhatsApp; HTTPS for Slack, Discord, and
- * WhatsApp Business).
+ * (gRPC for iMessage / personal WhatsApp; hosted Slack gateway or Web API;
+ * Meta Graph for WhatsApp Business).
  */
 export class Broker {
   private readonly baseUrl: string;
@@ -108,7 +99,6 @@ export class Broker {
     const lines: ResolvedLine[] = endpoints.map((e) => ({
       address: e.address,
       business: e.business,
-      discord: e.discord,
       phone: e.phone ?? "",
       slack: e.slack,
       token,

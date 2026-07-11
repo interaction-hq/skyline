@@ -7,7 +7,6 @@
 import type { AttachmentSend, Content, Reaction, SendOptions } from "./content";
 
 export type Platform =
-  | "discord"
   | "imessage"
   | "slack"
   | "whatsapp"
@@ -96,16 +95,8 @@ export interface SlackMessageMeta {
   ts?: string;
 }
 
-/** Discord-specific fields surfaced on inbound `message.platform === "discord"`. */
-export interface DiscordMessageMeta {
-  applicationId?: string;
-  guildId?: string;
-  messageId?: string;
-}
-
 export interface Message {
   content: MessageContent;
-  discord?: DiscordMessageMeta;
   /** Set for group conversations; identifies the group and the submitting member. */
   group?: GroupContext;
   /** The message's own guid, when the platform assigns one (iMessage does). */
@@ -318,8 +309,6 @@ export interface SkylineApp {
 
 /** How to address a channel: a bare handle or an explicit target. */
 export interface ChannelTarget {
-  /** Discord guild snowflake — selects the bot installation in multi-app setups. */
-  guildId?: string;
   /** Which platform/line to route through. Defaults to the first ready line. */
   platform?: Platform;
   /** Slack workspace team id — required when multiple workspaces are configured. */
@@ -340,22 +329,12 @@ export interface ResolvedLine {
     accessToken: string;
     apiVersion?: string;
   };
-  discord?: {
-    applicationId?: string;
-    botToken: string;
-    endpoint?: string;
-    guild?: {
-      applicationId: string;
-      guildName?: string;
-    };
-    guildId?: string;
-  };
   phone: string;
   slack?: {
-    /** Runtime JWT for the hosted Slack gateway (cloud / dedicated gRPC). */
+    /** Runtime JWT for the hosted Slack gateway. */
     accessToken?: string;
     appToken?: string;
-    /** Bot token for direct Slack Web API (local dedicated only). */
+    /** Bot token for direct Slack Web API (bring-your-own credentials). */
     botToken?: string;
     endpoint?: string;
     signingSecret?: string;

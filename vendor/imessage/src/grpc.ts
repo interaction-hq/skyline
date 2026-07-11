@@ -3,7 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
-import type { Flow } from "../miniapp/experience";
+
+/** Opaque flow screen-graph payload — authored in the Skyline SDK. */
+export type FlowSpec = Record<string, unknown>;
 
 const PACKAGE = "interactions.imessage.v1";
 
@@ -99,7 +101,7 @@ export interface FlowCardWire {
   /** Opening screen id (defaults to the flow's start). */
   screen?: string;
   /** Inline screen graph the shell interprets directly. */
-  spec?: Flow;
+  spec?: FlowSpec;
   /** Seed state the opened flow resumes from. */
   state?: Record<string, string>;
   subcaption?: string;
@@ -985,7 +987,7 @@ function resolveProtoDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.PROTO_DIR,
-    join(here, "..", "..", "proto"),
+    join(here, "..", "proto"),
     join(process.cwd(), "proto"),
   ].filter((p): p is string => Boolean(p));
   for (const dir of candidates) {

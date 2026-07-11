@@ -96,7 +96,7 @@ export class SlackClient {
     form.append("channels", channelId);
     form.append(
       "file",
-      new Blob([file.data], {
+      new Blob([Uint8Array.from(file.data)], {
         type: file.mimeType ?? "application/octet-stream",
       }),
       file.name

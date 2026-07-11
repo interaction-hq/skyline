@@ -30,7 +30,7 @@ Cloud mode talks to the Interactions platform at `https://api.interactions.co.in
 ## Why Skyline
 
 - **One agent loop** — `app.messages` merges inbound traffic from every enabled provider
-- **One credential pair** — `projectId` + `projectSecret` in cloud mode; dedicated endpoints when you self-host
+- **One credential pair** — `projectId` + `projectSecret` for hosted lines; pass your own endpoints when you self-host
 - **Native features when you need them** — send, reply, react, edit, unsend, typing, read receipts, attachments, mini-app cards
 - **Ship locally first** — the terminal provider needs zero credentials
 - **Webhook-native** — verify and parse signed deliveries from `skyline-ts/webhooks`
@@ -40,12 +40,11 @@ Cloud mode talks to the Interactions platform at `https://api.interactions.co.in
 
 | Interface | Connection | Notes |
 | --- | --- | --- |
-| **iMessage** | Cloud broker or dedicated endpoint | Production — typing, reactions, replies, attachments, mini-apps |
-| **WhatsApp Business** | Meta Cloud API via broker | Templates, media, interactive messages, webhooks |
-| **Slack** | Cloud broker or dedicated tokens | Multi-workspace, threads, reactions, edits, Socket Mode inbound |
-| **Discord** | Cloud broker or dedicated tokens | Guild/DM bots, replies, reactions, edits, typing, Gateway inbound |
+| **iMessage** | Project credentials or your own endpoint | Production — typing, reactions, replies, attachments, mini-apps |
+| **WhatsApp Business** | Meta Cloud API via project credentials | Templates, media, interactive messages, webhooks |
+| **Slack** | Project credentials or your own tokens | Multi-workspace, threads, reactions, edits, Socket Mode inbound |
 | **Terminal** | Local stdin/stdout | Credential-free dev, demos, and CI smoke tests |
-| **Personal WhatsApp** | Dedicated endpoint | Self-hosted lines alongside iMessage |
+| **Personal WhatsApp** | Your own endpoint | Self-hosted lines alongside iMessage |
 
 ## Install
 

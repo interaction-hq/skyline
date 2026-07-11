@@ -7,6 +7,10 @@
       "dependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
+        "@interactions-hq/imessage": "file:./vendor/imessage",
+        "@interactions-hq/slack": "file:./vendor/slack",
+        "@interactions-hq/whatsapp": "file:./vendor/whatsapp",
+        "@interactions-hq/whatsapp-business": "file:./vendor/whatsapp-business",
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.2",
@@ -67,6 +71,14 @@
     "@humanwhocodes/module-importer": ["@humanwhocodes/module-importer@1.0.1", "", {}, "sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA=="],
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
+
+    "@interactions-hq/imessage": ["@interactions-hq/imessage@file:vendor/imessage", { "dependencies": { "@grpc/grpc-js": "^1.12.0", "@grpc/proto-loader": "^0.7.13" }, "devDependencies": { "@types/bun": "latest", "typescript": "^5.8.3" } }],
+
+    "@interactions-hq/slack": ["@interactions-hq/slack@file:vendor/slack", { "dependencies": { "@grpc/grpc-js": "^1.12.0", "@grpc/proto-loader": "^0.7.13" }, "devDependencies": { "@types/bun": "latest", "typescript": "^5.8.3" } }],
+
+    "@interactions-hq/whatsapp": ["@interactions-hq/whatsapp@file:vendor/whatsapp", { "dependencies": { "@grpc/grpc-js": "^1.12.0", "@grpc/proto-loader": "^0.7.13" }, "devDependencies": { "@types/bun": "latest", "typescript": "^5.8.3" } }],
+
+    "@interactions-hq/whatsapp-business": ["@interactions-hq/whatsapp-business@file:vendor/whatsapp-business", {}],
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 

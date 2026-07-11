@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-12
+
+### Changed
+
+- Wire clients moved out of the public package surface into bundled internal packages (`@interactions-hq/imessage`, `@interactions-hq/slack`, `@interactions-hq/whatsapp`, `@interactions-hq/whatsapp-business`).
+- Public exports stay providers / content / webhooks / miniapp only — no transport subpath.
+- Provider setup docs use “project credentials” vs “pass your own credentials”.
+
 ## [0.1.2] - 2026-07-10
 
 ### Changed
@@ -35,7 +43,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.1.2...main
+[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.1.3...main
+[0.1.3]: https://github.com/interactions-hq/skyline/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/interactions-hq/skyline/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/interactions-hq/skyline/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/interactions-hq/skyline/releases/tag/v0.1.0

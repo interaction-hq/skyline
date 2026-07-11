@@ -1,0 +1,23 @@
+{
+  "name": "@interactions-hq/whatsapp-business",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Internal WhatsApp Business client for Skyline. Not a public API.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/skyline.ts",
+      "bun": "./src/skyline.ts",
+      "import": "./src/skyline.ts",
+      "default": "./src/skyline.ts"
+    }
+  },
+  "files": [
+    "src/skyline.ts",
+    "src/rest",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

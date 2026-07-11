@@ -24,27 +24,28 @@ import {
 import { dedicatedLines, type ImessageConfig } from "./providers/imessage";
 import type { SlackConfig } from "./providers/slack";
 import type { TerminalConfig } from "./providers/terminal";
-import { connectDiscordGateway } from "./transport/discord-gateway";
-import { DiscordClient } from "./transport/discord-rest";
 import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
   type InboundGroup,
   type SendWireOptions,
-} from "./transport/imessage-grpc";
-import { SlackGrpcClient, slackGrpcTarget } from "./transport/slack-grpc";
-import { SlackClient } from "./transport/slack-rest";
-import { connectSlackSocket } from "./transport/slack-socket";
+} from "@interactions-hq/imessage";
 import {
-  startTerminalSession,
-  type TerminalSession,
-} from "./transport/terminal";
+  SlackClient,
+  SlackGrpcClient,
+  connectSlackSocket,
+  slackGrpcTarget,
+} from "@interactions-hq/slack";
+import { WhatsappGrpcClient } from "@interactions-hq/whatsapp";
 import {
   type WaSendResult,
   WhatsappBusinessClient,
-} from "./transport/whatsapp-business-rest";
-import { WhatsappGrpcClient } from "./transport/whatsapp-grpc";
+} from "@interactions-hq/whatsapp-business";
+import {
+  startTerminalSession,
+  type TerminalSession,
+} from "./providers/terminal/session";
 import type {
   Channel,
   ChannelTarget,
@@ -158,9 +159,6 @@ function createEmitter() {
 }
 
 interface LiveLine {
-  discord?: DiscordClient;
-  discordApplicationId?: string;
-  discordGuildId?: string;
   grpc?: ImessageGrpcClient;
   platform: Platform;
   slack?: SlackClient | SlackGrpcClient;
@@ -256,13 +254,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     return line.slack;
   };
 
-  const discordFor = (guildId?: string): DiscordClient => {
-    const line = lineForPlatform("discord", guildId);
-    if (!line.discord) {
-      throw new Error("discord client not ready");
-    }
-    return line.discord;
-  };
 
   const wireOpts = (sendOpts?: SendOptions): SendWireOptions => ({
     effectId: resolveEffect(sendOpts?.effect),
@@ -324,7 +315,7 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
             caption: content.caption,
             image: content.image,
             screen: content.screen,
-            spec: content.flow,
+            spec: content.flow as Record<string, unknown> | undefined,
             state,
             subcaption: content.subcaption,
             summary: content.summary,
@@ -681,69 +672,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     },
   });
 
-  const makeDiscordChannel = (to: string, guildId?: string): Channel => ({
-    contact: async () => null,
-    edit: async (messageGuid, newText) => {
-      await discordFor(guildId).editText(to, messageGuid, newText);
-    },
-    group: {
-      add: () => unsupported("discord", "group.add"),
-      participants: async () => unsupported("discord", "group.participants"),
-      remove: () => unsupported("discord", "group.remove"),
-      setName: () => unsupported("discord", "group.setName"),
-    },
-    get phone() {
-      return to;
-    },
-    platform: "discord",
-    reachable: async () => true,
-    react: async (messageGuid, reaction: Reaction, reactOpts) => {
-      const client = discordFor(guildId);
-      if (reactOpts?.remove) {
-        await client.removeReaction(to, messageGuid, reaction);
-      } else {
-        await client.addReaction(to, messageGuid, reaction);
-      }
-    },
-    read: async () => {},
-    readReceipt: async () => {},
-    reply: (messageGuid, content, sendOpts) =>
-      makeDiscordChannel(to, guildId).send(content, {
-        ...sendOpts,
-        replyTo: messageGuid,
-      }),
-    send: async (content, sendOpts) => {
-      const parsed = toContent(content);
-      if (parsed.type !== "text") {
-        unsupported("discord", `sending ${parsed.type} content`);
-      }
-      const res = await discordFor(guildId).sendText(to, parsed.text, {
-        replyTo: sendOpts?.replyTo,
-      });
-      return { guid: res.messageId, sentAt: new Date() };
-    },
-    sendFile: async (file, sendOpts) => {
-      const bytes = await readAttachmentBytes(file);
-      const res = await discordFor(guildId).uploadFile(
-        to,
-        {
-          data: bytes,
-          name: file.name ?? "attachment",
-        },
-        { replyTo: sendOpts?.replyTo }
-      );
-      return { guid: res.messageId, sentAt: new Date() };
-    },
-    to,
-    typing: async (on = true) => {
-      if (on) {
-        await discordFor(guildId).typing(to);
-      }
-    },
-    unsend: async (messageGuid) => {
-      await discordFor(guildId).deleteMessage(to, messageGuid);
-    },
-  });
 
   const makeTerminalChannel = (to: string): Channel => {
     const line = lineFor(to);
@@ -819,9 +747,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     }
     if (platform === "slack") {
       return makeSlackChannel(to);
-    }
-    if (platform === "discord") {
-      return makeDiscordChannel(to);
     }
     return platform === "whatsapp"
       ? makeWhatsappChannel(to)
@@ -1213,81 +1138,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     ready.add(key);
   };
 
-  const connectDiscordLine = (line: ResolvedLine): void => {
-    if (!line.discord) {
-      return;
-    }
-    const guildId = line.discord.guildId;
-    const applicationId =
-      line.discord.applicationId ?? line.discord.guild?.applicationId;
-    const key = line.phone || guildId || "discord";
-    const client = new DiscordClient({
-      baseUrl: line.discord.endpoint,
-      botToken: line.discord.botToken,
-    });
-    const gateway = connectDiscordGateway({
-      botToken: line.discord.botToken,
-      handlers: {
-        onEdited(event) {
-          const channel = makeDiscordChannel(event.channelId, guildId);
-          emitter.emit(
-            "edited",
-            {
-              messageGuid: event.messageId,
-              platform: "discord",
-              sender: { id: event.authorId },
-              text: event.text,
-              timestamp: new Date(),
-            },
-            channel
-          );
-        },
-        onReaction(event) {
-          const channel = makeDiscordChannel(event.channelId, guildId);
-          emitter.emit(
-            "reaction",
-            {
-              messageGuid: event.messageId,
-              platform: "discord",
-              reaction: event.emoji,
-              removed: event.removed,
-              sender: { id: event.userId },
-              timestamp: new Date(),
-            },
-            channel
-          );
-        },
-        onText(event) {
-          const channel = makeDiscordChannel(event.channelId, guildId);
-          queue.push([
-            channel,
-            {
-              content: { text: event.text, type: "text" },
-              discord: {
-                applicationId,
-                guildId: event.guildId ?? guildId,
-                messageId: event.messageId,
-              },
-              guid: event.messageId,
-              isFromMe: Boolean(event.isBot),
-              platform: "discord",
-              sender: { id: event.authorId },
-              timestamp: new Date(),
-            },
-          ]);
-        },
-      },
-    });
-
-    live.set(key, {
-      discord: client,
-      discordApplicationId: applicationId,
-      discordGuildId: guildId,
-      platform: "discord",
-      streams: [gateway],
-    });
-    ready.add(key);
-  };
 
   const connectTerminal = (config: TerminalConfig): void => {
     const to = "terminal";
@@ -1384,11 +1234,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
         connectSlackLine(line);
       }
       return;
-    }
-    if (platform === "discord") {
-      for (const line of lines) {
-        connectDiscordLine(line);
-      }
     }
   };
 
@@ -1531,7 +1376,6 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
         line.wa?.close();
         line.wb?.close();
         line.slack?.close();
-        line.discord?.close();
         line.terminal?.close();
       }
       live.clear();
