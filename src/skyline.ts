@@ -5,6 +5,7 @@
 // a `channel()` you send/react/type on — all over one fast per-line transport.
 
 import { Broker } from "./broker";
+import { issueSlackTokens } from "./cloud/slack-tokens";
 import {
   type AttachmentSend,
   type Content,
@@ -14,13 +15,17 @@ import {
   toContent,
 } from "./content";
 import {
+  slackDedicatedLines,
   type WhatsappBusinessConfig,
   type WhatsappConfig,
   whatsappBusinessDedicatedLines,
   whatsappDedicatedLines,
 } from "./providers";
 import { dedicatedLines, type ImessageConfig } from "./providers/imessage";
+import type { SlackConfig } from "./providers/slack";
 import type { TerminalConfig } from "./providers/terminal";
+import { connectDiscordGateway } from "./transport/discord-gateway";
+import { DiscordClient } from "./transport/discord-rest";
 import {
   dmChatGuid,
   grpcTarget,
@@ -28,6 +33,9 @@ import {
   type InboundGroup,
   type SendWireOptions,
 } from "./transport/imessage-grpc";
+import { SlackGrpcClient, slackGrpcTarget } from "./transport/slack-grpc";
+import { SlackClient } from "./transport/slack-rest";
+import { connectSlackSocket } from "./transport/slack-socket";
 import {
   startTerminalSession,
   type TerminalSession,
@@ -53,6 +61,7 @@ import type {
 
 export type ProviderConfig =
   | ImessageConfig
+  | SlackConfig
   | WhatsappConfig
   | WhatsappBusinessConfig
   | TerminalConfig;
@@ -149,8 +158,14 @@ function createEmitter() {
 }
 
 interface LiveLine {
+  discord?: DiscordClient;
+  discordApplicationId?: string;
+  discordGuildId?: string;
   grpc?: ImessageGrpcClient;
   platform: Platform;
+  slack?: SlackClient | SlackGrpcClient;
+  slackBotUserId?: string;
+  slackTeamId?: string;
   streams: { cancel: () => void }[];
   terminal?: TerminalSession;
   wa?: WhatsappGrpcClient;
@@ -160,6 +175,19 @@ interface LiveLine {
 /** A verb this platform does not support raises a clear, catchable error. */
 function unsupported(platform: Platform, verb: string): never {
   throw new Error(`${verb} is not supported on ${platform}`);
+}
+
+async function readAttachmentBytes(file: AttachmentSend): Promise<Uint8Array> {
+  if (file.data) {
+    return file.data instanceof Uint8Array
+      ? file.data
+      : new Uint8Array(file.data);
+  }
+  if (file.path) {
+    const buf = await Bun.file(file.path).arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  throw new Error("sendFile requires file.data or file.path");
 }
 
 export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
@@ -197,12 +225,43 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     return line.wa;
   };
 
-  const wbFor = (to: string): WhatsappBusinessClient => {
-    const line = lineFor(to);
+  const wbFor = (_to: string): WhatsappBusinessClient => {
+    const line = lineForPlatform("whatsapp_business");
     if (!line.wb) {
-      throw new Error(`line ${to} is not a WhatsApp Business line`);
+      throw new Error("whatsapp_business client not ready");
     }
     return line.wb;
+  };
+
+  const lineForPlatform = (platform: Platform, scopeId?: string): LiveLine => {
+    if (scopeId) {
+      const scoped = live.get(scopeId);
+      if (scoped?.platform === platform) {
+        return scoped;
+      }
+    }
+    for (const line of live.values()) {
+      if (line.platform === platform) {
+        return line;
+      }
+    }
+    throw new Error(`no ready line for platform ${platform}`);
+  };
+
+  const slackFor = (teamId?: string): SlackClient | SlackGrpcClient => {
+    const line = lineForPlatform("slack", teamId);
+    if (!line.slack) {
+      throw new Error("slack client not ready");
+    }
+    return line.slack;
+  };
+
+  const discordFor = (guildId?: string): DiscordClient => {
+    const line = lineForPlatform("discord", guildId);
+    if (!line.discord) {
+      throw new Error("discord client not ready");
+    }
+    return line.discord;
   };
 
   const wireOpts = (sendOpts?: SendOptions): SendWireOptions => ({
@@ -560,6 +619,132 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     unsend: () => unsupported("whatsapp_business", "unsend"),
   });
 
+  const makeSlackChannel = (to: string, teamId?: string): Channel => ({
+    contact: async () => null,
+    edit: async (messageGuid, newText) => {
+      await slackFor(teamId).editText(to, messageGuid, newText);
+    },
+    group: {
+      add: () => unsupported("slack", "group.add"),
+      participants: async () => unsupported("slack", "group.participants"),
+      remove: () => unsupported("slack", "group.remove"),
+      setName: () => unsupported("slack", "group.setName"),
+    },
+    get phone() {
+      return to;
+    },
+    platform: "slack",
+    reachable: async () => true,
+    react: async (messageGuid, reaction: Reaction, reactOpts) => {
+      const client = slackFor(teamId);
+      if (reactOpts?.remove) {
+        await client.removeReaction(to, messageGuid, reaction);
+      } else {
+        await client.addReaction(to, messageGuid, reaction);
+      }
+    },
+    // Slack has no conversation-level typing/read in the Web API path we use;
+    // accept the call as a no-op so multi-platform agents stay portable.
+    read: async () => {},
+    readReceipt: async () => {},
+    reply: (messageGuid, content, sendOpts) =>
+      makeSlackChannel(to, teamId).send(content, {
+        ...sendOpts,
+        replyTo: messageGuid,
+      }),
+    send: async (content, sendOpts) => {
+      const parsed = toContent(content);
+      if (parsed.type !== "text") {
+        unsupported("slack", `sending ${parsed.type} content`);
+      }
+      const res = await slackFor(teamId).sendText(to, parsed.text, {
+        replyTo: sendOpts?.replyTo,
+      });
+      return { guid: res.messageId, sentAt: new Date() };
+    },
+    sendFile: async (file, sendOpts) => {
+      const bytes = await readAttachmentBytes(file);
+      const res = await slackFor(teamId).uploadFile(
+        to,
+        {
+          data: bytes,
+          name: file.name ?? "attachment",
+        },
+        { replyTo: sendOpts?.replyTo }
+      );
+      return { guid: res.messageId, sentAt: new Date() };
+    },
+    to,
+    typing: async () => {},
+    unsend: async (messageGuid) => {
+      await slackFor(teamId).deleteMessage(to, messageGuid);
+    },
+  });
+
+  const makeDiscordChannel = (to: string, guildId?: string): Channel => ({
+    contact: async () => null,
+    edit: async (messageGuid, newText) => {
+      await discordFor(guildId).editText(to, messageGuid, newText);
+    },
+    group: {
+      add: () => unsupported("discord", "group.add"),
+      participants: async () => unsupported("discord", "group.participants"),
+      remove: () => unsupported("discord", "group.remove"),
+      setName: () => unsupported("discord", "group.setName"),
+    },
+    get phone() {
+      return to;
+    },
+    platform: "discord",
+    reachable: async () => true,
+    react: async (messageGuid, reaction: Reaction, reactOpts) => {
+      const client = discordFor(guildId);
+      if (reactOpts?.remove) {
+        await client.removeReaction(to, messageGuid, reaction);
+      } else {
+        await client.addReaction(to, messageGuid, reaction);
+      }
+    },
+    read: async () => {},
+    readReceipt: async () => {},
+    reply: (messageGuid, content, sendOpts) =>
+      makeDiscordChannel(to, guildId).send(content, {
+        ...sendOpts,
+        replyTo: messageGuid,
+      }),
+    send: async (content, sendOpts) => {
+      const parsed = toContent(content);
+      if (parsed.type !== "text") {
+        unsupported("discord", `sending ${parsed.type} content`);
+      }
+      const res = await discordFor(guildId).sendText(to, parsed.text, {
+        replyTo: sendOpts?.replyTo,
+      });
+      return { guid: res.messageId, sentAt: new Date() };
+    },
+    sendFile: async (file, sendOpts) => {
+      const bytes = await readAttachmentBytes(file);
+      const res = await discordFor(guildId).uploadFile(
+        to,
+        {
+          data: bytes,
+          name: file.name ?? "attachment",
+        },
+        { replyTo: sendOpts?.replyTo }
+      );
+      return { guid: res.messageId, sentAt: new Date() };
+    },
+    to,
+    typing: async (on = true) => {
+      if (on) {
+        await discordFor(guildId).typing(to);
+      }
+    },
+    unsend: async (messageGuid) => {
+      await discordFor(guildId).deleteMessage(to, messageGuid);
+    },
+  });
+
   const makeTerminalChannel = (to: string): Channel => {
     const line = lineFor(to);
     const session = line.terminal;
@@ -620,13 +805,23 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
   };
 
   /** Dispatch to the right channel factory based on the line's platform. */
-  const makeChannel = (to: string): Channel => {
-    const platform = live.get(to)?.platform;
+  const makeChannel = (to: string, platformHint?: Platform): Channel => {
+    const keyed = live.get(to)?.platform;
+    const platform =
+      platformHint ??
+      keyed ??
+      (live.size === 1 ? live.values().next().value?.platform : undefined);
     if (platform === "terminal") {
       return makeTerminalChannel(to);
     }
     if (platform === "whatsapp_business") {
       return makeWhatsappBusinessChannel(to);
+    }
+    if (platform === "slack") {
+      return makeSlackChannel(to);
+    }
+    if (platform === "discord") {
+      return makeDiscordChannel(to);
     }
     return platform === "whatsapp"
       ? makeWhatsappChannel(to)
@@ -867,6 +1062,233 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     ready.add(line.phone);
   };
 
+  const connectSlackLine = (line: ResolvedLine): void => {
+    if (!line.slack) {
+      return;
+    }
+    const teamId = line.slack.teamId ?? line.phone ?? "slack";
+    const botUserId = line.slack.team?.botUserId;
+    const key = line.phone || teamId;
+    const streams: { cancel: () => void }[] = [];
+
+    const accessToken = line.slack.accessToken ?? line.token;
+    const useGrpc =
+      Boolean(line.slack.accessToken) ||
+      Boolean(line.address && !line.slack.botToken?.startsWith("xoxb-"));
+
+    if (useGrpc && accessToken) {
+      const client = new SlackGrpcClient(
+        slackGrpcTarget(line.slack.endpoint || line.address),
+        teamId,
+        accessToken
+      );
+      const sub = client.subscribe({
+        onReaction(event) {
+          const channel = makeSlackChannel(event.channelId, teamId);
+          emitter.emit(
+            "reaction",
+            {
+              messageGuid: event.messageId,
+              platform: "slack",
+              reaction: event.emoji,
+              removed: event.removed,
+              sender: { id: event.userId },
+              timestamp: new Date(),
+            },
+            channel
+          );
+        },
+        onText(event) {
+          const channel = makeSlackChannel(event.channelId, teamId);
+          queue.push([
+            channel,
+            {
+              content: { text: event.text, type: "text" },
+              guid: event.messageId,
+              isFromMe: event.isFromMe,
+              platform: "slack",
+              sender: { id: event.userId },
+              slack: {
+                subtype: event.subtype,
+                teamId,
+                threadTs: event.threadTs,
+                ts: event.messageId,
+              },
+              timestamp: new Date(),
+            },
+          ]);
+        },
+      });
+      streams.push(sub);
+      live.set(key, {
+        platform: "slack",
+        slack: client,
+        slackBotUserId: botUserId,
+        slackTeamId: teamId,
+        streams,
+      });
+      ready.add(key);
+      return;
+    }
+
+    if (!line.slack.botToken) {
+      return;
+    }
+    const client = new SlackClient({
+      baseUrl: line.slack.endpoint,
+      botToken: line.slack.botToken,
+    });
+
+    if (line.slack.appToken) {
+      const socket = connectSlackSocket({
+        appToken: line.slack.appToken,
+        handlers: {
+          onEdited(event) {
+            if (!event.channelId) {
+              return;
+            }
+            const channel = makeSlackChannel(event.channelId, teamId);
+            emitter.emit(
+              "edited",
+              {
+                messageGuid: event.messageId,
+                platform: "slack",
+                sender: { id: event.userId },
+                text: event.text,
+                timestamp: new Date(),
+              },
+              channel
+            );
+          },
+          onReaction(event) {
+            const channel = makeSlackChannel(event.channelId, teamId);
+            emitter.emit(
+              "reaction",
+              {
+                messageGuid: event.messageId,
+                platform: "slack",
+                reaction: event.emoji,
+                removed: event.removed,
+                sender: { id: event.userId },
+                timestamp: new Date(),
+              },
+              channel
+            );
+          },
+          onText(event) {
+            const isFromMe =
+              Boolean(botUserId && event.userId === botUserId) ||
+              Boolean(event.isBot);
+            const channel = makeSlackChannel(event.channelId, teamId);
+            queue.push([
+              channel,
+              {
+                content: { text: event.text, type: "text" },
+                guid: event.messageId,
+                isFromMe,
+                platform: "slack",
+                sender: { id: event.userId },
+                slack: {
+                  subtype: event.subtype,
+                  teamId,
+                  threadTs: event.threadTs,
+                  ts: event.messageId,
+                },
+                timestamp: new Date(),
+              },
+            ]);
+          },
+        },
+      });
+      streams.push(socket);
+    }
+
+    live.set(key, {
+      platform: "slack",
+      slack: client,
+      slackBotUserId: botUserId,
+      slackTeamId: teamId,
+      streams,
+    });
+    ready.add(key);
+  };
+
+  const connectDiscordLine = (line: ResolvedLine): void => {
+    if (!line.discord) {
+      return;
+    }
+    const guildId = line.discord.guildId;
+    const applicationId =
+      line.discord.applicationId ?? line.discord.guild?.applicationId;
+    const key = line.phone || guildId || "discord";
+    const client = new DiscordClient({
+      baseUrl: line.discord.endpoint,
+      botToken: line.discord.botToken,
+    });
+    const gateway = connectDiscordGateway({
+      botToken: line.discord.botToken,
+      handlers: {
+        onEdited(event) {
+          const channel = makeDiscordChannel(event.channelId, guildId);
+          emitter.emit(
+            "edited",
+            {
+              messageGuid: event.messageId,
+              platform: "discord",
+              sender: { id: event.authorId },
+              text: event.text,
+              timestamp: new Date(),
+            },
+            channel
+          );
+        },
+        onReaction(event) {
+          const channel = makeDiscordChannel(event.channelId, guildId);
+          emitter.emit(
+            "reaction",
+            {
+              messageGuid: event.messageId,
+              platform: "discord",
+              reaction: event.emoji,
+              removed: event.removed,
+              sender: { id: event.userId },
+              timestamp: new Date(),
+            },
+            channel
+          );
+        },
+        onText(event) {
+          const channel = makeDiscordChannel(event.channelId, guildId);
+          queue.push([
+            channel,
+            {
+              content: { text: event.text, type: "text" },
+              discord: {
+                applicationId,
+                guildId: event.guildId ?? guildId,
+                messageId: event.messageId,
+              },
+              guid: event.messageId,
+              isFromMe: Boolean(event.isBot),
+              platform: "discord",
+              sender: { id: event.authorId },
+              timestamp: new Date(),
+            },
+          ]);
+        },
+      },
+    });
+
+    live.set(key, {
+      discord: client,
+      discordApplicationId: applicationId,
+      discordGuildId: guildId,
+      platform: "discord",
+      streams: [gateway],
+    });
+    ready.add(key);
+  };
+
   const connectTerminal = (config: TerminalConfig): void => {
     const to = "terminal";
     let session: TerminalSession | undefined;
@@ -951,8 +1373,22 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
       return;
     }
     // WhatsApp Business: cloud send client per bound number; inbound is webhook.
-    for (const line of lines) {
-      connectWhatsappBusinessLine(line);
+    if (platform === "whatsapp_business") {
+      for (const line of lines) {
+        connectWhatsappBusinessLine(line);
+      }
+      return;
+    }
+    if (platform === "slack") {
+      for (const line of lines) {
+        connectSlackLine(line);
+      }
+      return;
+    }
+    if (platform === "discord") {
+      for (const line of lines) {
+        connectDiscordLine(line);
+      }
     }
   };
 
@@ -968,6 +1404,8 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
         lines = dedicatedLines(provider);
       } else if (provider.platform === "whatsapp_business") {
         lines = whatsappBusinessDedicatedLines(provider);
+      } else if (provider.platform === "slack") {
+        lines = slackDedicatedLines(provider);
       } else {
         lines = whatsappDedicatedLines(provider);
       }
@@ -981,6 +1419,66 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
       );
     }
     const platform = provider.platform;
+
+    if (platform === "slack") {
+      const tokens = await issueSlackTokens(opts.projectId, opts.projectSecret);
+      const resolved = await broker.resolve(
+        { projectId: opts.projectId, projectSecret: opts.projectSecret },
+        "slack"
+      );
+      const endpoint =
+        resolved.lines[0]?.address ||
+        process.env.SKYLINE_SLACK_ENDPOINT ||
+        "slack-grpc.skyline.interactions.co.in:443";
+      const lines: ResolvedLine[] = Object.entries(tokens.auth).map(
+        ([teamId, accessToken]) => ({
+          address: endpoint,
+          phone: teamId,
+          slack: {
+            accessToken,
+            endpoint,
+            team: tokens.teams[teamId],
+            teamId,
+          },
+          token: accessToken,
+        })
+      );
+      await connectLines("slack", lines);
+
+      const projectId = opts.projectId;
+      const projectSecret = opts.projectSecret;
+      const scheduleNext = (ttl: number) => {
+        broker.scheduleRefresh(ttl, async () => {
+          try {
+            const next = await issueSlackTokens(projectId, projectSecret);
+            for (const [teamId, accessToken] of Object.entries(next.auth)) {
+              if (live.has(teamId)) {
+                continue;
+              }
+              await connectLines("slack", [
+                {
+                  address: endpoint,
+                  phone: teamId,
+                  slack: {
+                    accessToken,
+                    endpoint,
+                    team: next.teams[teamId],
+                    teamId,
+                  },
+                  token: accessToken,
+                },
+              ]);
+            }
+            scheduleNext(next.expiresIn);
+          } catch {
+            scheduleNext(ttl);
+          }
+        });
+      };
+      scheduleNext(tokens.expiresIn);
+      continue;
+    }
+
     const resolved = await broker.resolve(
       { projectId: opts.projectId, projectSecret: opts.projectSecret },
       platform
@@ -1009,13 +1507,20 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     scheduleNext(resolved.ttl);
   }
 
-  const resolveTarget = (target: string | ChannelTarget): string =>
-    typeof target === "string" ? target : target.to;
+  const resolveTarget = (
+    target: string | ChannelTarget
+  ): { platform?: Platform; to: string } =>
+    typeof target === "string"
+      ? { to: target }
+      : { platform: target.platform, to: target.to };
 
   const incoming = queue.iterator();
 
   return {
-    channel: (target) => makeChannel(resolveTarget(target)),
+    channel: (target) => {
+      const resolved = resolveTarget(target);
+      return makeChannel(resolved.to, resolved.platform);
+    },
     async close() {
       broker.cancelRefresh();
       for (const line of live.values()) {
@@ -1025,6 +1530,8 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
         line.grpc?.close();
         line.wa?.close();
         line.wb?.close();
+        line.slack?.close();
+        line.discord?.close();
         line.terminal?.close();
       }
       live.clear();

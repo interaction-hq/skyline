@@ -25,7 +25,7 @@
 
 Skyline lets you build an agent once and connect it to the messaging interfaces your users already have — iMessage, WhatsApp Business, and more. Each interface is a **provider**. Your agent code stays the same: one merged inbound feed, one send API, one event model.
 
-Cloud mode talks to the Interactions platform at `https://api.interactions.co.in`. Pass a **project ID** and **project secret** from the [dashboard](https://app.interactions.co.in); the SDK resolves lines, connects transports, and keeps tokens fresh. No `baseUrl` to configure.
+Cloud mode talks to the Interactions platform at `https://api.interactions.co.in`. Pass a **project ID** and **project secret** from the [dashboard](https://app.interactions.co.in); the SDK resolves lines, connects each provider, and keeps tokens fresh. No `baseUrl` to configure.
 
 ## Why Skyline
 
@@ -40,12 +40,12 @@ Cloud mode talks to the Interactions platform at `https://api.interactions.co.in
 
 | Interface | Connection | Notes |
 | --- | --- | --- |
-| **iMessage** | Cloud broker or dedicated gRPC | Production — typing, reactions, replies, attachments, mini-apps |
+| **iMessage** | Cloud broker or dedicated endpoint | Production — typing, reactions, replies, attachments, mini-apps |
 | **WhatsApp Business** | Meta Cloud API via broker | Templates, media, interactive messages, webhooks |
+| **Slack** | Cloud broker or dedicated tokens | Multi-workspace, threads, reactions, edits, Socket Mode inbound |
+| **Discord** | Cloud broker or dedicated tokens | Guild/DM bots, replies, reactions, edits, typing, Gateway inbound |
 | **Terminal** | Local stdin/stdout | Credential-free dev, demos, and CI smoke tests |
-| **Personal WhatsApp** | Dedicated gRPC | Self-hosted lines alongside iMessage |
-
-More interfaces follow the same provider model. See [custom platforms](https://docs.interactions.co.in/skyline/custom-platforms).
+| **Personal WhatsApp** | Dedicated endpoint | Self-hosted lines alongside iMessage |
 
 ## Install
 

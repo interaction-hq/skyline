@@ -1,5 +1,14 @@
 export type { DedicatedLine, ImessageConfig } from "./imessage";
 export { imessage } from "./imessage";
+export type {
+  SlackCloudConfig,
+  SlackConfig,
+  SlackDedicatedConfig,
+  SlackDedicatedInput,
+  SlackLine,
+  SlackTeamMetadata,
+} from "./slack";
+export { slack, slackDedicatedLines } from "./slack";
 export type { TerminalConfig } from "./terminal";
 export { terminal } from "./terminal";
 export type {

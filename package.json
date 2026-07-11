@@ -12,7 +12,7 @@
   },
   "name": "skyline-ts",
   "version": "0.1.2",
-  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, and more through one API.",
+  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, Slack, Discord, and more through one API.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -98,7 +98,8 @@
     "multi-platform",
     "imessage",
     "whatsapp",
-    "whatsapp-business",
+    "slack",
+    "discord",
     "typescript",
     "chatbot",
     "webhooks",

@@ -1,0 +1,112 @@
+// MessageService — Slack runtime contract for skyline-ts.
+// Every RPC requires metadata: `access_token` (runtime JWT) and `team_id`.
+syntax = "proto3";
+package interactions.slack.v1;
+
+import "interactions/slack/v1/common.proto";
+
+service MessageService {
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc EditMessage(EditMessageRequest) returns (EditMessageResponse);
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream SubscribeEventsResponse);
+  rpc FetchMissedEvents(FetchMissedEventsRequest) returns (FetchMissedEventsResponse);
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse);
+}
+
+message SendMessageRequest {
+  string channel = 1;
+  oneof content {
+    TextContent text = 10;
+    BlocksContent blocks = 11;
+    AttachmentsContent attachments = 12;
+    ReactionContent reaction = 13;
+  }
+  optional string thread_ts = 30;
+  optional bool reply_broadcast = 31;
+}
+
+message TextContent {
+  string body = 1;
+}
+
+message BlocksContent {
+  string blocks_json = 1;
+  string fallback_text = 2;
+}
+
+message AttachmentsContent {
+  string attachments_json = 1;
+  string text = 2;
+}
+
+message ReactionContent {
+  string item_ts = 1;
+  string item_channel = 2;
+  string emoji = 3;
+  // When true, remove the reaction instead of adding it.
+  bool removed = 4;
+}
+
+message SendMessageResponse {
+  string ts = 1;
+  string channel = 2;
+}
+
+message EditMessageRequest {
+  string channel = 1;
+  string ts = 2;
+  string text = 3;
+}
+
+message EditMessageResponse {
+  string ts = 1;
+  string channel = 2;
+}
+
+message DeleteMessageRequest {
+  string channel = 1;
+  string ts = 2;
+}
+
+message DeleteMessageResponse {}
+
+message MarkReadRequest {
+  string channel = 1;
+  string ts = 2;
+}
+
+message MarkReadResponse {}
+
+message SubscribeEventsRequest {}
+
+message SubscribeEventsResponse {
+  StreamCursor cursor = 1;
+  oneof payload {
+    InboundMessage message = 10;
+    Reaction reaction = 11;
+    InteractiveCallback interactive = 12;
+    SlashCommand command = 13;
+    AppMention mention = 14;
+    Heartbeat heartbeat = 99;
+  }
+}
+
+message FetchMissedEventsRequest {
+  StreamCursor cursor = 1;
+  int32 limit = 2;
+}
+
+message FetchMissedEventsResponse {
+  repeated SubscribeEventsResponse events = 1;
+  bool has_more = 2;
+}
+
+message WhoAmIRequest {}
+
+message WhoAmIResponse {
+  string bot_user_id = 1;
+  string team_id = 2;
+  string app_id = 3;
+}

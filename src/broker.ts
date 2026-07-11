@@ -15,9 +15,36 @@ interface TokenResponse {
         accessToken: string;
         apiVersion?: string;
       };
+      discord?: {
+        applicationId?: string;
+        botToken: string;
+        guildId?: string;
+        guild?: {
+          applicationId: string;
+          guildName?: string;
+        };
+      };
+      slack?: {
+        appToken?: string;
+        botToken?: string;
+        signingSecret?: string;
+        teamId?: string;
+        team?: {
+          appId: string;
+          botUserId: string;
+          grantedScopes: string[];
+          teamName: string;
+        };
+      };
     }[];
   };
-  error?: { code: string; message: string };
+  error?: {
+    code?: number | string;
+    slug?: string;
+    message: string;
+    doc_url?: string;
+    retry?: boolean;
+  };
   succeed: boolean;
 }
 
@@ -34,7 +61,9 @@ export interface BrokerOptions {
 /**
  * Exchange long-lived project creds for a short-lived runtime token + the
  * resolved data-plane endpoints. The broker is never in the message hot path:
- * after this call, the SDK talks gRPC directly to the returned line(s).
+ * after this call, the SDK talks directly to each provider's data plane
+ * (gRPC for iMessage / personal WhatsApp; HTTPS for Slack, Discord, and
+ * WhatsApp Business).
  */
 export class Broker {
   private readonly baseUrl: string;
@@ -62,16 +91,26 @@ export class Broker {
 
     const body = (await res.json().catch(() => null)) as TokenResponse | null;
     if (!(res.ok && body?.succeed && body.data)) {
-      const code = body?.error?.code ?? `HTTP_${res.status}`;
-      const message = body?.error?.message ?? "broker rejected request";
-      throw new BrokerError(code, message, res.status);
+      const err = body?.error;
+      const slug =
+        (typeof err?.slug === "string" && err.slug) ||
+        (typeof err?.code === "string" && err.code) ||
+        `HTTP_${res.status}`;
+      const message = err?.message ?? "broker rejected request";
+      throw new BrokerError(slug, message, res.status, {
+        docUrl: err?.doc_url,
+        numeric: typeof err?.code === "number" ? err.code : undefined,
+        traceId: (body as { trace_id?: string } | null)?.trace_id,
+      });
     }
 
     const { token, ttl, endpoints } = body.data;
     const lines: ResolvedLine[] = endpoints.map((e) => ({
       address: e.address,
       business: e.business,
+      discord: e.discord,
       phone: e.phone ?? "",
+      slack: e.slack,
       token,
     }));
     return { lines, token, ttl };
@@ -96,7 +135,12 @@ export class BrokerError extends Error {
   constructor(
     readonly code: string,
     message: string,
-    readonly status: number
+    readonly status: number,
+    readonly meta?: {
+      numeric?: number;
+      docUrl?: string;
+      traceId?: string;
+    }
   ) {
     super(message);
     this.name = "BrokerError";

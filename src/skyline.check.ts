@@ -22,8 +22,14 @@ const server = Bun.serve({
     if (mode === "denied") {
       return Response.json(
         {
-          error: { code: "PLATFORM_NOT_ENABLED", message: "no" },
+          error: {
+            code: 2006,
+            doc_url: "https://docs.interactions.co.in/errors/codes/2006",
+            message: "no",
+            slug: "PLATFORM_NOT_ENABLED",
+          },
           succeed: false,
+          trace_id: "testtrace",
         },
         { status: 403 }
       );

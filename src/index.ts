@@ -30,6 +30,10 @@ export { definePlatform } from "./define-platform";
 export type {
   DedicatedLine,
   ImessageConfig,
+  SlackCloudConfig,
+  SlackConfig,
+  SlackDedicatedConfig,
+  SlackLine,
   TerminalConfig,
   WhatsappBusinessCloudConfig,
   WhatsappBusinessConfig,
@@ -42,6 +46,8 @@ export type {
 } from "./providers";
 export {
   imessage,
+  slack,
+  slackDedicatedLines,
   terminal,
   whatsapp,
   whatsappBusiness,
