@@ -1,11 +1,24 @@
 # @skyline-ts/imessage
 
-TypeScript SDK for iMessage via Skyline.
+iMessage provider for [skyline-ts](https://github.com/interactions-hq/skyline), supporting managed lines and bring-your-own endpoints — including tapbacks, effects, attachments, and mini-apps.
 
-```bash
-bun add @skyline-ts/imessage @skyline-ts/core
+## Install
+
+```sh
+bun add skyline-ts @skyline-ts/imessage
 ```
+
+## Use
 
 ```ts
-import { imessage, ImessageGrpcClient } from "@skyline-ts/imessage";
+import { Skyline } from "skyline-ts";
+import { imessage } from "@skyline-ts/imessage";
+
+const app = await Skyline({
+  projectId: process.env.SKYLINE_PROJECT_ID!,
+  projectSecret: process.env.SKYLINE_PROJECT_SECRET!,
+  providers: [imessage.config()],
+});
 ```
+
+See the [skyline-ts documentation](https://docs.interactions.co.in/skyline/providers/imessage) for the full guide.

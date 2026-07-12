@@ -1,11 +1,32 @@
 # @skyline-ts/whatsapp
 
-TypeScript SDK for personal WhatsApp via Skyline.
+WhatsApp provider for [skyline-ts](https://github.com/interactions-hq/skyline).
 
-```bash
-bun add @skyline-ts/whatsapp @skyline-ts/core
+## Install
+
+```sh
+bun add skyline-ts @skyline-ts/whatsapp
 ```
+
+## Use
 
 ```ts
-import { whatsapp, WhatsappGrpcClient } from "@skyline-ts/whatsapp";
+import { Skyline } from "skyline-ts";
+import { whatsapp } from "@skyline-ts/whatsapp";
+
+const app = await Skyline({
+  providers: [
+    whatsapp.config({
+      lines: [
+        {
+          address: "100.x.y.z:50051",
+          token: process.env.WHATSAPP_TOKEN!,
+          phone: "+15551234567",
+        },
+      ],
+    }),
+  ],
+});
 ```
+
+See the [skyline-ts documentation](https://docs.interactions.co.in/skyline/providers) for the full guide.

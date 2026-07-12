@@ -1,7 +1,7 @@
 {
   "name": "@skyline-ts/slack",
   "version": "0.2.0",
-  "description": "TypeScript SDK for Slack via Skyline",
+  "description": "Slack provider for skyline-ts.",
   "type": "module",
   "license": "MIT",
   "repository": {

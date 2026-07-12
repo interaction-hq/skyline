@@ -1,11 +1,22 @@
 # @skyline-ts/terminal
 
-Terminal provider for skyline-ts — credential-free local development.
+Terminal provider for [skyline-ts](https://github.com/interactions-hq/skyline) — chat with your agent from the command line. No credentials required.
 
-```bash
-bun add @skyline-ts/terminal @skyline-ts/core
+## Install
+
+```sh
+bun add skyline-ts @skyline-ts/terminal
 ```
+
+## Use
 
 ```ts
+import { Skyline } from "skyline-ts";
 import { terminal } from "@skyline-ts/terminal";
+
+const app = await Skyline({
+  providers: [terminal.config()],
+});
 ```
+
+See the [skyline-ts documentation](https://docs.interactions.co.in/skyline/providers/terminal/setup-and-usage) for the full guide.

@@ -1,7 +1,7 @@
 {
   "name": "@skyline-ts/core",
   "version": "0.2.0",
-  "description": "The skyline-ts runtime",
+  "description": "The skyline-ts runtime — Skyline, content builders, webhooks, and the provider authoring API.",
   "type": "module",
   "license": "MIT",
   "repository": {

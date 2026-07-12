@@ -1,7 +1,7 @@
 {
   "name": "@skyline-ts/terminal",
   "version": "0.2.0",
-  "description": "Terminal provider for skyline-ts — credential-free local development",
+  "description": "Terminal provider for skyline-ts — chat with your agent from the command line.",
   "type": "module",
   "license": "MIT",
   "repository": {

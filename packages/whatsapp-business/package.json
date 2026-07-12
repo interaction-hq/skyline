@@ -1,7 +1,7 @@
 {
   "name": "@skyline-ts/whatsapp-business",
   "version": "0.2.0",
-  "description": "TypeScript SDK for WhatsApp Business via Skyline",
+  "description": "WhatsApp Business provider for skyline-ts.",
   "type": "module",
   "license": "MIT",
   "repository": {
