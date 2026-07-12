@@ -1,0 +1,88 @@
+{
+  "name": "skyline-ts",
+  "version": "0.2.0",
+  "description": "Bring agents to any interface — batteries-included",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/interactions-hq/skyline.git",
+    "directory": "packages/skyline-ts"
+  },
+  "homepage": "https://docs.interactions.co.in/skyline/introduction",
+  "bugs": {
+    "url": "https://github.com/interactions-hq/skyline/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./authoring": {
+      "types": "./dist/authoring.d.ts",
+      "import": "./dist/authoring.js"
+    },
+    "./content": {
+      "types": "./dist/content.d.ts",
+      "import": "./dist/content.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "import": "./dist/webhooks.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
+    },
+    "./providers/*": {
+      "types": "./dist/providers/*/index.d.ts",
+      "import": "./dist/providers/*/index.js"
+    },
+    "./app": {
+      "types": "./dist/miniapp.d.ts",
+      "import": "./dist/miniapp.js"
+    },
+    "./miniapp": {
+      "types": "./dist/miniapp.d.ts",
+      "import": "./dist/miniapp.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@skyline-ts/core": "0.2.0",
+    "@skyline-ts/imessage": "0.2.0",
+    "@skyline-ts/slack": "0.2.0",
+    "@skyline-ts/terminal": "0.2.0",
+    "@skyline-ts/whatsapp": "0.2.0",
+    "@skyline-ts/whatsapp-business": "0.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "messaging",
+    "sdk",
+    "skyline",
+    "skyline-ts",
+    "interactions",
+    "agents",
+    "unified-api",
+    "imessage",
+    "whatsapp",
+    "slack",
+    "typescript"
+  ]
+}

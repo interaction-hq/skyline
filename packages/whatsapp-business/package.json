@@ -1,16 +1,37 @@
 {
-  "name": "@interactions-hq/whatsapp-business",
-  "version": "0.1.1",
-  "private": true,
-  "description": "TypeScript SDK for the WhatsApp Business API",
+  "name": "@skyline-ts/whatsapp-business",
+  "version": "0.2.0",
+  "description": "TypeScript SDK for WhatsApp Business via Skyline",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/interactions-hq/skyline.git",
+    "directory": "packages/whatsapp-business"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/skyline.ts",
-      "bun": "./src/skyline.ts",
-      "import": "./src/skyline.ts",
-      "default": "./src/skyline.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "files": ["src/skyline.ts", "src/rest", "README.md"]
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@skyline-ts/core": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3"
+  }
 }

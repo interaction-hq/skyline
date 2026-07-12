@@ -86,7 +86,7 @@ bun run release
 
 That runs lint → build → `npm publish --access public`. No GitHub Actions, no wait for CI.
 
-First time: `npm login` (or paste a granular token into `~/.npmrc` for `@interactions-hq`). You need publish access on the `@interactions-hq` npm org.
+First time: `npm login`. You need publish access for the `skyline-ts` and `@skyline-ts/*` packages on npm.
 
 ## Questions
 

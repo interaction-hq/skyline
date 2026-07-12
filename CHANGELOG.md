@@ -6,11 +6,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-12
+
+### Changed
+
+- Restructured into a Bun workspace monorepo with publishable `@skyline-ts/*` packages.
+- Runtime lives in `@skyline-ts/core`; platform wire clients and binders live in `@skyline-ts/imessage`, `@skyline-ts/slack`, `@skyline-ts/whatsapp`, `@skyline-ts/whatsapp-business`, and `@skyline-ts/terminal`.
+- `skyline-ts` umbrella package re-exports core plus all built-in providers (batteries-included install).
+- `Skyline()` loads platform binders via dynamic `import()` — install only the providers you use, or the umbrella for everything.
+- Scoped packages renamed from `@interactions-hq/*` to `@skyline-ts/*`.
+
+### Install
+
+```bash
+# Batteries-included
+bun add skyline-ts
+
+# À la carte
+bun add @skyline-ts/core @skyline-ts/imessage
+```
+
 ## [0.1.3] - 2026-07-12
 
 ### Changed
 
-- Platform clients live in `packages/` (`@interactions-hq/imessage`, `@interactions-hq/slack`, `@interactions-hq/whatsapp`, `@interactions-hq/whatsapp-business`) and ship bundled with the SDK.
+- Platform clients live in workspace packages (`@skyline-ts/imessage`, `@skyline-ts/slack`, `@skyline-ts/whatsapp`, `@skyline-ts/whatsapp-business`) and ship with the umbrella SDK.
 - Package exports stay on providers, content, webhooks, and miniapp.
 - Provider setup docs use “project credentials” vs “pass your own credentials”.
 
@@ -43,7 +63,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.1.3...main
+[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.2.0...main
+[0.2.0]: https://github.com/interactions-hq/skyline/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/interactions-hq/skyline/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/interactions-hq/skyline/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/interactions-hq/skyline/compare/v0.1.0...v0.1.1

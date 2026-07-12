@@ -182,3 +182,15 @@ function resolveWaProtoDir(): string {
     "whatsapp proto dir not found — set WA_PROTO_DIR or ship ./proto/whatsapp"
   );
 }
+
+/** Normalize "host", "host:port", or "https://host/" to a gRPC target. */
+export function grpcTarget(address: string): string {
+  let a = address
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
+  if (!/:\d+$/.test(a)) {
+    a = `${a}:50051`;
+  }
+  return a;
+}

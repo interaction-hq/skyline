@@ -1,117 +1,24 @@
 {
-  "dependencies": {
-    "@grpc/grpc-js": "^1.12.0",
-    "@grpc/proto-loader": "^0.7.13",
-    "@interactions-hq/imessage": "file:./packages/imessage",
-    "@interactions-hq/slack": "file:./packages/slack",
-    "@interactions-hq/whatsapp": "file:./packages/whatsapp",
-    "@interactions-hq/whatsapp-business": "file:./packages/whatsapp-business"
+  "name": "skyline-workspace",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' build && bun run --filter skyline-ts build",
+    "typecheck": "bun run --filter @skyline-ts/core typecheck && bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' typecheck && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' build && bun run --filter skyline-ts typecheck",
+    "lint": "ultracite check",
+    "format": "ultracite fix",
+    "example:terminal": "bun run examples/terminal-agent.ts",
+    "example:cloud": "bun run examples/cloud-agent.ts",
+    "example:multi": "bun run examples/multi-platform-agent.ts",
+    "broker:check": "bun run packages/core/src/skyline.check.ts",
+    "release": "cd packages/skyline-ts && bun run prepublishOnly && npm publish --access public"
   },
-  "bundleDependencies": [
-    "@interactions-hq/imessage",
-    "@interactions-hq/slack",
-    "@interactions-hq/whatsapp",
-    "@interactions-hq/whatsapp-business"
-  ],
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
     "@types/bun": "latest",
     "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
+    "skyline-ts": "workspace:*",
+    "typescript": "^5.8.3",
     "ultracite": "7.9.3"
-  },
-  "name": "skyline-ts",
-  "version": "0.1.3",
-  "description": "The unified messaging SDK for TypeScript agents — iMessage, WhatsApp Business, Slack, and more through one API.",
-  "type": "module",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/interactions-hq/skyline.git"
-  },
-  "homepage": "https://docs.interactions.co.in/skyline/introduction",
-  "bugs": {
-    "url": "https://github.com/interactions-hq/skyline/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org"
-  },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./authoring": {
-      "types": "./dist/authoring.d.ts",
-      "import": "./dist/authoring.js"
-    },
-    "./content": {
-      "types": "./dist/content.d.ts",
-      "import": "./dist/content.js"
-    },
-    "./webhooks": {
-      "types": "./dist/webhooks.d.ts",
-      "import": "./dist/webhooks.js"
-    },
-    "./providers": {
-      "types": "./dist/providers/index.d.ts",
-      "import": "./dist/providers/index.js"
-    },
-    "./providers/*": {
-      "types": "./dist/providers/*/index.d.ts",
-      "import": "./dist/providers/*/index.js"
-    },
-    "./app": {
-      "types": "./dist/miniapp/index.d.ts",
-      "import": "./dist/miniapp/index.js"
-    },
-    "./miniapp": {
-      "types": "./dist/miniapp/index.d.ts",
-      "import": "./dist/miniapp/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepack": "bun run build",
-    "prepublishOnly": "bun run build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "ultracite check",
-    "format": "ultracite fix",
-    "broker:check": "bun run src/skyline.check.ts",
-    "release": "bun run lint && bun run prepublishOnly && npm publish --access public",
-    "example:terminal": "bun run examples/terminal-agent.ts",
-    "example:cloud": "bun run examples/cloud-agent.ts",
-    "example:multi": "bun run examples/multi-platform-agent.ts",
-    "registry": "bun run scripts/registry-publish.ts"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "messaging",
-    "sdk",
-    "skyline",
-    "skyline-ts",
-    "interactions",
-    "agents",
-    "unified-api",
-    "unified-messaging",
-    "multi-platform",
-    "imessage",
-    "whatsapp",
-    "slack",
-    "typescript",
-    "chatbot",
-    "webhooks",
-    "mini-app"
-  ]
+  }
 }
