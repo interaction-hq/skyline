@@ -1,3 +1,9 @@
+import {
+  type ErrorCategory,
+  type ErrorDefinition,
+  errorByCode,
+  errorBySlug,
+} from "./errors.js";
 import { PLATFORM_API_BASE } from "./platform.js";
 import type { Platform, ResolvedLine } from "./types.js";
 
@@ -134,5 +140,48 @@ export class BrokerError extends Error {
   ) {
     super(message);
     this.name = "BrokerError";
+  }
+
+  /** Stable string identifier (alias of {@link code}). */
+  get slug(): string {
+    return this.code;
+  }
+
+  /** Numeric code from the envelope or the catalog, if known. */
+  get numericCode(): number | undefined {
+    return this.meta?.numeric ?? this.definition?.code;
+  }
+
+  /** Correlation id to include with support requests. */
+  get traceId(): string | undefined {
+    return this.meta?.traceId;
+  }
+
+  /** Link to the matching error-code reference, if provided. */
+  get docUrl(): string | undefined {
+    return this.meta?.docUrl;
+  }
+
+  /** Matching entry from the Skyline error catalog, if the code is known. */
+  get definition(): ErrorDefinition | undefined {
+    return (
+      errorBySlug(this.code) ??
+      (this.meta?.numeric === undefined
+        ? undefined
+        : errorByCode(this.meta.numeric))
+    );
+  }
+
+  /** Broad handling class for this error, if the code is known. */
+  get category(): ErrorCategory | undefined {
+    return this.definition?.category;
+  }
+
+  /**
+   * Whether retrying with backoff may succeed. Falls back to the HTTP status
+   * (5xx is retryable) when the code is not in the catalog.
+   */
+  get retryable(): boolean {
+    return this.definition?.retryable ?? this.status >= 500;
   }
 }

@@ -27,9 +27,25 @@ export {
   wa,
 } from "./content.js";
 export { definePlatform } from "./define-platform.js";
+export type {
+  ErrorCategory,
+  ErrorDefinition,
+  ErrorSlug,
+} from "./errors.js";
+export {
+  ERROR_CATALOG,
+  ERROR_CODES,
+  errorByCode,
+  errorBySlug,
+  isRetryableError,
+} from "./errors.js";
 export type { LiveSessionOptions, SessionSnapshot } from "./session.js";
 export { LiveSession, session } from "./session.js";
-export { type ProviderConfig, Skyline, type SkylineOptions } from "./skyline.js";
+export {
+  type ProviderConfig,
+  Skyline,
+  type SkylineOptions,
+} from "./skyline.js";
 export type {
   AppContent,
   Channel,
