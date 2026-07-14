@@ -334,6 +334,7 @@ function resolveWaProtoDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.WA_PROTO_DIR,
+    join(here, "proto", "whatsapp"),
     join(here, "..", "proto", "whatsapp"),
     join(process.cwd(), "proto", "whatsapp"),
   ].filter((p): p is string => Boolean(p));
@@ -343,7 +344,7 @@ function resolveWaProtoDir(): string {
     }
   }
   throw new Error(
-    "whatsapp proto dir not found — set WA_PROTO_DIR or ship ./proto/whatsapp"
+    "whatsapp proto dir not found — set WA_PROTO_DIR or ship dist/proto/whatsapp"
   );
 }
 

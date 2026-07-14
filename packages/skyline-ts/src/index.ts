@@ -1,14 +1,10 @@
 export * from "@skyline-ts/core";
 export {
-  dedicatedLines,
   imessage,
   slack,
-  slackDedicatedLines,
   terminal,
   whatsapp,
   whatsappBusiness,
-  whatsappBusinessDedicatedLines,
-  whatsappDedicatedLines,
 } from "./providers/index.js";
 export type {
   DedicatedLine,

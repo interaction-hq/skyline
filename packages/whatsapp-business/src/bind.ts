@@ -5,13 +5,13 @@ import type {
   SendOptions,
 } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
+import type { Channel, Platform, SendReceipt } from "@skyline-ts/core";
+import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   contentSugar,
   unsupportedPollOps,
   withResponding,
-} from "@skyline-ts/core";
-import type { SkylineHost } from "@skyline-ts/core/host";
+} from "@skyline-ts/core/host";
 import {
   WhatsappBusinessClient,
   type WaSendResult,

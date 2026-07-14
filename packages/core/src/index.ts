@@ -1,9 +1,4 @@
 export { BrokerError } from "./broker.js";
-export {
-  contentSugar,
-  unsupportedPollOps,
-  withResponding,
-} from "./channel-helpers.js";
 export type {
   AddMember,
   AppMessage,
@@ -93,7 +88,6 @@ export {
   voice,
   wa,
 } from "./content/index.js";
-export { definePlatform } from "./define-platform.js";
 export type {
   ErrorCategory,
   ErrorDefinition,
@@ -106,12 +100,6 @@ export {
   errorBySlug,
   isRetryableError,
 } from "./errors.js";
-export type { MessageData } from "./message.js";
-export {
-  attachmentWithDownload,
-  bindMessage,
-  stubAttachmentDownload,
-} from "./message.js";
 export type { LiveSessionOptions, SessionSnapshot } from "./session.js";
 export { LiveSession, session } from "./session.js";
 export {
@@ -141,7 +129,6 @@ export type {
   PollOps,
   ReactionSignal,
   ReadSignal,
-  ResolvedLine,
   SendErrorSignal,
   SendReceipt,
   SignalMap,

@@ -6,15 +6,15 @@ import type {
   SendOptions,
 } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Message, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
+import type { Channel, Message, Platform, SendReceipt } from "@skyline-ts/core";
+import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   bindMessage,
   contentSugar,
   stubAttachmentDownload,
   unsupportedPollOps,
   withResponding,
-} from "@skyline-ts/core";
-import type { SkylineHost } from "@skyline-ts/core/host";
+} from "@skyline-ts/core/host";
 import {
   SlackGrpcClient,
   slackGrpcTarget,

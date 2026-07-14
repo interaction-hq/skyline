@@ -2,7 +2,7 @@ import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
-} from "@skyline-ts/imessage/grpc";
+} from "../packages/imessage/src/grpc.ts";
 
 const target = grpcTarget(process.env.MINI ?? "100.120.138.80:50051");
 const to = process.env.TO ?? "+918527438574";

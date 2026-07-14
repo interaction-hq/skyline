@@ -14,18 +14,17 @@ import type {
   Message,
   MessageAttachment,
   Platform,
-  ResolvedLine,
   SendReceipt,
   User,
   VisualAssetInput,
 } from "@skyline-ts/core";
+import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   attachmentWithDownload,
   bindMessage,
   contentSugar,
   withResponding,
-} from "@skyline-ts/core";
-import type { SkylineHost } from "@skyline-ts/core/host";
+} from "@skyline-ts/core/host";
 import {
   dmChatGuid,
   grpcTarget,

@@ -1,13 +1,13 @@
 import type { ContentInput, SendOptions } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
 import type { Channel, Platform } from "@skyline-ts/core";
+import type { SkylineHost } from "@skyline-ts/core/host";
 import {
   bindMessage,
   contentSugar,
   unsupportedPollOps,
   withResponding,
-} from "@skyline-ts/core";
-import type { SkylineHost } from "@skyline-ts/core/host";
+} from "@skyline-ts/core/host";
 import { terminal, type TerminalConfig } from "./config.js";
 import { startTerminalSession, type TerminalSession } from "./session.js";
 

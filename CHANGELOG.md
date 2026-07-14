@@ -6,12 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-14
+
+### Changed
+- Wire protos ship inside `dist/proto` only — no top-level `proto/` on npm (Spectrum does not ship `.proto` either).
+- Provider packages export `.` only — removed public `./grpc` and `./rest` subpaths.
+- Host/binder helpers (`bindMessage`, `contentSugar`, `ResolvedLine`, …) live on `@skyline-ts/core/host`, not the main barrel.
+- Dropped public `dedicatedLines` / `*DedicatedLines` helpers from provider barrels.
+
 ## [0.3.4] - 2026-07-14
 
 ### Removed
 - Deprecated aliases: `Space`, `app.space()`, `app.messages`, `app.readyPhones`, `channel.phone`.
 - Slack dedicated `lines[]` config shim — use `tokens` / `teams` only.
-- Public barrel exports of wire clients (`ImessageGrpcClient`, `dmChatGuid`, Slack/WhatsApp gRPC, etc.). Use `@skyline-ts/<provider>/grpc` (or `/rest`) when you need them.
+- Public barrel exports of wire clients (`ImessageGrpcClient`, `dmChatGuid`, Slack/WhatsApp gRPC, etc.).
 - Duplicate package export path `./app` — use `./miniapp`.
 
 ## [0.3.3] - 2026-07-14

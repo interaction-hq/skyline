@@ -36,6 +36,7 @@ interface FileClient {
 function findProtoRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
+    join(here, "proto"),
     join(here, "..", "proto"),
     join(process.cwd(), "proto"),
   ];

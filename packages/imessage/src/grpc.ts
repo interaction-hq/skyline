@@ -1551,6 +1551,7 @@ function resolveProtoDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     process.env.PROTO_DIR,
+    join(here, "proto"),
     join(here, "..", "proto"),
     join(process.cwd(), "proto"),
   ].filter((p): p is string => Boolean(p));
@@ -1559,5 +1560,5 @@ function resolveProtoDir(): string {
       return dir;
     }
   }
-  throw new Error("proto dir not found — set PROTO_DIR or ship ./proto");
+  throw new Error("proto dir not found — set PROTO_DIR or ship dist/proto");
 }

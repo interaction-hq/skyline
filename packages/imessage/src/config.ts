@@ -1,4 +1,4 @@
-import type { ResolvedLine } from "@skyline-ts/core";
+import type { ResolvedLine } from "@skyline-ts/core/host";
 
 export interface DedicatedLine {
     address: string;
