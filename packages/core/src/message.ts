@@ -1,6 +1,8 @@
 import {
+  type Content,
   type ContentInput,
   edit as editContent,
+  isFireAndForget,
   type Reaction,
   reaction as reactionContent,
   read as readContent,
@@ -12,6 +14,7 @@ import type {
   Channel,
   Message,
   MessageAttachment,
+  MessageContent,
   SendReceipt,
 } from "./types.js";
 
@@ -66,6 +69,58 @@ export function bindMessage(channel: Channel, data: MessageData): Message {
   return self;
 }
 
+export function bindOutboundMessage(
+  channel: Channel,
+  opts: {
+    content: MessageContent;
+    guid?: string;
+    replyTo?: Message["replyTo"];
+    senderId?: string;
+    service?: string;
+    slack?: Message["slack"];
+    timestamp?: Date;
+  }
+): Message {
+  return bindMessage(channel, {
+    content: opts.content,
+    direction: "outbound",
+    guid: opts.guid,
+    isFromMe: true,
+    platform: channel.platform,
+    replyTo: opts.replyTo,
+    sender: { id: opts.senderId ?? channel.to },
+    service: opts.service,
+    slack: opts.slack,
+    timestamp: opts.timestamp ?? new Date(),
+  });
+}
+
+export function messageFromSend(
+  channel: Channel,
+  content: Content,
+  guid: string | undefined,
+  extras?: {
+    replyTo?: Message["replyTo"];
+    senderId?: string;
+    service?: string;
+    slack?: Message["slack"];
+    timestamp?: Date;
+  }
+): Message | undefined {
+  if (isFireAndForget(content)) {
+    return undefined;
+  }
+  return bindOutboundMessage(channel, {
+    content,
+    guid,
+    replyTo: extras?.replyTo,
+    senderId: extras?.senderId,
+    service: extras?.service,
+    slack: extras?.slack,
+    timestamp: extras?.timestamp,
+  });
+}
+
 export function stubAttachmentDownload(
   meta: Omit<MessageAttachment, "read" | "stream">
 ): MessageAttachment {
@@ -95,6 +150,7 @@ export function attachmentWithDownload(
   };
 }
 
+/** @deprecated Use `messageFromSend` / `bindOutboundMessage`. */
 export function asReceipt(guid: string | undefined): SendReceipt {
   return { guid, sentAt: new Date() };
 }

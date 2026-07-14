@@ -9,7 +9,7 @@ import {
   rename,
   type SendOptions,
 } from "./content/index.js";
-import type { Channel, PollOps, SendReceipt } from "./types.js";
+import type { Channel, Message, PollOps } from "./types.js";
 
 export async function withResponding<T>(
   channel: Pick<Channel, "typing">,
@@ -37,7 +37,10 @@ export function unsupportedPollOps(
 }
 
 export function contentSugar(
-  send: (content: ContentInput, opts?: SendOptions) => Promise<SendReceipt>
+  send: (
+    content: ContentInput,
+    opts?: SendOptions
+  ) => Promise<Message | undefined>
 ): Pick<Channel, "add" | "avatar" | "leave" | "remove" | "rename"> {
   return {
     add: async (users: MemberInput) => {

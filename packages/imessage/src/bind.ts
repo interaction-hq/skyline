@@ -14,7 +14,6 @@ import type {
   Message,
   MessageAttachment,
   Platform,
-  SendReceipt,
   User,
   VisualAssetInput,
 } from "@skyline-ts/core";
@@ -22,7 +21,9 @@ import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   attachmentWithDownload,
   bindMessage,
+  bindOutboundMessage,
   contentSugar,
+  messageFromSend,
   withResponding,
 } from "@skyline-ts/core/host";
 import {
@@ -275,13 +276,13 @@ function createBinder(host: SkylineHost, projectId: string) {
   };
 
   const sendContent = async (
+    channel: Channel,
     to: string,
     input: ContentInput,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const grpc = imFor(to);
     const id = host.newId();
-    const sentAt = new Date();
     const content = await resolveContent(input);
     const chatGuid = chatGuidFor(to);
     let guid: string | undefined;
@@ -464,7 +465,7 @@ function createBinder(host: SkylineHost, projectId: string) {
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(to, content.content, {
+        return sendContent(channel, to, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -560,7 +561,12 @@ function createBinder(host: SkylineHost, projectId: string) {
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    return { guid, sentAt };
+    return messageFromSend(channel, content, guid, {
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: to,
+    });
   };
 
   const toGroupCtx = (
@@ -583,10 +589,11 @@ function createBinder(host: SkylineHost, projectId: string) {
   const makeChannel = (to: string): Channel => {
     const chatGuid = chatGuidFor(to);
     const grpcFor = () => imFor(to);
+    let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(to, content, sendOpts);
+      sendContent(channel, to, content, sendOpts);
     const sugar = contentSugar(send);
-    const channel: Channel = {
+    channel = {
       ...sugar,
       background: async (input) => {
         const grpc = grpcFor();
@@ -726,7 +733,6 @@ function createBinder(host: SkylineHost, projectId: string) {
       sendFile: async (file: AttachmentSend, sendOpts) => {
         const grpc = grpcFor();
         const id = host.newId();
-        const sentAt = new Date();
         let attachmentGuid: string | undefined;
         if (file.data || file.path) {
           attachmentGuid = await uploadAttachmentGuid(grpc, file);
@@ -743,12 +749,28 @@ function createBinder(host: SkylineHost, projectId: string) {
           },
           wireOpts(sendOpts)
         );
-        return { guid: res.guid, sentAt };
+        return bindOutboundMessage(channel, {
+          content: {
+            type: "attachment",
+            name: file.name,
+            path: file.path,
+            data: file.data
+              ? file.data instanceof Uint8Array
+                ? file.data
+                : new Uint8Array(file.data)
+              : undefined,
+            isAudioMessage: file.audio,
+          },
+          guid: res.guid,
+          replyTo: sendOpts?.replyTo
+            ? { messageGuid: sendOpts.replyTo }
+            : undefined,
+          senderId: to,
+        });
       },
       sendFiles: async (files, sendOpts) => {
         const grpc = grpcFor();
         const id = host.newId();
-        const sentAt = new Date();
         const guids = await Promise.all(
           files.map((file) => uploadAttachmentGuid(grpc, file))
         );
@@ -758,7 +780,27 @@ function createBinder(host: SkylineHost, projectId: string) {
           guids,
           wireOpts(sendOpts)
         );
-        return { guid: res.guid, sentAt };
+        return bindOutboundMessage(channel, {
+          content: {
+            type: "group",
+            items: files.map((file) => ({
+              type: "attachment" as const,
+              name: file.name,
+              path: file.path,
+              data: file.data
+                ? file.data instanceof Uint8Array
+                  ? file.data
+                  : new Uint8Array(file.data)
+                : undefined,
+              isAudioMessage: file.audio,
+            })),
+          },
+          guid: res.guid,
+          replyTo: sendOpts?.replyTo
+            ? { messageGuid: sendOpts.replyTo }
+            : undefined,
+          senderId: to,
+        });
       },
       shareContactCard: () => grpcFor().shareContactInfo(chatGuid),
       shareLocation: (locOpts) => grpcFor().shareLocation(chatGuid, locOpts),

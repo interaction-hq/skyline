@@ -89,7 +89,7 @@ export interface Message {
   platform: Platform;
   react(reaction: Reaction, opts?: { remove?: boolean }): Promise<void>;
   read(): Promise<void>;
-  reply(content: ContentInput, opts?: SendOptions): Promise<SendReceipt>;
+  reply(content: ContentInput, opts?: SendOptions): Promise<Message | undefined>;
   replyTo?: { messageGuid: string; partIndex?: number };
   sender: User;
   service?: string;
@@ -182,6 +182,7 @@ export interface SignalMap {
 
 export type SignalName = keyof SignalMap;
 
+/** @deprecated Prefer `Message` from `channel.send()`. Kept for transitional typing. */
 export interface SendReceipt {
   guid?: string;
   sentAt: Date;
@@ -220,11 +221,17 @@ export interface Channel {
     messageGuid: string,
     content: ContentInput,
     opts?: SendOptions
-  ): Promise<SendReceipt>;
+  ): Promise<Message | undefined>;
   responding<T>(fn: () => T | Promise<T>): Promise<T>;
-  send(content: ContentInput, opts?: SendOptions): Promise<SendReceipt>;
-  sendFile(file: AttachmentSend, opts?: SendOptions): Promise<SendReceipt>;
-  sendFiles(files: AttachmentSend[], opts?: SendOptions): Promise<SendReceipt>;
+  send(content: ContentInput, opts?: SendOptions): Promise<Message | undefined>;
+  sendFile(
+    file: AttachmentSend,
+    opts?: SendOptions
+  ): Promise<Message | undefined>;
+  sendFiles(
+    files: AttachmentSend[],
+    opts?: SendOptions
+  ): Promise<Message | undefined>;
   shareContactCard(): Promise<void>;
   /** iMessage only supports current / live location — not arbitrary coordinates. */
   shareLocation(opts?: { durationSeconds?: number }): Promise<void>;

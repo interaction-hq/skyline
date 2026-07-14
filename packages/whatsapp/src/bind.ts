@@ -6,11 +6,13 @@ import type {
   SendOptions,
 } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Platform, SendReceipt } from "@skyline-ts/core";
+import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   bindMessage,
+  bindOutboundMessage,
   contentSugar,
+  messageFromSend,
   stubAttachmentDownload,
   unsupportedPollOps,
   withResponding,
@@ -77,6 +79,7 @@ function createBinder(host: SkylineHost, projectId: string) {
   };
 
   const sendAttachment = async (
+    channel: Channel,
     to: string,
     content: {
       data?: Uint8Array;
@@ -88,14 +91,25 @@ function createBinder(host: SkylineHost, projectId: string) {
       url?: string;
     },
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const grpc = waFor(to);
     const id = host.newId();
     const data = await readBytes(content);
     if (content.isAudioMessage || isAudioMime(content.mimeType)) {
       const res = await grpc.sendAudio(to, data, content.mimeType, id);
       void sendOpts;
-      return { guid: res.messageId, sentAt: new Date() };
+      return bindOutboundMessage(channel, {
+        content: {
+          type: "attachment",
+          data,
+          isAudioMessage: true,
+          mimeType: content.mimeType,
+          name: content.name,
+          path: content.path,
+        },
+        guid: res.messageId,
+        senderId: to,
+      });
     }
     if (isImageMime(content.mimeType) || isVideoMime(content.mimeType)) {
       const res = await grpc.sendMediaMessage(
@@ -110,7 +124,17 @@ function createBinder(host: SkylineHost, projectId: string) {
         id
       );
       void sendOpts;
-      return { guid: res.messageId, sentAt: new Date() };
+      return bindOutboundMessage(channel, {
+        content: {
+          type: "attachment",
+          data,
+          mimeType: content.mimeType,
+          name: content.name,
+          path: content.path,
+        },
+        guid: res.messageId,
+        senderId: to,
+      });
     }
     const res = await grpc.sendDocument(
       to,
@@ -123,15 +147,27 @@ function createBinder(host: SkylineHost, projectId: string) {
       id
     );
     void sendOpts;
-    return { guid: res.messageId, sentAt: new Date() };
+    return bindOutboundMessage(channel, {
+      content: {
+        type: "attachment",
+        data,
+        mimeType: content.mimeType,
+        name: content.name,
+        path: content.path,
+      },
+      guid: res.messageId,
+      senderId: to,
+    });
   };
 
   const sendGroupAlbum = async (
+    channel: Channel,
     to: string,
     content: GroupContent,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const items = [];
+    const groupItems = [];
     for (const item of content.items) {
       if (item.type !== "attachment") {
         host.unsupported("whatsapp", "sending group content with mixed types");
@@ -142,46 +178,67 @@ function createBinder(host: SkylineHost, projectId: string) {
         host.unsupported("whatsapp", "sending group content with non-album items");
       }
       items.push(album);
+      groupItems.push({ ...item, data: bytes });
     }
     if (items.length < 2) {
       host.unsupported("whatsapp", "sending group content");
     }
     const res = await waFor(to).sendAlbum(to, items, host.newId());
     void sendOpts;
-    return { guid: res.messageIds[0], sentAt: new Date() };
+    return bindOutboundMessage(channel, {
+      content: {
+        type: "group",
+        items: groupItems,
+      },
+      guid: res.messageIds[0],
+      senderId: to,
+    });
   };
 
   const sendContent = async (
+    channel: Channel,
     to: string,
     input: ContentInput,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const content = await resolveContent(input);
     const grpc = waFor(to);
     const id = host.newId();
+    let guid: string | undefined;
     switch (content.type) {
       case "text":
       case "markdown": {
         const body = content.type === "markdown" ? content.body : content.text;
         const res = await grpc.sendText(to, body, id, sendOpts?.replyTo);
-        return { guid: res.messageId, sentAt: new Date() };
+        guid = res.messageId;
+        break;
       }
       case "attachment":
-        return sendAttachment(to, content, sendOpts);
+        return sendAttachment(channel, to, content, sendOpts);
       case "voice": {
         const data = await readBytes(content);
         const res = await grpc.sendAudio(to, data, content.mimeType, id);
         void sendOpts;
-        return { guid: res.messageId, sentAt: new Date() };
+        return bindOutboundMessage(channel, {
+          content: {
+            type: "voice",
+            data,
+            mimeType: content.mimeType,
+            name: content.name,
+            path: content.path,
+          },
+          guid: res.messageId,
+          senderId: to,
+        });
       }
       case "group":
-        return sendGroupAlbum(to, content, sendOpts);
+        return sendGroupAlbum(channel, to, content, sendOpts);
       case "reply": {
         const targetGuid = content.target.guid;
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(to, content.content, {
+        return sendContent(channel, to, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -192,11 +249,11 @@ function createBinder(host: SkylineHost, projectId: string) {
           throw new Error("reaction: target message has no guid");
         }
         await grpc.sendReaction(to, targetGuid, content.emoji);
-        return { sentAt: new Date() };
+        break;
       }
       case "read":
       case "typing":
-        return { sentAt: new Date() };
+        break;
       case "edit":
       case "unsend":
       case "rename":
@@ -224,14 +281,20 @@ function createBinder(host: SkylineHost, projectId: string) {
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    throw new Error("unreachable");
+    return messageFromSend(channel, content, guid, {
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: to,
+    });
   };
 
   const makeChannel = (to: string): Channel => {
+    let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(to, content, sendOpts);
+      sendContent(channel, to, content, sendOpts);
     const sugar = contentSugar(send);
-    const channel: Channel = {
+    channel = {
     ...sugar,
     background: async () => host.unsupported("whatsapp", "background"),
     contact: async () => null,
@@ -269,6 +332,7 @@ function createBinder(host: SkylineHost, projectId: string) {
     send,
     sendFile: async (file: AttachmentSend, sendOpts) =>
       sendAttachment(
+        channel,
         to,
         {
           data:
@@ -290,6 +354,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       }
       if (files.length === 1) {
         return sendAttachment(
+          channel,
           to,
           {
             data:
@@ -307,6 +372,7 @@ function createBinder(host: SkylineHost, projectId: string) {
         );
       }
       const items = [];
+      const groupItems = [];
       for (const file of files) {
         const data = await readBytes({
           data:
@@ -326,10 +392,24 @@ function createBinder(host: SkylineHost, projectId: string) {
           host.unsupported("whatsapp", "sendFiles with non-album items");
         }
         items.push(album);
+        groupItems.push({
+          type: "attachment" as const,
+          data,
+          name: file.name,
+          path: file.path,
+          isAudioMessage: file.audio,
+        });
       }
       const res = await waFor(to).sendAlbum(to, items, host.newId());
       void sendOpts;
-      return { guid: res.messageIds[0], sentAt: new Date() };
+      return bindOutboundMessage(channel, {
+        content: {
+          type: "group",
+          items: groupItems,
+        },
+        guid: res.messageIds[0],
+        senderId: to,
+      });
     },
     shareContactCard: async () => host.unsupported("whatsapp", "shareContactCard"),
     shareLocation: async () => host.unsupported("whatsapp", "shareLocation"),

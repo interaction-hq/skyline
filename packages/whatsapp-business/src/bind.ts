@@ -5,16 +5,16 @@ import type {
   SendOptions,
 } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Platform, SendReceipt } from "@skyline-ts/core";
+import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   contentSugar,
+  messageFromSend,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
 import {
   WhatsappBusinessClient,
-  type WaSendResult,
 } from "./rest/client.js";
 import {
   whatsappBusinessDedicatedLines,
@@ -52,22 +52,24 @@ function createBinder(host: SkylineHost) {
   };
 
   const sendWaBusiness = async (
+    channel: Channel,
     to: string,
     input: ContentInput,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const wb = wbFor(to);
     const content = await resolveContent(input);
     const replyTo = sendOpts?.replyTo;
-    let res: WaSendResult | undefined;
+    let guid: string | undefined;
     switch (content.type) {
       case "text":
       case "markdown": {
         const body = content.type === "markdown" ? content.body : content.text;
-        res = await wb.sendText(to, body, {
+        const res = await wb.sendText(to, body, {
           previewUrl: sendOpts?.richLink,
           replyTo,
         });
+        guid = res.messageId;
         break;
       }
       case "attachment": {
@@ -78,7 +80,7 @@ function createBinder(host: SkylineHost) {
           );
         }
         const kind = mediaKindFromMime(content.mimeType);
-        res = await wb.sendMedia(
+        const res = await wb.sendMedia(
           to,
           kind,
           {
@@ -88,6 +90,7 @@ function createBinder(host: SkylineHost) {
           },
           { replyTo }
         );
+        guid = res.messageId;
         break;
       }
       case "voice": {
@@ -97,16 +100,17 @@ function createBinder(host: SkylineHost) {
             "voice without a public https link (use wa.audio with link or media id)"
           );
         }
-        res = await wb.sendMedia(
+        const res = await wb.sendMedia(
           to,
           "audio",
           { link: content.url },
           { replyTo }
         );
+        guid = res.messageId;
         break;
       }
-      case "wa_media":
-        res = await wb.sendMedia(
+      case "wa_media": {
+        const res = await wb.sendMedia(
           to,
           content.kind,
           {
@@ -117,9 +121,11 @@ function createBinder(host: SkylineHost) {
           },
           { replyTo }
         );
+        guid = res.messageId;
         break;
-      case "wa_template":
-        res = await wb.sendTemplate(
+      }
+      case "wa_template": {
+        const res = await wb.sendTemplate(
           to,
           {
             components: content.components,
@@ -128,12 +134,16 @@ function createBinder(host: SkylineHost) {
           },
           { replyTo }
         );
+        guid = res.messageId;
         break;
-      case "wa_interactive":
-        res = await wb.sendInteractive(to, content.interactive, { replyTo });
+      }
+      case "wa_interactive": {
+        const res = await wb.sendInteractive(to, content.interactive, { replyTo });
+        guid = res.messageId;
         break;
-      case "wa_location":
-        res = await wb.sendLocation(
+      }
+      case "wa_location": {
+        const res = await wb.sendLocation(
           to,
           {
             address: content.address,
@@ -143,16 +153,20 @@ function createBinder(host: SkylineHost) {
           },
           { replyTo }
         );
+        guid = res.messageId;
         break;
-      case "wa_contacts":
-        res = await wb.sendContacts(to, content.contacts, { replyTo });
+      }
+      case "wa_contacts": {
+        const res = await wb.sendContacts(to, content.contacts, { replyTo });
+        guid = res.messageId;
         break;
+      }
       case "reply": {
         const targetGuid = content.target.guid;
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendWaBusiness(to, content.content, {
+        return sendWaBusiness(channel, to, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -162,12 +176,13 @@ function createBinder(host: SkylineHost) {
         if (!targetGuid) {
           throw new Error("reaction: target message has no guid");
         }
-        res = await wb.sendReaction(to, targetGuid, content.emoji);
+        const res = await wb.sendReaction(to, targetGuid, content.emoji);
+        guid = res.messageId;
         break;
       }
       case "read":
       case "typing":
-        return { sentAt: new Date() };
+        break;
       case "edit":
       case "unsend":
       case "rename":
@@ -191,14 +206,20 @@ function createBinder(host: SkylineHost) {
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    return { guid: res?.messageId, sentAt: new Date() };
+    return messageFromSend(channel, content, guid, {
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: to,
+    });
   };
 
   const makeChannel = (to: string): Channel => {
+    let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendWaBusiness(to, content, sendOpts);
+      sendWaBusiness(channel, to, content, sendOpts);
     const sugar = contentSugar(send);
-    const channel: Channel = {
+    channel = {
     ...sugar,
     background: async () => host.unsupported("whatsapp_business", "background"),
     contact: async () => null,

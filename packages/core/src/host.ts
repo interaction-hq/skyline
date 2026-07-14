@@ -24,5 +24,7 @@ export type { MessageData } from "./message.js";
 export {
   attachmentWithDownload,
   bindMessage,
+  bindOutboundMessage,
+  messageFromSend,
   stubAttachmentDownload,
 } from "./message.js";

@@ -1,10 +1,11 @@
 import type { ContentInput, SendOptions } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Platform } from "@skyline-ts/core";
+import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import {
   bindMessage,
   contentSugar,
+  messageFromSend,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
@@ -13,25 +14,28 @@ import { startTerminalSession, type TerminalSession } from "./session.js";
 
 function createBinder(host: SkylineHost) {
   const sendContent = async (
+    channel: Channel,
     session: TerminalSession,
     content: ContentInput,
     sendOpts?: SendOptions
-  ) => {
+  ): Promise<Message | undefined> => {
     const parsed = await resolveContent(content);
+    let guid: string | undefined;
     switch (parsed.type) {
       case "text":
       case "markdown": {
         const body = parsed.type === "markdown" ? parsed.body : parsed.text;
         const prefix = sendOpts?.replyTo ? "↳ agent: " : "agent: ";
         session.write(`${prefix}${body}`);
-        return { guid: `term-${Date.now()}`, sentAt: new Date() };
+        guid = `term-${Date.now()}`;
+        break;
       }
       case "reply": {
         const targetGuid = parsed.target.guid;
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(session, parsed.content, {
+        return sendContent(channel, session, parsed.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -46,38 +50,38 @@ function createBinder(host: SkylineHost) {
               ? inner.body
               : JSON.stringify(inner);
         session.write(`agent edited ${targetGuid}: ${body}`);
-        return { sentAt: new Date() };
+        break;
       }
       case "unsend": {
         session.write(`agent unsent ${parsed.target.guid ?? "unknown"}`);
-        return { sentAt: new Date() };
+        break;
       }
       case "reaction": {
         session.write(
           `agent reacted ${parsed.emoji} on ${parsed.target.guid ?? "unknown"}`
         );
-        return { sentAt: new Date() };
+        break;
       }
       case "rename":
         session.write(`agent renamed chat to ${parsed.displayName}`);
-        return { sentAt: new Date() };
+        break;
       case "avatar":
         session.write(
           `agent ${parsed.action.kind === "clear" ? "cleared" : "set"} avatar`
         );
-        return { sentAt: new Date() };
+        break;
       case "addMember":
         session.write(`agent added ${parsed.members.join(", ")}`);
-        return { sentAt: new Date() };
+        break;
       case "removeMember":
         session.write(`agent removed ${parsed.members.join(", ")}`);
-        return { sentAt: new Date() };
+        break;
       case "leaveChannel":
         session.write("agent left channel");
-        return { sentAt: new Date() };
+        break;
       case "read":
       case "typing":
-        return { sentAt: new Date() };
+        break;
       case "app":
       case "custom":
       case "flow":
@@ -101,7 +105,12 @@ function createBinder(host: SkylineHost) {
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    throw new Error("unreachable");
+    return messageFromSend(channel, parsed, guid, {
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: channel.to,
+    });
   };
 
   const channelExtras = {
@@ -124,11 +133,12 @@ function createBinder(host: SkylineHost) {
       throw new Error(`terminal session not ready for ${to}`);
     }
 
+    let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(session, content, sendOpts);
+      sendContent(channel, session, content, sendOpts);
     const sugar = contentSugar(send);
 
-    const channel: Channel = {
+    channel = {
       ...sugar,
       contact: async () => null,
       edit: async (messageGuid, newText) => {
@@ -177,17 +187,18 @@ function createBinder(host: SkylineHost) {
 
   const connectLocal = (config: TerminalConfig): void => {
     const to = "terminal";
+    let channel!: Channel;
     let session: TerminalSession | undefined;
 
     const send = (content: ContentInput, sendOpts?: SendOptions) => {
       if (!session) {
         throw new Error("terminal session not ready");
       }
-      return sendContent(session, content, sendOpts);
+      return sendContent(channel, session, content, sendOpts);
     };
     const sugar = contentSugar(send);
 
-    const channel: Channel = {
+    channel = {
       ...sugar,
       contact: async () => null,
       edit: async (messageGuid, newText) => {

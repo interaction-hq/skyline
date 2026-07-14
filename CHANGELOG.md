@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-14
+
+### Changed
+- **Breaking:** `channel.send` / `sendFile` / `sendFiles` / `reply` (and `message.reply`) return `Message | undefined` instead of `SendReceipt`.
+- Fire-and-forget ops (`typing`, `read`, `edit`, `unsend`, rename/avatar/membership) resolve to `undefined`.
+- Outbound messages are `bindMessage`-bound — use `msg.reply` / `edit` / `react` / `unsend` on the return value.
+
 ## [0.3.6] - 2026-07-14
 
 ### Fixed

@@ -6,11 +6,13 @@ import type {
   SendOptions,
 } from "@skyline-ts/core/content";
 import { resolveContent } from "@skyline-ts/core/content";
-import type { Channel, Message, Platform, SendReceipt } from "@skyline-ts/core";
+import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   bindMessage,
+  bindOutboundMessage,
   contentSugar,
+  messageFromSend,
   stubAttachmentDownload,
   unsupportedPollOps,
   withResponding,
@@ -67,11 +69,12 @@ function createBinder(host: SkylineHost) {
   };
 
   const uploadFile = async (
+    channel: Channel,
     to: string,
     teamId: string | undefined,
     file: AttachmentSend,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const bytes = await readAttachmentBytes(file);
     const res = await slackFor(teamId).uploadFile(
       to,
@@ -81,16 +84,29 @@ function createBinder(host: SkylineHost) {
       },
       { replyTo: sendOpts?.replyTo }
     );
-    return { guid: res.messageId, sentAt: new Date() };
+    return bindOutboundMessage(channel, {
+      content: {
+        type: "attachment",
+        data: bytes,
+        name: file.name,
+      },
+      guid: res.messageId,
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: to,
+    });
   };
 
   const sendContent = async (
+    channel: Channel,
     to: string,
     teamId: string | undefined,
     input: ContentInput,
     sendOpts?: SendOptions
-  ): Promise<SendReceipt> => {
+  ): Promise<Message | undefined> => {
     const content = await resolveContent(input);
+    let guid: string | undefined;
     switch (content.type) {
       case "text":
       case "markdown": {
@@ -98,7 +114,8 @@ function createBinder(host: SkylineHost) {
         const res = await slackFor(teamId).sendText(to, body, {
           replyTo: sendOpts?.replyTo,
         });
-        return { guid: res.messageId, sentAt: new Date() };
+        guid = res.messageId;
+        break;
       }
       case "attachment": {
         const bytes = await readAttachmentContent(content);
@@ -110,19 +127,20 @@ function createBinder(host: SkylineHost) {
           },
           { replyTo: sendOpts?.replyTo }
         );
-        return { guid: res.messageId, sentAt: new Date() };
+        guid = res.messageId;
+        break;
       }
       case "group": {
         const first = content.items[0];
         if (first?.type === "attachment") {
-          let last: SendReceipt | undefined;
+          let last: Message | undefined;
           for (const item of content.items) {
             if (item.type !== "attachment") {
               host.unsupported("slack", "sending group content with mixed types");
             }
-            last = await sendContent(to, teamId, item, sendOpts);
+            last = await sendContent(channel, to, teamId, item, sendOpts);
           }
-          return last as SendReceipt;
+          return last;
         }
         host.unsupported("slack", "sending group content");
         break;
@@ -132,7 +150,7 @@ function createBinder(host: SkylineHost) {
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(to, teamId, content.content, {
+        return sendContent(channel, to, teamId, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -153,7 +171,7 @@ function createBinder(host: SkylineHost) {
           host.unsupported("slack", `editing ${inner.type} content`);
         }
         await slackFor(teamId).editText(to, targetGuid, newText);
-        return { sentAt: new Date() };
+        break;
       }
       case "unsend": {
         const targetGuid = content.target.guid;
@@ -161,7 +179,7 @@ function createBinder(host: SkylineHost) {
           throw new Error("unsend: target message has no guid");
         }
         await slackFor(teamId).deleteMessage(to, targetGuid);
-        return { sentAt: new Date() };
+        break;
       }
       case "reaction": {
         const targetGuid = content.target.guid;
@@ -169,11 +187,11 @@ function createBinder(host: SkylineHost) {
           throw new Error("reaction: target message has no guid");
         }
         await slackFor(teamId).addReaction(to, targetGuid, content.emoji);
-        return { sentAt: new Date() };
+        break;
       }
       case "read":
       case "typing":
-        return { sentAt: new Date() };
+        break;
       case "rename":
       case "avatar":
       case "addMember":
@@ -200,7 +218,12 @@ function createBinder(host: SkylineHost) {
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    throw new Error("unreachable");
+    return messageFromSend(channel, content, guid, {
+      replyTo: sendOpts?.replyTo
+        ? { messageGuid: sendOpts.replyTo }
+        : undefined,
+      senderId: to,
+    });
   };
 
   const inboundSlackMessage = (
@@ -250,10 +273,11 @@ function createBinder(host: SkylineHost) {
     });
 
   const makeChannel = (to: string, teamId?: string): Channel => {
+    let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(to, teamId, content, sendOpts);
+      sendContent(channel, to, teamId, content, sendOpts);
     const sugar = contentSugar(send);
-    const channel: Channel = {
+    channel = {
     ...sugar,
     background: async () => host.unsupported("slack", "background"),
     contact: async () => null,
@@ -293,16 +317,17 @@ function createBinder(host: SkylineHost) {
     reply: (messageGuid, content, sendOpts) =>
       send(content, { ...sendOpts, replyTo: messageGuid }),
     send,
-    sendFile: (file, sendOpts) => uploadFile(to, teamId, file, sendOpts),
+    sendFile: (file, sendOpts) =>
+      uploadFile(channel, to, teamId, file, sendOpts),
     sendFiles: async (files, sendOpts) => {
       if (files.length === 0) {
         throw new Error("sendFiles: needs at least one file");
       }
-      let last: SendReceipt | undefined;
+      let last: Message | undefined;
       for (const file of files) {
-        last = await uploadFile(to, teamId, file, sendOpts);
+        last = await uploadFile(channel, to, teamId, file, sendOpts);
       }
-      return last as SendReceipt;
+      return last;
     },
     shareContactCard: async () => host.unsupported("slack", "shareContactCard"),
     shareLocation: async () => host.unsupported("slack", "shareLocation"),
