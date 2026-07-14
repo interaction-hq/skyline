@@ -204,8 +204,6 @@ export interface Channel {
   readonly group: GroupOps;
   leave(): Promise<void>;
   listMessages(opts?: ListMessagesOptions): Promise<Message[]>;
-  /** @deprecated use `to` */
-  readonly phone: string;
   readonly platform: Platform;
   readonly poll: PollOps;
   reachable(): Promise<boolean>;
@@ -297,17 +295,11 @@ export interface SkylineApp {
     platform?: Platform;
   }): Promise<{ url: string }>;
   incoming: AsyncIterable<[Channel, Message]>;
-  /** @deprecated use `incoming` */
-  messages: AsyncIterable<[Channel, Message]>;
   on<K extends SignalName>(
     event: K,
     handler: (signal: SignalMap[K], channel: Channel) => void
   ): () => void;
   ready: Set<string>;
-  /** @deprecated use `ready` */
-  readyPhones: Set<string>;
-  /** @deprecated use `channel(...)` */
-  space(handle: string): Channel;
 }
 
 export interface ChannelTarget {
@@ -340,9 +332,6 @@ export interface ResolvedLine {
   };
   token: string;
 }
-
-/** @deprecated use `Channel` */
-export type Space = Channel;
 
 export type ProviderConfig = {
   platform: Platform;

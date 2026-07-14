@@ -1,3 +1,9 @@
-export * from "./bind.js";
-export * from "./config.js";
-export * from "./grpc.js";
+export { bind } from "./bind.js";
+export {
+  whatsapp,
+  whatsappDedicatedLines,
+  type WhatsappCloudConfig,
+  type WhatsappConfig,
+  type WhatsappDedicatedConfig,
+  type WhatsappDedicatedLine,
+} from "./config.js";

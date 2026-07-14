@@ -276,9 +276,6 @@ function createBinder(host: SkylineHost) {
       setName: (name) => sugar.rename(name),
     },
     listMessages: async () => [],
-    get phone() {
-      return to;
-    },
     platform: "slack",
     poll: unsupportedPollOps((verb) => host.unsupported("slack", verb)),
     reachable: async () => true,

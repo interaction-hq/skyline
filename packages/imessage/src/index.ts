@@ -1,3 +1,9 @@
-export * from "./bind.js";
-export * from "./config.js";
-export * from "./grpc.js";
+export { bind } from "./bind.js";
+export {
+  dedicatedLines,
+  imessage,
+  type DedicatedLine,
+  type ImessageCloudConfig,
+  type ImessageConfig,
+  type ImessageDedicatedConfig,
+} from "./config.js";

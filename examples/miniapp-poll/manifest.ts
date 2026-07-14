@@ -2,7 +2,7 @@
 // the transcript. Publish the output as a registry row and it appears in the
 // Interactions launcher; no binary, no Apple account (hosted mode).
 
-import { defineApp } from "skyline-ts/app";
+import { defineApp } from "skyline-ts/miniapp";
 
 export const poll = defineApp({
   bubble: {

@@ -16,7 +16,7 @@ const app = await Skyline({
 
 console.log("Multi-platform agent — ready:", [...app.ready]);
 
-for await (const [space, message] of app.messages) {
+for await (const [channel, message] of app.incoming) {
   if (message.isFromMe || message.content.type !== "text") {
     continue;
   }
@@ -25,9 +25,9 @@ for await (const [space, message] of app.messages) {
     `[${message.platform}] ${message.sender.id}: ${message.content.text}`
   );
 
-  await space.typing(true);
+  await channel.typing(true);
   await new Promise((r) => setTimeout(r, 500));
-  await space.typing(false);
+  await channel.typing(false);
 
-  await space.send(`Got it on ${message.platform}.`);
+  await channel.send(`Got it on ${message.platform}.`);
 }

@@ -1,17 +1,8 @@
-// Live smoke: backend-send an app card through the real SDK transport.
-//
-// Exercises the exact path space.send(app(...)) takes: ImessageGrpcClient ->
-// gRPC on the on-mac server -> helper -> IMCore. Runs against a dev-mode server
-// (no AUTH_PUBLIC_KEY_PATH), so an empty token sends no auth header and the
-// server uses its local identity.
-//
-// Run: MINI=100.120.138.80:50051 TO=+918527438574 bun examples/miniapp-smoke.ts
-
 import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
-} from "@skyline-ts/imessage";
+} from "@skyline-ts/imessage/grpc";
 
 const target = grpcTarget(process.env.MINI ?? "100.120.138.80:50051");
 const to = process.env.TO ?? "+918527438574";

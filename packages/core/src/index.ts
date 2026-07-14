@@ -147,7 +147,6 @@ export type {
   SignalMap,
   SignalName,
   SkylineApp,
-  Space,
   TextContent,
   TypingSignal,
   UnsendSignal,

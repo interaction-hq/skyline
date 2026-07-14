@@ -1,5 +1,10 @@
-export * from "./bind.js";
-export * from "./config.js";
-export * from "./grpc.js";
-export * from "./rest.js";
-export * from "./socket.js";
+export { bind } from "./bind.js";
+export {
+  slack,
+  slackDedicatedLines,
+  type SlackCloudConfig,
+  type SlackConfig,
+  type SlackDedicatedConfig,
+  type SlackDedicatedInput,
+  type SlackTeamMetadata,
+} from "./config.js";

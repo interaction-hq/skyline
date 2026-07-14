@@ -703,9 +703,6 @@ function createBinder(host: SkylineHost, projectId: string) {
           inboundToMessage(channel, raw, to, grpcFor(), toGroupCtx, senderUser)
         );
       },
-      get phone() {
-        return to;
-      },
       poll: {
         addOption: (pollMessageGuid, optionText) =>
           grpcFor().addPollOption(chatGuid, pollMessageGuid, optionText),

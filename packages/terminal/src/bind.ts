@@ -147,9 +147,6 @@ function createBinder(host: SkylineHost) {
         setIcon: async () => host.unsupported("terminal", "group.setIcon"),
         setName: (name) => sugar.rename(name),
       },
-      get phone() {
-        return to;
-      },
       platform: "terminal",
       poll: unsupportedPollOps((verb) => host.unsupported("terminal", verb)),
       reachable: async () => true,
@@ -208,9 +205,6 @@ function createBinder(host: SkylineHost) {
           host.unsupported("terminal", "group.setBackground"),
         setIcon: async () => host.unsupported("terminal", "group.setIcon"),
         setName: (name) => sugar.rename(name),
-      },
-      get phone() {
-        return to;
       },
       platform: "terminal",
       poll: unsupportedPollOps((verb) => host.unsupported("terminal", verb)),

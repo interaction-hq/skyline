@@ -393,10 +393,7 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
       return binder.createFaceTimeLink(linkOpts?.handles);
     },
     incoming,
-    messages: incoming,
     on: (event, handler) => emitter.on(event, handler),
     ready: host.ready,
-    readyPhones: host.ready,
-    space: (handle) => makeChannel(handle),
   };
 }

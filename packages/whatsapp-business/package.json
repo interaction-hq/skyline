@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/whatsapp-business",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "WhatsApp Business provider for skyline-ts.",
   "type": "module",
   "license": "MIT",
@@ -20,6 +20,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./rest": {
+      "types": "./dist/rest/client.d.ts",
+      "import": "./dist/rest/client.js"
     }
   },
   "files": [
@@ -31,7 +35,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "@skyline-ts/core": "^0.3.2"
+    "@skyline-ts/core": "^0.3.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

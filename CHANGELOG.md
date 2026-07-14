@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-14
+
+### Removed
+- Deprecated aliases: `Space`, `app.space()`, `app.messages`, `app.readyPhones`, `channel.phone`.
+- Slack dedicated `lines[]` config shim — use `tokens` / `teams` only.
+- Public barrel exports of wire clients (`ImessageGrpcClient`, `dmChatGuid`, Slack/WhatsApp gRPC, etc.). Use `@skyline-ts/<provider>/grpc` (or `/rest`) when you need them.
+- Duplicate package export path `./app` — use `./miniapp`.
+
 ## [0.3.3] - 2026-07-14
 
 ### Added

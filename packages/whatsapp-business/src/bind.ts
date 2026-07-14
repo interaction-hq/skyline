@@ -221,9 +221,6 @@ function createBinder(host: SkylineHost) {
       setName: (name) => sugar.rename(name),
     },
     listMessages: async () => [],
-    get phone() {
-      return to;
-    },
     platform: "whatsapp_business",
     poll: unsupportedPollOps((verb) =>
       host.unsupported("whatsapp_business", verb)

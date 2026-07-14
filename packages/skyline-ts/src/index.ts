@@ -16,7 +16,6 @@ export type {
   SlackCloudConfig,
   SlackConfig,
   SlackDedicatedConfig,
-  SlackLine,
   TerminalConfig,
   WhatsappBusinessCloudConfig,
   WhatsappBusinessConfig,

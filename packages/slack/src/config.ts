@@ -8,17 +8,10 @@ export interface SlackTeamMetadata {
 }
 
 export interface SlackDedicatedInput {
-    appTokens?: Readonly<Record<string, string>>;
+  appTokens?: Readonly<Record<string, string>>;
   endpoint?: string;
   teams?: Readonly<Record<string, SlackTeamMetadata>>;
   tokens: Readonly<Record<string, string>>;
-}
-
-export interface SlackLine {
-  appToken?: string;
-  botToken: string;
-  signingSecret?: string;
-  teamId?: string;
 }
 
 export interface SlackCloudConfig {
@@ -27,61 +20,22 @@ export interface SlackCloudConfig {
 }
 
 export interface SlackDedicatedConfig extends SlackDedicatedInput {
-  lines?: never;
   mode: "dedicated";
   platform: "slack";
 }
 
 export type SlackConfig = SlackCloudConfig | SlackDedicatedConfig;
 
-type SlackConfigInput =
-  | (SlackDedicatedInput & { lines?: SlackLine[] })
-  | Record<string, never>;
-
-function dedicatedFromLines(lines: SlackLine[]): SlackDedicatedInput {
-  const tokens: Record<string, string> = {};
-  const appTokens: Record<string, string> = {};
-  for (const line of lines) {
-    const teamId = line.teamId ?? "slack";
-    tokens[teamId] = line.botToken;
-    if (line.appToken) {
-      appTokens[teamId] = line.appToken;
-    }
-  }
-  return {
-    appTokens: Object.keys(appTokens).length > 0 ? appTokens : undefined,
-    tokens,
-  };
-}
-
-function normalizeDedicatedInput(
-  opts?: SlackConfigInput
-): SlackDedicatedInput | null {
-  if (!opts) {
-    return null;
-  }
-  if ("lines" in opts && opts.lines && opts.lines.length > 0) {
-    return dedicatedFromLines(opts.lines);
-  }
-  if ("tokens" in opts && Object.keys(opts.tokens).length > 0) {
-    return {
-      appTokens: opts.appTokens,
-      endpoint: opts.endpoint,
-      teams: opts.teams,
-      tokens: opts.tokens,
-    };
-  }
-  return null;
-}
-
 export const slack = {
-  config(opts?: SlackConfigInput): SlackConfig {
-    const dedicated = normalizeDedicatedInput(opts);
-    if (dedicated) {
+  config(opts?: SlackDedicatedInput): SlackConfig {
+    if (opts && Object.keys(opts.tokens).length > 0) {
       return {
-        ...dedicated,
+        appTokens: opts.appTokens,
+        endpoint: opts.endpoint,
         mode: "dedicated",
         platform: "slack",
+        teams: opts.teams,
+        tokens: opts.tokens,
       };
     }
     return { mode: "cloud", platform: "slack" };

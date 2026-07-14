@@ -1,3 +1,9 @@
-export * from "./bind.js";
-export * from "./config.js";
-export * from "./rest/client.js";
+export { bind } from "./bind.js";
+export {
+  whatsappBusiness,
+  whatsappBusinessDedicatedLines,
+  type WhatsappBusinessCloudConfig,
+  type WhatsappBusinessConfig,
+  type WhatsappBusinessDedicatedConfig,
+  type WhatsappBusinessLine,
+} from "./config.js";
