@@ -74,9 +74,7 @@ function createEmitter() {
       for (const handler of set) {
         try {
           handler(signal, channel);
-        } catch {
-          // subscriber errors must not break the stream
-        }
+        } catch {}
       }
     },
     on<K extends import("./types").SignalName>(
@@ -130,20 +128,19 @@ function createHost(
   };
 
   return {
+    binders,
+    emit: emitter.emit,
+    lineFor,
+    lineForPlatform,
+    live,
+    newId: () => `sky-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     projectId,
     projectSecret,
-    newId: () =>
-      `sky-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     queue: createQueue(),
-    emit: emitter.emit,
-    live,
     ready: new Set<string>(),
-    binders,
     register(binder) {
       binders.set(binder.platform, binder);
     },
-    lineFor,
-    lineForPlatform,
     unsupported,
   };
 }
@@ -246,10 +243,7 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
     }
 
     if (provider.platform === "slack") {
-      const tokens = await issueSlackTokens(
-        opts.projectId,
-        opts.projectSecret
-      );
+      const tokens = await issueSlackTokens(opts.projectId, opts.projectSecret);
       const resolved = await broker.resolve(
         { projectId: opts.projectId, projectSecret: opts.projectSecret },
         "slack"

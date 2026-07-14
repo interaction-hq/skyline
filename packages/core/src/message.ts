@@ -1,14 +1,19 @@
 import {
+  type ContentInput,
   edit as editContent,
+  type Reaction,
   reaction as reactionContent,
   read as readContent,
   reply as replyContent,
-  unsend as unsendContent,
-  type ContentInput,
-  type Reaction,
   type SendOptions,
+  unsend as unsendContent,
 } from "./content/index.js";
-import type { Channel, Message, MessageAttachment, SendReceipt } from "./types.js";
+import type {
+  Channel,
+  Message,
+  MessageAttachment,
+  SendReceipt,
+} from "./types.js";
 
 export type MessageData = Omit<
   Message,
@@ -19,14 +24,15 @@ export type MessageData = Omit<
 
 export function bindMessage(channel: Channel, data: MessageData): Message {
   const guid = data.guid;
-  const direction =
-    data.direction ?? (data.isFromMe ? "outbound" : "inbound");
+  const direction = data.direction ?? (data.isFromMe ? "outbound" : "inbound");
 
   let self: Message | undefined;
 
   const requireSelf = (action: string): Message => {
     if (!self) {
-      throw new Error(`${action}() called before message construction completed`);
+      throw new Error(
+        `${action}() called before message construction completed`
+      );
     }
     return self;
   };

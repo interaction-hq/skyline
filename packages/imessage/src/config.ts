@@ -1,13 +1,9 @@
 import type { ResolvedLine } from "@skyline-ts/core";
 
-/** A dedicated line the customer supplies directly (self-host / advanced). */
 export interface DedicatedLine {
-  /** gRPC endpoint, e.g. "100.x.y.z:50051". */
-  address: string;
-  /** The handle (phone/email) this line serves. */
-  phone: string;
-  /** Token forwarded to the server (x-project-id metadata). */
-  token: string;
+    address: string;
+    phone: string;
+    token: string;
 }
 
 export interface ImessageCloudConfig {
@@ -23,11 +19,6 @@ export interface ImessageDedicatedConfig {
 
 export type ImessageConfig = ImessageCloudConfig | ImessageDedicatedConfig;
 
-/**
- * The iMessage provider. Default is cloud mode — the SDK asks the Skyline broker
- * to resolve lines for the project. Pass `{ lines }` for dedicated mode (you own
- * the endpoints + tokens; the broker is bypassed).
- */
 export const imessage = {
   config(opts?: { lines?: DedicatedLine[] }): ImessageConfig {
     if (opts?.lines && opts.lines.length > 0) {
@@ -37,7 +28,6 @@ export const imessage = {
   },
 };
 
-/** Dedicated config → resolved lines (no broker call). */
 export function dedicatedLines(
   config: ImessageDedicatedConfig
 ): ResolvedLine[] {

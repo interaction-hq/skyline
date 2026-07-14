@@ -43,28 +43,26 @@ export interface Emitter {
 
 export interface PlatformBinder {
   connectLine(line: ResolvedLine): Promise<void> | void;
-  createChat?(
-    participants: string[]
-  ): Promise<{ to: string }>;
+  connectLocal?(config: unknown): void;
+  createChat?(participants: string[]): Promise<{ to: string }>;
   createFaceTimeLink?(handles?: string[]): Promise<{ url: string }>;
   dedicatedLines?(config: unknown): ResolvedLine[];
-  connectLocal?(config: unknown): void;
   makeChannel(to: string, scopeId?: string): Channel;
   platform: Platform;
 }
 
 export interface SkylineHost {
-  projectId?: string;
-  projectSecret?: string;
-  newId(): string;
-  queue: InboundQueue;
-  emit: Emitter["emit"];
-  live: Map<string, LiveLine>;
-  ready: Set<string>;
   binders: Map<Platform, PlatformBinder>;
-  register(binder: PlatformBinder): void;
+  emit: Emitter["emit"];
   lineFor(to: string): LiveLine;
   lineForPlatform(platform: Platform, scopeId?: string): LiveLine;
+  live: Map<string, LiveLine>;
+  newId(): string;
+  projectId?: string;
+  projectSecret?: string;
+  queue: InboundQueue;
+  ready: Set<string>;
+  register(binder: PlatformBinder): void;
   unsupported(platform: Platform, verb: string): never;
 }
 

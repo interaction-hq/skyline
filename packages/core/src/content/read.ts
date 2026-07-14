@@ -14,7 +14,7 @@ export function read(target: Message): ContentBuilder {
           `read() target must be an inbound message (got direction "${target.direction}", message id "${target.guid}")`
         );
       }
-      return { type: "read", target };
+      return { target, type: "read" };
     },
   };
 }

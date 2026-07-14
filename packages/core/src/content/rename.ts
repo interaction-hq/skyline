@@ -11,6 +11,6 @@ export function rename(displayName: string): ContentBuilder {
     throw new Error("rename() displayName must be non-empty");
   }
   return {
-    build: async () => ({ type: "rename", displayName: trimmed }),
+    build: async () => ({ displayName: trimmed, type: "rename" }),
   };
 }

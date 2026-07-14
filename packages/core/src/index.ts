@@ -1,5 +1,11 @@
 export { BrokerError } from "./broker.js";
+export {
+  contentSugar,
+  unsupportedPollOps,
+  withResponding,
+} from "./channel-helpers.js";
 export type {
+  AddMember,
   AppMessage,
   AttachmentContent,
   AttachmentInput,
@@ -20,7 +26,6 @@ export type {
   Effect,
   FlowMessage,
   GroupContent,
-  AddMember,
   LeaveChannel,
   MarkdownContent,
   MemberInput,
@@ -58,8 +63,8 @@ export {
   custom,
   customizedMiniApp,
   digitalTouch,
-  edit,
   EFFECTS,
+  edit,
   FIRE_AND_FORGET_TYPES,
   flow,
   group,
@@ -107,7 +112,6 @@ export {
   bindMessage,
   stubAttachmentDownload,
 } from "./message.js";
-export { unsupportedPollOps, withResponding, contentSugar } from "./channel-helpers.js";
 export type { LiveSessionOptions, SessionSnapshot } from "./session.js";
 export { LiveSession, session } from "./session.js";
 export {

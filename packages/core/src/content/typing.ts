@@ -7,6 +7,6 @@ export interface Typing {
 
 export function typing(state: "start" | "stop" = "start"): ContentBuilder {
   return {
-    build: async () => ({ type: "typing", state }),
+    build: async () => ({ state, type: "typing" }),
   };
 }

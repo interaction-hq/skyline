@@ -1,4 +1,11 @@
 export type {
+  Avatar,
+  AvatarAction,
+  AvatarData,
+  AvatarInput,
+} from "./avatar.js";
+export { avatar } from "./avatar.js";
+export type {
   AppMessage,
   AttachmentContent,
   AttachmentInput,
@@ -51,9 +58,6 @@ export {
   voice,
   wa,
 } from "./builders.js";
-
-export type { Avatar, AvatarAction, AvatarData, AvatarInput } from "./avatar.js";
-export { avatar } from "./avatar.js";
 export type { Edit } from "./edit.js";
 export { edit } from "./edit.js";
 export type {
@@ -72,8 +76,6 @@ export { rename } from "./rename.js";
 export type { Reply } from "./reply.js";
 export { reply } from "./reply.js";
 export { resolveContent, resolveContents, toContent } from "./resolve.js";
-export type { Typing } from "./typing.js";
-export { typing } from "./typing.js";
 export type {
   BaseContent,
   Content,
@@ -85,5 +87,7 @@ export {
   isContentBuilder,
   isFireAndForget,
 } from "./types.js";
+export type { Typing } from "./typing.js";
+export { typing } from "./typing.js";
 export type { Unsend } from "./unsend.js";
 export { unsend } from "./unsend.js";

@@ -7,7 +7,6 @@ import {
 import { PLATFORM_API_BASE } from "./platform.js";
 import type { Platform, ResolvedLine } from "./types.js";
 
-/** Response shape of the Skyline broker `POST /v1/auth/token`. */
 interface TokenResponse {
   data?: {
     token: string;
@@ -15,7 +14,7 @@ interface TokenResponse {
     endpoints: {
       address: string;
       phone?: string;
-      /** WhatsApp Business cloud line: Meta Cloud API send credentials. */
+
       business?: {
         phoneNumberId: string;
         accessToken: string;
@@ -51,17 +50,9 @@ export interface BrokerCredentials {
 }
 
 export interface BrokerOptions {
-  /** Test-only override; production uses the hardcoded platform API host. */
   baseUrl?: string;
 }
 
-/**
- * Exchange long-lived project creds for a short-lived runtime token + the
- * resolved data-plane endpoints. The broker is never in the message hot path:
- * after this call, the SDK talks directly to each provider's data plane
- * (gRPC for iMessage / personal WhatsApp; hosted Slack gateway or Web API;
- * Meta Graph for WhatsApp Business).
- */
 export class Broker {
   private readonly baseUrl: string;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,10 +61,6 @@ export class Broker {
     this.baseUrl = (opts.baseUrl ?? PLATFORM_API_BASE).replace(/\/+$/, "");
   }
 
-  /**
-   * Resolve lines for a platform. Returns the runtime token + endpoints and the
-   * TTL so the caller can schedule a refresh. Throws on auth/entitlement errors.
-   */
   async resolve(
     creds: BrokerCredentials,
     platform: Platform,
@@ -112,7 +99,6 @@ export class Broker {
     return { lines, token, ttl };
   }
 
-  /** Schedule `onRefresh` at 80% of the token TTL, ahead of expiry. */
   scheduleRefresh(ttlSeconds: number, onRefresh: () => void): void {
     this.cancelRefresh();
     const delayMs = Math.max(1, Math.floor(ttlSeconds * 0.8 * 1000));
@@ -142,27 +128,22 @@ export class BrokerError extends Error {
     this.name = "BrokerError";
   }
 
-  /** Stable string identifier (alias of {@link code}). */
   get slug(): string {
     return this.code;
   }
 
-  /** Numeric code from the envelope or the catalog, if known. */
   get numericCode(): number | undefined {
     return this.meta?.numeric ?? this.definition?.code;
   }
 
-  /** Correlation id to include with support requests. */
   get traceId(): string | undefined {
     return this.meta?.traceId;
   }
 
-  /** Link to the matching error-code reference, if provided. */
   get docUrl(): string | undefined {
     return this.meta?.docUrl;
   }
 
-  /** Matching entry from the Skyline error catalog, if the code is known. */
   get definition(): ErrorDefinition | undefined {
     return (
       errorBySlug(this.code) ??
@@ -172,15 +153,10 @@ export class BrokerError extends Error {
     );
   }
 
-  /** Broad handling class for this error, if the code is known. */
   get category(): ErrorCategory | undefined {
     return this.definition?.category;
   }
 
-  /**
-   * Whether retrying with backoff may succeed. Falls back to the HTTP status
-   * (5xx is retryable) when the code is not in the catalog.
-   */
   get retryable(): boolean {
     return this.definition?.retryable ?? this.status >= 500;
   }

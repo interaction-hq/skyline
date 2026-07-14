@@ -1,12 +1,12 @@
 import {
+  type AvatarInput,
   addMember,
   avatar,
+  type ContentInput,
   leaveChannel,
+  type MemberInput,
   removeMember,
   rename,
-  type AvatarInput,
-  type ContentInput,
-  type MemberInput,
   type SendOptions,
 } from "./content/index.js";
 import type { Channel, PollOps, SendReceipt } from "./types.js";
@@ -21,9 +21,7 @@ export async function withResponding<T>(
   } finally {
     try {
       await channel.typing(false);
-    } catch {
-      // clearing typing must not mask the original error
-    }
+    } catch {}
   }
 }
 

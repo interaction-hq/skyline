@@ -1,18 +1,11 @@
-// Presets — use-cases built as arrangements of primitives, in TypeScript. Adding
-// one costs zero native code and no app update: a preset is just a function that
-// returns a `Component` tree of stacks/boxes/text/buttons that invoke the frozen
-// capability set. This is where the platform's use-case breadth lives, and why
-// the native runtime never has to grow.
-
 import type { Component } from "./experience.js";
 
-/** A payment card built from primitives + the `pay` capability. */
 export function paymentCard(input: {
   amount: string;
   currency?: string;
   note?: string;
   provider?: "appleCash" | "link";
-  /** Hosted-checkout URL for the `link` provider. */
+
   url?: string;
   accent?: string;
 }): Component {
@@ -64,7 +57,6 @@ export function paymentCard(input: {
   };
 }
 
-/** A hero card (artwork + title/subtitle) built from a styled box + stack. */
 export function heroCard(input: {
   title: string;
   subtitle?: string;

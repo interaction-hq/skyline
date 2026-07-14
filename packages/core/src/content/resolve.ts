@@ -1,9 +1,5 @@
 import { text } from "./builders.js";
-import {
-  type Content,
-  type ContentInput,
-  isContentBuilder,
-} from "./types.js";
+import { type Content, type ContentInput, isContentBuilder } from "./types.js";
 
 export async function resolveContent(input: ContentInput): Promise<Content> {
   if (typeof input === "string") {

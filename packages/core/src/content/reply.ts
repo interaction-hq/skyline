@@ -42,9 +42,9 @@ export function reply(
         throw new Error(`reply() cannot wrap "${resolved.type}" content`);
       }
       return {
-        type: "reply",
         content: resolved as BaseContent,
         target,
+        type: "reply",
       };
     },
   };

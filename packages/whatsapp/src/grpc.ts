@@ -6,7 +6,6 @@ import * as protoLoader from "@grpc/proto-loader";
 
 const PACKAGE = "interactions.whatsapp.v1";
 
-/** A decoded inbound WhatsApp text message. */
 export interface WaInboundText {
   messageId: string;
   replyToMessageId?: string;
@@ -14,7 +13,6 @@ export interface WaInboundText {
   text: string;
 }
 
-/** A decoded inbound WhatsApp attachment message. */
 export interface WaInboundAttachment {
   caption?: string;
   fileSize?: number;
@@ -25,7 +23,6 @@ export interface WaInboundAttachment {
   senderId: string;
 }
 
-/** A decoded inbound WhatsApp reaction. */
 export interface WaInboundReaction {
   emoji: string;
   messageId: string;
@@ -33,11 +30,6 @@ export interface WaInboundReaction {
   senderId: string;
 }
 
-/**
- * gRPC client for one WhatsApp personal line (`interactions.whatsapp.v1`).
- * Insecure channel (Tailscale secures transport); Bearer runtime token plus
- * `x-project-id` metadata. Recipients are WhatsApp JIDs / E.164 numbers.
- */
 export class WhatsappGrpcClient {
   private readonly client: grpc.Client;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
@@ -338,7 +330,6 @@ function toDate(
   );
 }
 
-/** WhatsApp protos ship under ./proto/whatsapp; allow override via WA_PROTO_DIR. */
 function resolveWaProtoDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
@@ -356,7 +347,6 @@ function resolveWaProtoDir(): string {
   );
 }
 
-/** Normalize "host", "host:port", or "https://host/" to a gRPC target. */
 export function grpcTarget(address: string): string {
   let a = address
     .trim()

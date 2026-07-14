@@ -1,3 +1,4 @@
+import type { Avatar } from "./avatar.js";
 import type {
   AppMessage,
   AttachmentContent,
@@ -15,9 +16,8 @@ import type {
   VoiceContent,
   WaContent,
 } from "./builders.js";
-import type { AddMember, LeaveChannel, RemoveMember } from "./membership.js";
-import type { Avatar } from "./avatar.js";
 import type { Edit } from "./edit.js";
+import type { AddMember, LeaveChannel, RemoveMember } from "./membership.js";
 import type { ReactionContent } from "./reaction.js";
 import type { Read } from "./read.js";
 import type { Rename } from "./rename.js";

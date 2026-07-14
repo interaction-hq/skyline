@@ -14,9 +14,6 @@ export interface SlackTokenData {
   >;
 }
 
-/**
- * Mint per-workspace Slack runtime JWTs. Bot tokens stay on the gateway.
- */
 export async function issueSlackTokens(
   projectId: string,
   projectSecret: string,

@@ -1,6 +1,6 @@
 import type { Message } from "../types.js";
-import type { ContentBuilder } from "./types.js";
 import type { Reaction as ReactionEmoji } from "./builders.js";
+import type { ContentBuilder } from "./types.js";
 
 export interface ReactionContent {
   emoji: string;
@@ -26,7 +26,7 @@ export function reaction(
       if (target.content.type === "reaction") {
         throw new Error('reaction() cannot target "reaction" content');
       }
-      return { type: "reaction", emoji: String(emoji), target };
+      return { emoji: String(emoji), target, type: "reaction" };
     },
   };
 }

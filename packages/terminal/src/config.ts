@@ -1,8 +1,7 @@
 export interface TerminalConfig {
   mode: "local";
   platform: "terminal";
-  /** Label shown in the interactive prompt. */
-  prompt?: string;
+    prompt?: string;
 }
 
 export const terminal = {

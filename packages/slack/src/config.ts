@@ -8,14 +8,12 @@ export interface SlackTeamMetadata {
 }
 
 export interface SlackDedicatedInput {
-  /** Socket Mode app tokens (`xapp-…`) keyed by team id — dedicated inbound. */
-  appTokens?: Readonly<Record<string, string>>;
+    appTokens?: Readonly<Record<string, string>>;
   endpoint?: string;
   teams?: Readonly<Record<string, SlackTeamMetadata>>;
   tokens: Readonly<Record<string, string>>;
 }
 
-/** @deprecated Prefer `tokens` keyed by team id. */
 export interface SlackLine {
   appToken?: string;
   botToken: string;

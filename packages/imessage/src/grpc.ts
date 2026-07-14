@@ -4,15 +4,12 @@ import { fileURLToPath } from "node:url";
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 
-/** Opaque flow screen-graph payload — authored in the Skyline SDK. */
 export type FlowSpec = Record<string, unknown>;
 
 const PACKAGE = "interactions.imessage.v1";
 
-/** Above this JSON size an inline flow moves off the URL to a dedicated field. */
 const INLINE_FLOW_URL_MAX = 1500;
 
-/** URL-safe base64 (no padding) — carries a compact inline flow in a card URL. */
 function toBase64Url(input: string): string {
   return Buffer.from(input, "utf8")
     .toString("base64")
@@ -21,7 +18,6 @@ function toBase64Url(input: string): string {
     .replace(/[=]+$/, "");
 }
 
-/** Per-send wire options folded onto a `Send` (already resolved to ids). */
 export interface SendWireOptions {
   effectId?: string;
   replyTo?: string;
@@ -30,7 +26,6 @@ export interface SendWireOptions {
   subject?: string;
 }
 
-/** An attachment reference on an inbound message. */
 export interface InboundAttachment {
   guid: string;
   mimeType?: string;
@@ -38,7 +33,6 @@ export interface InboundAttachment {
   size?: number;
 }
 
-/** A decoded inbound text or attachment-only message. */
 export interface InboundTextMessage {
   attachments?: InboundAttachment[];
   date: Date;
@@ -51,33 +45,28 @@ export interface InboundTextMessage {
   text: string;
 }
 
-/** A decoded inbound reaction (tapback/emoji), add or remove. */
 export interface InboundReaction {
   messageGuid: string;
   reaction: string;
   removed: boolean;
 }
 
-/** A decoded inbound edit. */
 export interface InboundEdit {
   messageGuid: string;
   text: string;
 }
 
-/** A decoded inbound typing indicator. */
 export interface InboundTyping {
   chatId: string;
   displayName?: string;
   typing: boolean;
 }
 
-/** A decoded inbound read-status change. */
 export interface InboundRead {
   chatId: string;
   isRead: boolean;
 }
 
-/** A contact card resolved for a handle. */
 export interface InboundContact {
   address?: string;
   emails?: string[];
@@ -91,7 +80,6 @@ export interface InboundContact {
   phones?: string[];
 }
 
-/** The app card fields the transport maps to a `mini_app` proto payload. */
 export interface AppCardWire {
   appId?: string;
   appStoreId?: number;
@@ -111,40 +99,27 @@ export interface AppCardWire {
   url: string;
 }
 
-/** The flow-card fields the transport folds into a `mini_app` payload. */
 export interface FlowCardWire {
-  /** Registered flow id (optional when `spec` is inline). */
-  appId?: string;
+    appId?: string;
   appStoreId?: number;
   bundleId?: string;
   caption?: string;
   image?: string;
-  /** Opening screen id (defaults to the flow's start). */
-  screen?: string;
-  /** Inline screen graph the shell interprets directly. */
-  spec?: FlowSpec;
-  /** Seed state the opened flow resumes from. */
-  state?: Record<string, string>;
+    screen?: string;
+    spec?: FlowSpec;
+    state?: Record<string, string>;
   subcaption?: string;
   summary?: string;
   teamId?: string;
 }
 
-/** A decoded inbound app bubble: the state the sender staged, plus text. */
 export interface InboundApp {
   appId?: string;
   caption?: string;
-  /** App state the sender produced (the bridge's `data`, transport keys removed). */
-  data: Record<string, string>;
+    data: Record<string, string>;
   summary?: string;
 }
 
-/**
- * Decode an app bubble from a server-populated `BalloonData`. The helper surfaces
- * the bubble URL's query items as `query.<key>` fields; the app id lands as
- * `query.appId`. Returns `null` for non-app balloons (rich links, polls, digital
- * touch), so those fall through to the text path.
- */
 export function parseInboundApp(
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded balloon is dynamically typed.
   balloon: any
@@ -168,7 +143,6 @@ export function parseInboundApp(
       data[name] = value;
     }
   }
-  // Only treat it as an app bubble when it actually carried app state.
   if (!(sawQuery && (appId || Object.keys(data).length > 0))) {
     return null;
   }
@@ -180,7 +154,6 @@ export function parseInboundApp(
   };
 }
 
-/** A confirmed in-flow payment, derived from the submitted state. */
 export interface InboundPayment {
   amount: string;
   currency: string;
@@ -188,25 +161,14 @@ export interface InboundPayment {
   provider: string;
 }
 
-/** A decoded inbound flow submission — one step of a declarative flow. */
 export interface InboundFlow {
   appId?: string;
-  /** True when the flow completed (final submit). */
-  done: boolean;
-  /** Present when the flow carried a confirmed `payment` step. */
-  payment?: InboundPayment;
-  /** The next screen the sender advanced to (interim submit), if any. */
-  screen?: string;
-  /** The collected input values (each input's `key` -> value). */
-  state: Record<string, string>;
+    done: boolean;
+    payment?: InboundPayment;
+    screen?: string;
+    state: Record<string, string>;
 }
 
-/**
- * The group/participant context of an inbound message. `chatId` is the stable
- * conversation guid; `isGroup` is true when the chat has 2+ participants; the
- * `participant` is the sender resolved within the group. This is the attribution
- * layer — an agent uses it to know *who* in a group acted.
- */
 export interface InboundGroup {
   chatId: string;
   isGroup: boolean;
@@ -214,12 +176,6 @@ export interface InboundGroup {
   participants?: string[];
 }
 
-/**
- * Decode a flow submission from a balloon's `query.*` fields. A submission carries
- * `query.state.<key>` values and either `query.screen` (interim, the flow
- * continues — an agent computes and sends the next screen) or `query.done=1`
- * (final). Returns `null` for balloons that aren't flow submissions.
- */
 export function parseInboundFlow(
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded balloon is dynamically typed.
   balloon: any
@@ -255,11 +211,6 @@ export function parseInboundFlow(
   return { appId, done, payment: paymentFromState(state), screen, state };
 }
 
-/**
- * Derive a payment receipt from the collected flow state. The runtime stamps
- * `__paid=true` and `payment.*` keys when a `payment` step confirms; absent
- * those, the submission carried no payment.
- */
 export function paymentFromState(
   state: Record<string, string>
 ): InboundPayment | undefined {
@@ -274,11 +225,6 @@ export function paymentFromState(
   };
 }
 
-/**
- * Resolve the group/participant context from an inbound proto message. Uses the
- * message's `chat_guids` for the conversation id and the balloon/participant
- * hints for membership. A single-handle DM reports `isGroup=false`.
- */
 export function resolveGroup(
   // biome-ignore lint/suspicious/noExplicitAny: proto message is dynamically typed.
   msg: any,
@@ -308,17 +254,10 @@ export function resolveGroup(
   };
 }
 
-/**
- * Thin gRPC client for one iMessage line (the Swift server on :50051). The
- * channel is insecure because Tailscale provides transport security; the
- * runtime token is carried in `x-project-id` metadata (the server validates it).
- */
 export class ImessageGrpcClient {
   private readonly client: grpc.Client;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
   private readonly service: any;
-  // ChatService shares the same channel; it carries typing/read/mark-read and
-  // the typing/read inbound stream.
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
   private readonly chat: any;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
@@ -359,8 +298,6 @@ export class ImessageGrpcClient {
     const MessageCtor = pkg.MessageService;
     this.client = new MessageCtor(target, creds);
     this.service = this.client;
-    // Reuse the same channel across the auxiliary services so we open one
-    // connection per line (shared subchannel pool).
     const shared = { "grpc.use_local_subchannel_pool": 0 };
     this.chat = new pkg.ChatService(target, creds, shared);
     this.groupSvc = new pkg.GroupService(target, creds, shared);
@@ -372,16 +309,9 @@ export class ImessageGrpcClient {
 
   private metadata(): grpc.Metadata {
     const md = new grpc.Metadata();
-    // The runtime JWT resolved by the broker. The server's auth interceptor
-    // verifies the Bearer token (Ed25519) and derives the project identity from
-    // its claims. When no token is present (a local/dev server that runs open),
-    // send no header so the server falls back to its local identity.
     if (this.token) {
       md.set("authorization", `Bearer ${this.token}`);
     }
-    // Carry the project identity so the handler can scope the request. With a
-    // real token the server derives this from verified claims; sending it also
-    // keeps dev/open servers working (they scope to this local identity).
     md.set("x-project-id", this.projectId);
     return md;
   }
@@ -398,8 +328,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  /** Extra fields the transport folds onto a text `Send` (reply/effect/etc). */
-  send(
+    send(
     chatGuid: string,
     message: string,
     clientMessageId: string,
@@ -424,8 +353,7 @@ export class ImessageGrpcClient {
     return this.invokeSend(request, clientMessageId);
   }
 
-  /** Send an attachment (already uploaded, referenced by guid, or a local path). */
-  sendAttachment(
+    sendAttachment(
     chatGuid: string,
     clientMessageId: string,
     attachment: {
@@ -457,8 +385,7 @@ export class ImessageGrpcClient {
     return this.invokeSend(request, clientMessageId);
   }
 
-  /** Send multiple uploaded attachments as one grouped bubble. */
-  sendMultipart(
+    sendMultipart(
     chatGuid: string,
     clientMessageId: string,
     attachmentGuids: string[],
@@ -486,8 +413,7 @@ export class ImessageGrpcClient {
     return this.invokeSend(request, clientMessageId);
   }
 
-  /** Upload attachment bytes, returning the guid to reference in a `Send`. */
-  uploadAttachment(
+    uploadAttachment(
     data: Uint8Array,
     name: string
   ): Promise<{ attachment_guid: string }> {
@@ -502,8 +428,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  /** Tapback / emoji react. Prefix handled by the caller via `remove`. */
-  sendReaction(
+    sendReaction(
     chatGuid: string,
     messageGuid: string,
     reaction: string,
@@ -517,7 +442,6 @@ export class ImessageGrpcClient {
       "emphasize",
       "question",
     ]);
-    // A non-tapback string is an emoji reaction: reaction="emoji", emoji=<char>.
     const isTapback = known.has(reaction);
     const wire = isTapback ? reaction : "emoji";
     const value = opts.remove ? `-${wire}` : wire;
@@ -569,8 +493,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  /** Invoke a unary RPC that returns an ignored ack. */
-  private unaryVoid(
+    private unaryVoid(
     // biome-ignore lint/suspicious/noExplicitAny: dynamic proto service.
     service: any,
     method: string,
@@ -586,12 +509,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  /**
-   * Backend-send an app card. Maps the card to a `SendMessageRequest` with a
-   * `mini_app` payload; the server composes the rich, tappable bubble. The URL
-   * carries `appId` + `data` so the opened app can restore state.
-   */
-  sendApp(
+    sendApp(
     chatGuid: string,
     card: AppCardWire,
     clientMessageId: string
@@ -632,14 +550,7 @@ export class ImessageGrpcClient {
     );
   }
 
-  /**
-   * Backend-send a declarative flow card. Reuses the `mini_app` pipe: a registered
-   * flow rides its `appId`; an inline screen graph is carried as a compact,
-   * URL-safe blob so the shell's interpreter renders it directly. Seed `state` and
-   * the opening `screen` fold into the URL so the opened flow resumes where the
-   * agent intends.
-   */
-  sendFlow(
+    sendFlow(
     chatGuid: string,
     card: FlowCardWire,
     clientMessageId: string
@@ -652,9 +563,6 @@ export class ImessageGrpcClient {
       url.searchParams.set("appId", card.appId);
     }
     const specJSON = card.spec ? JSON.stringify(card.spec) : undefined;
-    // Small inline specs still ride the URL (works even against older servers);
-    // larger ones use the dedicated `inline_flow_json` field so they can't blow
-    // the URL length cap. Either way the shell renders declarative data only.
     const inlineInURL =
       specJSON !== undefined && specJSON.length <= INLINE_FLOW_URL_MAX;
     if (specJSON && inlineInURL) {
@@ -719,43 +627,37 @@ export class ImessageGrpcClient {
 
   subscribeEvents(handlers: {
     onReceived: (msg: InboundTextMessage) => void;
-    /** An inbound app bubble carrying the state the sender produced. */
-    onApp?: (
+        onApp?: (
       card: InboundApp,
       senderId: string | undefined,
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** An inbound flow submission — one step of a declarative flow. */
-    onFlow?: (
+        onFlow?: (
       submission: InboundFlow,
       senderId: string | undefined,
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** An inbound reaction (tapback/emoji), add or remove. */
-    onReaction?: (
+        onReaction?: (
       reaction: InboundReaction,
       senderId: string | undefined,
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** An inbound edit of an existing message. */
-    onEdit?: (
+        onEdit?: (
       edit: InboundEdit,
       senderId: string | undefined,
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** An inbound unsend (retraction). */
-    onUnsend?: (
+        onUnsend?: (
       messageGuid: string,
       senderId: string | undefined,
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** A send that failed on the line. */
-    onSendError?: (err: {
+        onSendError?: (err: {
       code?: string;
       message?: string;
       chatId?: string;
@@ -770,7 +672,6 @@ export class ImessageGrpcClient {
     ) as grpc.ClientReadableStream<any>;
     // biome-ignore lint/suspicious/noExplicitAny: streamed event is dynamically typed.
     call.on("data", (event: any) => {
-      // A send error carries no message body.
       if (event?.message_send_error) {
         const e = event.message_send_error;
         handlers.onSendError?.({
@@ -781,7 +682,6 @@ export class ImessageGrpcClient {
         return;
       }
 
-      // An update to an existing message: edit, unsend, or reaction.
       const updated = event?.message_updated;
       if (updated?.message) {
         this.handleUpdated(updated, handlers);
@@ -800,18 +700,12 @@ export class ImessageGrpcClient {
       const date = toDate(msg.date_created) ?? new Date();
       const group = resolveGroup(msg, senderId);
 
-      // A flow submission is the most specific balloon: `query.state.*` plus a
-      // `screen` (interim) or `done` (final) marker. Route it first so agents can
-      // drive a server-driven flow.
       const submission = parseInboundFlow(msg.balloon);
       if (submission) {
         handlers.onFlow?.(submission, senderId, date, group);
         return;
       }
 
-      // An app bubble decodes to a balloon whose fields carry the app's
-      // round-tripped state as `query.*`. Surface it as structured data so the
-      // app can react to what the user did — not just read text.
       const card = parseInboundApp(msg.balloon);
       if (card) {
         handlers.onApp?.(card, senderId, date, group);
@@ -828,8 +722,7 @@ export class ImessageGrpcClient {
     return call;
   }
 
-  /** Route a `message_updated` event to the reaction/edit/unsend handlers. */
-  private handleUpdated(
+    private handleUpdated(
     // biome-ignore lint/suspicious/noExplicitAny: dynamic proto event.
     updated: any,
     handlers: {
@@ -884,8 +777,7 @@ export class ImessageGrpcClient {
     }
   }
 
-  /** Subscribe to typing + read-status events on this line (ChatService). */
-  subscribeChatEvents(handlers: {
+    subscribeChatEvents(handlers: {
     onTyping?: (typing: InboundTyping, date: Date) => void;
     onRead?: (read: InboundRead, date: Date) => void;
     onError?: (err: grpc.ServiceError) => void;
@@ -922,8 +814,6 @@ export class ImessageGrpcClient {
     call.on("error", (err: grpc.ServiceError) => handlers.onError?.(err));
     return call;
   }
-
-  // ── Group management (GroupService) ──────────────────────────────────────
 
   private group(
     method: string,
@@ -1235,10 +1125,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  // ── Address / availability (AddressService) ──────────────────────────────
-
-  /** Is a handle reachable on iMessage (or FaceTime)? */
-  checkAvailability(
+    checkAvailability(
     address: string,
     kind: "imessage" | "facetime" = "imessage"
   ): Promise<boolean> {
@@ -1257,8 +1144,7 @@ export class ImessageGrpcClient {
     });
   }
 
-  /** Look up a handle's contact card (name, org, emails, phones). */
-  getContactCard(
+    getContactCard(
     address: string,
     includeImages = false
   ): Promise<InboundContact> {
@@ -1580,7 +1466,6 @@ export class ImessageGrpcClient {
   }
 }
 
-/** Read local file bytes for icon/background/attachment paths. */
 export function readAssetBytes(path: string): Uint8Array {
   return new Uint8Array(readFileSync(path));
 }
@@ -1647,7 +1532,6 @@ function toDate(
   return new Date(seconds * 1000 + Math.floor(nanos / 1e6));
 }
 
-/** Normalize "host", "host:port", or "https://host/" to a gRPC target. */
 export function grpcTarget(address: string): string {
   let a = address
     .trim()
@@ -1659,16 +1543,10 @@ export function grpcTarget(address: string): string {
   return a;
 }
 
-/**
- * A DM chat guid on modern macOS is "any;-;<handle>" — the "any" service prefix
- * lets IMCore resolve iMessage-vs-SMS itself. An explicit "iMessage;-;" prefix is
- * rejected by the send path.
- */
 export function dmChatGuid(handle: string): string {
   return `any;-;${handle}`;
 }
 
-/** Protos ship inside the package (./proto); allow override via PROTO_DIR. */
 function resolveProtoDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [

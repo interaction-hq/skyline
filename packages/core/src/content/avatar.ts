@@ -80,7 +80,7 @@ export function avatar(
 ): ContentBuilder {
   if (input === "clear") {
     return {
-      build: async () => ({ type: "avatar", action: { kind: "clear" } }),
+      build: async () => ({ action: { kind: "clear" }, type: "avatar" }),
     };
   }
   const mimeType = resolveMime(input, options?.mimeType);
@@ -101,6 +101,6 @@ export function avatar(
   }
   const action: AvatarAction = { kind: "set", mimeType, read };
   return {
-    build: async () => ({ type: "avatar", action }),
+    build: async () => ({ action, type: "avatar" }),
   };
 }

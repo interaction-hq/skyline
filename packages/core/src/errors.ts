@@ -1,43 +1,17 @@
-/**
- * Canonical Skyline error catalog.
- *
- * Single source of truth for the numeric codes, slugs, categories, and retry
- * semantics that the management API and broker return. Kept in sync with the
- * error reference at https://docs.interactions.co.in/errors/overview.
- *
- * Consumers can branch on `slug` for stable handling and use `retryable` to
- * decide whether to back off:
- *
- * ```ts
- * import { BrokerError, ERROR_CATALOG } from "skyline-ts";
- *
- * if (err instanceof BrokerError && err.retryable) {
- *   // 3xxx — retry with exponential backoff
- * }
- * ```
- */
-
-/** Broad handling class for an error code. */
 export type ErrorCategory = "client" | "resource" | "server";
 
-/** A single entry in the Skyline error catalog. */
 export interface ErrorDefinition {
-  /** Broad handling class. */
   readonly category: ErrorCategory;
-  /** Stable numeric code (e.g. 2006). */
+
   readonly code: number;
-  /** Human-readable explanation. */
+
   readonly message: string;
-  /** Whether retrying the same request with backoff may succeed. */
+
   readonly retryable: boolean;
-  /** Stable string identifier for `switch` statements and logs. */
+
   readonly slug: string;
 }
 
-/**
- * The full catalog, keyed by slug for ergonomic lookups and autocomplete.
- * `1xxx` client, `2xxx` resource, `3xxx` server.
- */
 export const ERROR_CATALOG = {
   COMMIT_FAILED: {
     category: "resource",
@@ -102,7 +76,6 @@ export const ERROR_CATALOG = {
     retryable: false,
     slug: "INVALID_WEBHOOK_URL",
   },
-  // 1xxx — client / request errors (fix the request; do not retry unchanged)
   MISSING_REQUIRED_FIELD: {
     category: "client",
     code: 1001,
@@ -118,7 +91,6 @@ export const ERROR_CATALOG = {
     slug: "NO_AVAILABLE_LINE",
   },
 
-  // 3xxx — server / infrastructure errors (retry with exponential backoff)
   NO_HEALTHY_MINI: {
     category: "server",
     code: 3001,
@@ -127,7 +99,6 @@ export const ERROR_CATALOG = {
     slug: "NO_HEALTHY_MINI",
   },
 
-  // 2xxx — resource / auth errors (fix credentials or the reference)
   NOT_FOUND: {
     category: "resource",
     code: 2001,
@@ -229,10 +200,8 @@ export const ERROR_CATALOG = {
   },
 } as const satisfies Record<string, ErrorDefinition>;
 
-/** Union of every known error slug. */
 export type ErrorSlug = keyof typeof ERROR_CATALOG;
 
-/** Lookup table keyed by numeric code. */
 export const ERROR_CODES: Readonly<Record<number, ErrorDefinition>> =
   Object.freeze(
     Object.fromEntries(
@@ -240,20 +209,14 @@ export const ERROR_CODES: Readonly<Record<number, ErrorDefinition>> =
     )
   );
 
-/** Resolve a catalog entry by its slug, if known. */
 export function errorBySlug(slug: string): ErrorDefinition | undefined {
   return (ERROR_CATALOG as Record<string, ErrorDefinition>)[slug];
 }
 
-/** Resolve a catalog entry by its numeric code, if known. */
 export function errorByCode(code: number): ErrorDefinition | undefined {
   return ERROR_CODES[code];
 }
 
-/**
- * Whether an error is safe to retry with backoff. Accepts a slug or numeric
- * code. Unknown references default to `false`.
- */
 export function isRetryableError(ref: string | number): boolean {
   const def = typeof ref === "number" ? errorByCode(ref) : errorBySlug(ref);
   return def?.retryable ?? false;

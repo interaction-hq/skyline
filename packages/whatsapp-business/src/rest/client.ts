@@ -1,35 +1,19 @@
-// WhatsApp Business — HTTPS client for the Meta Graph Cloud API.
-//
-// Sends go to `POST /{v}/{phoneNumberId}/messages` on `graph.facebook.com`
-// with a bearer access token. Inbound arrives via webhook and is fanned out
-// separately. This client is send-oriented: text, media, reactions, templates,
-// interactive, location, contacts, stickers, flows, plus typing/read acks.
 
 const GRAPH_BASE = "https://graph.facebook.com";
 const DEFAULT_API_VERSION = "v23.0";
 
-/** Resolved credentials for one business number. */
 export interface WhatsappBusinessCreds {
-  /** Bearer access token (system-user or broker-minted, short-lived). */
-  accessToken: string;
-  /** Graph API version, e.g. "v23.0". Defaults to a pinned recent version. */
-  apiVersion?: string;
-  /** Override the Graph host (tests / regional endpoints). */
-  baseUrl?: string;
-  /** Meta phone_number_id the messages send from. */
-  phoneNumberId: string;
+    accessToken: string;
+    apiVersion?: string;
+    baseUrl?: string;
+    phoneNumberId: string;
 }
 
-/** A Cloud API media reference: an uploaded media id or a hosted https link. */
 export interface WaMediaRef {
-  /** Caption shown with the media (image/video/document). */
-  caption?: string;
-  /** Document display filename. */
-  filename?: string;
-  /** Uploaded media object id (from the Media Upload API). */
-  id?: string;
-  /** Public https URL Meta fetches the media from. */
-  link?: string;
+    caption?: string;
+    filename?: string;
+    id?: string;
+    link?: string;
 }
 
 export type WaInteractive = Record<string, unknown>;
@@ -43,15 +27,11 @@ export interface WaLocation {
   name?: string;
 }
 
-/** The normalized result of a Cloud API send. */
 export interface WaSendResult {
-  /** wamid.* message id Meta assigned. */
-  messageId?: string;
-  /** Resolved wa_id for the recipient, when returned. */
-  waId?: string;
+    messageId?: string;
+    waId?: string;
 }
 
-/** A Cloud API error surfaced as a typed, catchable error. */
 export class WhatsappBusinessError extends Error {
   constructor(
     readonly status: number,
@@ -70,12 +50,6 @@ interface GraphMessagesResponse {
   messages?: { id: string }[];
 }
 
-/**
- * A send-only client for one business number. Every `send*` verb builds the
- * matching Cloud API payload and POSTs it; `react`, `typing`, and `read` map to
- * their respective message/acknowledgement shapes. Recipients are E.164 without
- * the leading `+` per Meta convention — we strip it defensively.
- */
 export class WhatsappBusinessClient {
   private readonly base: string;
   private readonly version: string;
@@ -89,8 +63,7 @@ export class WhatsappBusinessClient {
     this.token = creds.accessToken;
   }
 
-  /** E.164 recipient, minus the leading "+" Meta rejects. */
-  private static recipient(to: string): string {
+    private static recipient(to: string): string {
     return to.replace(/^\+/, "");
   }
 
@@ -143,8 +116,7 @@ export class WhatsappBusinessClient {
     });
   }
 
-  /** Send a text message. `previewUrl` renders link previews. */
-  sendText(
+    sendText(
     to: string,
     text: string,
     opts?: { replyTo?: string; previewUrl?: boolean }
@@ -159,8 +131,7 @@ export class WhatsappBusinessClient {
     );
   }
 
-  /** Send a media message (image/video/audio/document/sticker) by id or link. */
-  sendMedia(
+    sendMedia(
     to: string,
     kind: "image" | "video" | "audio" | "document" | "sticker",
     media: WaMediaRef,
@@ -173,7 +144,6 @@ export class WhatsappBusinessClient {
     if (media.link) {
       payload.link = media.link;
     }
-    // audio and sticker do not accept a caption; the others do.
     if (media.caption && kind !== "audio" && kind !== "sticker") {
       payload.caption = media.caption;
     }
@@ -183,8 +153,7 @@ export class WhatsappBusinessClient {
     return this.message(to, { type: kind, [kind]: payload }, opts?.replyTo);
   }
 
-  /** React to a message with an emoji ("" clears the reaction). */
-  sendReaction(
+    sendReaction(
     to: string,
     messageId: string,
     emoji: string
@@ -195,8 +164,7 @@ export class WhatsappBusinessClient {
     });
   }
 
-  /** Send a location pin. */
-  sendLocation(
+    sendLocation(
     to: string,
     location: WaLocation,
     opts?: { replyTo?: string }
@@ -216,8 +184,7 @@ export class WhatsappBusinessClient {
     );
   }
 
-  /** Send one or more contact cards. */
-  sendContacts(
+    sendContacts(
     to: string,
     contacts: WaContact[],
     opts?: { replyTo?: string }
@@ -225,11 +192,7 @@ export class WhatsappBusinessClient {
     return this.message(to, { contacts, type: "contacts" }, opts?.replyTo);
   }
 
-  /**
-   * Send an interactive message (reply buttons, list, product, product_list,
-   * flow, catalog). Pass the fully-formed Cloud API `interactive` object.
-   */
-  sendInteractive(
+    sendInteractive(
     to: string,
     interactive: WaInteractive,
     opts?: { replyTo?: string }
@@ -241,11 +204,7 @@ export class WhatsappBusinessClient {
     );
   }
 
-  /**
-   * Send a template message. Required to open a conversation outside the 24h
-   * customer-service window. Pass the fully-formed Cloud API `template` object.
-   */
-  sendTemplate(
+    sendTemplate(
     to: string,
     template: WaTemplate,
     opts?: { replyTo?: string }
@@ -253,11 +212,7 @@ export class WhatsappBusinessClient {
     return this.message(to, { template, type: "template" }, opts?.replyTo);
   }
 
-  /**
-   * Mark an inbound message read, optionally showing a typing indicator to the
-   * user while a reply is composed. This is the Cloud API status endpoint shape.
-   */
-  async markRead(
+    async markRead(
     messageId: string,
     opts?: { typing?: boolean }
   ): Promise<void> {
@@ -293,8 +248,6 @@ export class WhatsappBusinessClient {
     }
   }
 
-  /** Send-only: there is no persistent connection to tear down. */
-  close(): void {
-    // Graph has no streaming subscribe; REST clients expose this for a shared Client shape.
+    close(): void {
   }
 }

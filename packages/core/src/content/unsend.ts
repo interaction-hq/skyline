@@ -19,7 +19,7 @@ export function unsend(target: Message | undefined): ContentBuilder {
           `unsend() target must be an outbound message (got direction "${target.direction}", message id "${target.guid}")`
         );
       }
-      return { type: "unsend", target };
+      return { target, type: "unsend" };
     },
   };
 }

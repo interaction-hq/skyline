@@ -47,9 +47,9 @@ export function edit(
         throw new Error(`edit() cannot wrap "${resolved.type}" content`);
       }
       return {
-        type: "edit",
         content: resolved as BaseContent,
         target,
+        type: "edit",
       };
     },
   };

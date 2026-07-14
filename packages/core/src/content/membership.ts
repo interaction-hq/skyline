@@ -28,7 +28,7 @@ export function addMember(users: MemberInput): ContentBuilder {
     throw new Error("addMember() requires at least one member");
   }
   return {
-    build: async () => ({ type: "addMember", members }),
+    build: async () => ({ members, type: "addMember" }),
   };
 }
 
@@ -38,7 +38,7 @@ export function removeMember(users: MemberInput): ContentBuilder {
     throw new Error("removeMember() requires at least one member");
   }
   return {
-    build: async () => ({ type: "removeMember", members }),
+    build: async () => ({ members, type: "removeMember" }),
   };
 }
 
