@@ -295,6 +295,6 @@ export class WhatsappBusinessClient {
 
   /** Send-only: there is no persistent connection to tear down. */
   close(): void {
-    // no-op; kept for parity with the streaming transports.
+    // Graph has no streaming subscribe; REST clients expose this for a shared Client shape.
   }
 }

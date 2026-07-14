@@ -43,6 +43,10 @@ export interface Emitter {
 
 export interface PlatformBinder {
   connectLine(line: ResolvedLine): Promise<void> | void;
+  createChat?(
+    participants: string[]
+  ): Promise<{ to: string }>;
+  createFaceTimeLink?(handles?: string[]): Promise<{ url: string }>;
   dedicatedLines?(config: unknown): ResolvedLine[];
   connectLocal?(config: unknown): void;
   makeChannel(to: string, scopeId?: string): Channel;

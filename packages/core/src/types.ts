@@ -225,8 +225,14 @@ export interface Channel {
   /** Group operations (only meaningful once the conversation is a group). */
   readonly group: GroupOps;
 
+  /** Focus / Do Not Disturb state for the other party, when the line reports it. */
+  focusStatus(): Promise<FocusStatus | null>;
+
   /** Fetch a message by guid when the line supports history lookup. */
   getMessage(messageGuid: string): Promise<Message | null>;
+
+  /** List recent messages in this conversation. */
+  listMessages(opts?: ListMessagesOptions): Promise<Message[]>;
 
   /** @deprecated use `to`. Kept as an alias so older callers keep working. */
   readonly phone: string;
@@ -274,6 +280,16 @@ export interface Channel {
 
   /** Share your contact card in this conversation. */
   shareContactCard(): Promise<void>;
+
+  /**
+   * Share the line's current location (or live location when `durationSeconds`
+   * is set). Arbitrary coordinates are not supported on iMessage.
+   */
+  shareLocation(opts?: { durationSeconds?: number }): Promise<void>;
+
+  /** Stop an in-progress live location share. */
+  stopLocation(): Promise<void>;
+
   /** The handle (phone/email) this conversation routes through. */
   readonly to: string;
 
@@ -282,6 +298,19 @@ export interface Channel {
 
   /** Unsend (retract) a message you sent. */
   unsend(messageGuid: string): Promise<void>;
+}
+
+/** Options for `channel.listMessages`. */
+export interface ListMessagesOptions {
+  after?: Date;
+  before?: Date;
+  limit?: number;
+  searchText?: string;
+}
+
+/** Focus / availability extras for a handle. */
+export interface FocusStatus {
+  silenced: boolean;
 }
 
 /** A resolved contact card for a handle. */
@@ -331,6 +360,20 @@ export interface SkylineApp {
   channel(target: string | ChannelTarget): Channel;
 
   close(): Promise<void>;
+
+  /**
+   * Create a new chat (DM or group) from participant handles and return its
+   * channel. Requires a ready line that supports chat creation.
+   */
+  createChat(
+    participants: string[],
+    opts?: { platform?: Platform }
+  ): Promise<Channel>;
+
+  /** Mint a shareable FaceTime link (optional pre-invite handles). */
+  createFaceTimeLink(
+    opts?: { handles?: string[]; platform?: Platform }
+  ): Promise<{ url: string }>;
 
   /** Merged inbound message feed across every provider/line. */
   incoming: AsyncIterable<[Channel, Message]>;

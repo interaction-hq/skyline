@@ -327,6 +327,8 @@ export class ImessageGrpcClient {
   private readonly addressSvc: any;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
   private readonly pollSvc: any;
+  // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
+  private readonly faceTimeSvc: any;
   private readonly token: string;
   private readonly projectId: string;
 
@@ -362,6 +364,7 @@ export class ImessageGrpcClient {
     this.groupSvc = new pkg.GroupService(target, creds, shared);
     this.addressSvc = new pkg.AddressService(target, creds, shared);
     this.pollSvc = new pkg.PollService(target, creds, shared);
+    this.faceTimeSvc = new pkg.FaceTimeService(target, creds, shared);
   }
 
   private metadata(): grpc.Metadata {
@@ -1067,6 +1070,146 @@ export class ImessageGrpcClient {
     });
   }
 
+  sendDigitalTouch(
+    chatGuid: string,
+    gesture: {
+      bpm?: number;
+      color?: string;
+      kind: string;
+      mediaPath?: string;
+      stillPath?: string;
+      tapCount?: number;
+    }
+  ): Promise<{ guid: string }> {
+    return new Promise((resolve, reject) => {
+      this.service.SendDigitalTouch(
+        {
+          bpm: gesture.bpm,
+          chat_guid: chatGuid,
+          color: gesture.color,
+          kind: gesture.kind,
+          media_path: gesture.mediaPath,
+          still_path: gesture.stillPath,
+          tap_count: gesture.tapCount,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 30_000) },
+        (err: grpc.ServiceError | null, res: { guid: string }) =>
+          err ? reject(err) : resolve({ guid: res.guid })
+      );
+    });
+  }
+
+  listMessages(
+    chatGuid: string,
+    opts?: {
+      after?: Date;
+      before?: Date;
+      limit?: number;
+      searchText?: string;
+    }
+  ): Promise<InboundTextMessage[]> {
+    return new Promise((resolve, reject) => {
+      this.service.ListMessages(
+        {
+          after: opts?.after ? { seconds: Math.floor(opts.after.getTime() / 1000) } : undefined,
+          before: opts?.before
+            ? { seconds: Math.floor(opts.before.getTime() / 1000) }
+            : undefined,
+          chat_guid: chatGuid,
+          decode: true,
+          limit: opts?.limit ?? 50,
+          search_text: opts?.searchText,
+          with_attachments: true,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 30_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: proto response is dynamically typed.
+        (err: grpc.ServiceError | null, res: any) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const messages = Array.isArray(res?.messages) ? res.messages : [];
+          resolve(
+            messages.map((msg: Record<string, unknown>) => {
+              const senderId = (msg.sender as { address?: string } | undefined)
+                ?.address;
+              const date =
+                toDate(
+                  msg.date_created as
+                    | { seconds?: string | number; nanos?: number }
+                    | undefined
+                ) ?? new Date();
+              const group = resolveGroup(msg, senderId);
+              return mapInboundText(msg, senderId, date, group);
+            })
+          );
+        }
+      );
+    });
+  }
+
+  shareLocation(
+    chatGuid: string,
+    opts?: { durationSeconds?: number }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.chat.SendLocation(
+        {
+          chat_guid: chatGuid,
+          duration_seconds: opts?.durationSeconds,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  stopLocation(chatGuid: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.chat.StopLocation(
+        { chat_guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  getFocusStatus(address: string): Promise<{ silenced: boolean }> {
+    return new Promise((resolve, reject) => {
+      this.addressSvc.GetFocusStatus(
+        { address },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (
+          err: grpc.ServiceError | null,
+          res: { is_focused?: boolean }
+        ) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ silenced: Boolean(res.is_focused) });
+          }
+        }
+      );
+    });
+  }
+
+  createFaceTimeLink(handles?: string[]): Promise<{ url: string }> {
+    return new Promise((resolve, reject) => {
+      this.faceTimeSvc.CreateLink(
+        { handles: handles ?? [] },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null, res: { url: string }) =>
+          err ? reject(err) : resolve({ url: res.url })
+      );
+    });
+  }
+
   addParticipant(chatGuid: string, address: string): Promise<void> {
     return this.group("AddParticipant", { address, chat_guid: chatGuid });
   }
@@ -1133,6 +1276,7 @@ export class ImessageGrpcClient {
     this.groupSvc.close?.();
     this.addressSvc.close?.();
     this.pollSvc.close?.();
+    this.faceTimeSvc.close?.();
   }
 }
 

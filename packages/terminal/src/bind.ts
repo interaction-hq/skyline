@@ -27,6 +27,7 @@ function createBinder(host: SkylineHost) {
       case "contact":
       case "richlink":
       case "poll":
+      case "digital_touch":
       case "group":
       case "wa_media":
       case "wa_template":
@@ -45,9 +46,13 @@ function createBinder(host: SkylineHost) {
 
   const channelExtras = {
     background: async () => host.unsupported("terminal", "background"),
+    focusStatus: async () => null,
     getMessage: async () => null,
+    listMessages: async () => [],
     sendFiles: async () => host.unsupported("terminal", "sendFiles"),
     shareContactCard: async () => host.unsupported("terminal", "shareContactCard"),
+    shareLocation: async () => host.unsupported("terminal", "shareLocation"),
+    stopLocation: async () => host.unsupported("terminal", "stopLocation"),
     group: {
       add: () => host.unsupported("terminal", "group.add"),
       getIcon: async () => null,

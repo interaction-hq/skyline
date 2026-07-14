@@ -371,6 +371,33 @@ export async function Skyline(opts: SkylineOptions): Promise<SkylineApp> {
       host.live.clear();
       host.queue.done();
     },
+    async createChat(participants, createOpts) {
+      if (!participants.length) {
+        throw new Error("createChat: needs at least one participant");
+      }
+      const platform =
+        createOpts?.platform ??
+        (host.binders.has("imessage")
+          ? "imessage"
+          : host.binders.keys().next().value);
+      if (!platform) {
+        throw new Error("createChat: no provider registered");
+      }
+      const binder = host.binders.get(platform);
+      if (!binder?.createChat) {
+        throw new Error(`createChat is not supported on ${platform}`);
+      }
+      const { to } = await binder.createChat(participants);
+      return makeChannel(to, platform);
+    },
+    async createFaceTimeLink(linkOpts) {
+      const platform = linkOpts?.platform ?? "imessage";
+      const binder = host.binders.get(platform);
+      if (!binder?.createFaceTimeLink) {
+        throw new Error(`createFaceTimeLink is not supported on ${platform}`);
+      }
+      return binder.createFaceTimeLink(linkOpts?.handles);
+    },
     incoming,
     messages: incoming,
     on: (event, handler) => emitter.on(event, handler),

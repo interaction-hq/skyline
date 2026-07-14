@@ -243,6 +243,18 @@ function createBinder(host: SkylineHost, projectId: string) {
         guid = res.guid;
         break;
       }
+      case "digital_touch": {
+        const res = await grpc.sendDigitalTouch(chatGuid, {
+          bpm: content.bpm,
+          color: content.color,
+          kind: content.kind,
+          mediaPath: content.mediaPath,
+          stillPath: content.stillPath,
+          tapCount: content.tapCount,
+        });
+        guid = res.guid;
+        break;
+      }
       case "group": {
         const guids: string[] = [];
         const textParts: string[] = [];
@@ -381,6 +393,13 @@ function createBinder(host: SkylineHost, projectId: string) {
       },
       edit: (messageGuid, newText) =>
         grpcFor().editMessage(chatGuid, messageGuid, newText),
+      focusStatus: async () => {
+        try {
+          return await grpcFor().getFocusStatus(to);
+        } catch {
+          return null;
+        }
+      },
       getMessage: async (messageGuid) => {
         const raw = await grpcFor().getMessage(messageGuid);
         if (!raw) {
@@ -416,6 +435,12 @@ function createBinder(host: SkylineHost, projectId: string) {
           }
         },
         setName: (name) => grpcFor().setGroupName(chatGuid, name),
+      },
+      listMessages: async (listOpts) => {
+        const rows = await grpcFor().listMessages(chatGuid, listOpts);
+        return rows.map((raw) =>
+          inboundToMessage(raw, to, toGroupCtx, senderUser)
+        );
       },
       get phone() {
         return to;
@@ -464,6 +489,8 @@ function createBinder(host: SkylineHost, projectId: string) {
         return { guid: res.guid, sentAt };
       },
       shareContactCard: () => grpcFor().shareContactInfo(chatGuid),
+      shareLocation: (locOpts) => grpcFor().shareLocation(chatGuid, locOpts),
+      stopLocation: () => grpcFor().stopLocation(chatGuid),
       to,
       typing: async (on = true) => {
         const grpc = grpcFor();
@@ -631,6 +658,22 @@ function createBinder(host: SkylineHost, projectId: string) {
   return {
     platform: "imessage" as Platform,
     connectLine,
+    async createChat(participants: string[]) {
+      const line = [...host.live.values()].find((l) => l.platform === "imessage");
+      if (!line?.grpc) {
+        throw new Error("createChat: no ready iMessage line");
+      }
+      const grpc = line.grpc as ImessageGrpcClient;
+      const { chatGuid } = await grpc.createChat(participants);
+      return { to: chatGuid };
+    },
+    createFaceTimeLink(handles?: string[]) {
+      const line = [...host.live.values()].find((l) => l.platform === "imessage");
+      if (!line?.grpc) {
+        throw new Error("createFaceTimeLink: no ready iMessage line");
+      }
+      return (line.grpc as ImessageGrpcClient).createFaceTimeLink(handles);
+    },
     makeChannel,
     dedicatedLines: (config: unknown) =>
       dedicatedLines(config as ImessageDedicatedConfig),

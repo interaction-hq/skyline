@@ -183,6 +183,30 @@ export interface PollContent {
   type: "poll";
 }
 
+export type DigitalTouchKind =
+  | "tap"
+  | "heartbeat"
+  | "sketch"
+  | "kiss"
+  | "anger"
+  | "video";
+
+/** An iMessage Digital Touch gesture. */
+export interface DigitalTouchContent {
+  /** Heartbeat beats-per-minute, or anger duration in seconds. */
+  bpm?: number;
+  /** Optional "r,g,b,a" each 0..1. */
+  color?: string;
+  kind: DigitalTouchKind;
+  /** Absolute path on the Mac for a video gesture. */
+  mediaPath?: string;
+  /** Absolute path on the Mac for a video poster still. */
+  stillPath?: string;
+  /** Tap or kiss count. */
+  tapCount?: number;
+  type: "digital_touch";
+}
+
 export interface GroupContent {
   items: Content[];
   type: "group";
@@ -199,6 +223,7 @@ export type Content =
   | ContactContent
   | RichlinkContent
   | PollContent
+  | DigitalTouchContent
   | GroupContent
   | WaContent;
 
@@ -299,6 +324,12 @@ export function richlink(url: string): RichlinkContent {
 
 export function poll(title: string, options: string[]): PollContent {
   return { options, title, type: "poll" };
+}
+
+export function digitalTouch(
+  input: Omit<DigitalTouchContent, "type">
+): DigitalTouchContent {
+  return { type: "digital_touch", ...input };
 }
 
 export function group(...items: Content[]): GroupContent {

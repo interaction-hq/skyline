@@ -108,7 +108,14 @@ function createBinder(host: SkylineHost) {
       case "group": {
         const first = content.items[0];
         if (first?.type === "attachment") {
-          return sendContent(to, teamId, first, sendOpts);
+          let last: SendReceipt | undefined;
+          for (const item of content.items) {
+            if (item.type !== "attachment") {
+              host.unsupported("slack", "sending group content with mixed types");
+            }
+            last = await sendContent(to, teamId, item, sendOpts);
+          }
+          return last as SendReceipt;
         }
         host.unsupported("slack", "sending group content");
         break;
@@ -119,6 +126,7 @@ function createBinder(host: SkylineHost) {
       case "contact":
       case "richlink":
       case "poll":
+      case "digital_touch":
       case "wa_media":
       case "wa_template":
       case "wa_interactive":
@@ -182,6 +190,7 @@ function createBinder(host: SkylineHost) {
     edit: async (messageGuid, newText) => {
       await slackFor(teamId).editText(to, messageGuid, newText);
     },
+    focusStatus: async () => null,
     getMessage: async () => null,
     group: {
       add: () => host.unsupported("slack", "group.add"),
@@ -193,6 +202,7 @@ function createBinder(host: SkylineHost) {
       setIcon: async () => host.unsupported("slack", "group.setIcon"),
       setName: () => host.unsupported("slack", "group.setName"),
     },
+    listMessages: async () => [],
     get phone() {
       return to;
     },
@@ -212,8 +222,19 @@ function createBinder(host: SkylineHost) {
       sendContent(to, teamId, content, { ...sendOpts, replyTo: messageGuid }),
     send: (content, sendOpts) => sendContent(to, teamId, content, sendOpts),
     sendFile: (file, sendOpts) => uploadFile(to, teamId, file, sendOpts),
-    sendFiles: async () => host.unsupported("slack", "sendFiles"),
+    sendFiles: async (files, sendOpts) => {
+      if (files.length === 0) {
+        throw new Error("sendFiles: needs at least one file");
+      }
+      let last: SendReceipt | undefined;
+      for (const file of files) {
+        last = await uploadFile(to, teamId, file, sendOpts);
+      }
+      return last as SendReceipt;
+    },
     shareContactCard: async () => host.unsupported("slack", "shareContactCard"),
+    shareLocation: async () => host.unsupported("slack", "shareLocation"),
+    stopLocation: async () => host.unsupported("slack", "stopLocation"),
     to,
     typing: async () => {},
     unsend: async (messageGuid) => {

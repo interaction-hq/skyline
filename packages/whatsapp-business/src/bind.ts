@@ -147,6 +147,7 @@ function createBinder(host: SkylineHost) {
       case "contact":
       case "richlink":
       case "poll":
+      case "digital_touch":
       case "group":
         host.unsupported("whatsapp_business", `sending ${content.type} content`);
         break;
@@ -162,6 +163,7 @@ function createBinder(host: SkylineHost) {
     background: async () => host.unsupported("whatsapp_business", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp_business", "edit"),
+    focusStatus: async () => null,
     getMessage: async () => null,
     group: {
       add: () => host.unsupported("whatsapp_business", "group.add"),
@@ -175,6 +177,7 @@ function createBinder(host: SkylineHost) {
       setIcon: async () => host.unsupported("whatsapp_business", "group.setIcon"),
       setName: () => host.unsupported("whatsapp_business", "group.setName"),
     },
+    listMessages: async () => [],
     get phone() {
       return to;
     },
@@ -207,6 +210,10 @@ function createBinder(host: SkylineHost) {
     sendFiles: async () => host.unsupported("whatsapp_business", "sendFiles"),
     shareContactCard: async () =>
       host.unsupported("whatsapp_business", "shareContactCard"),
+    shareLocation: async () =>
+      host.unsupported("whatsapp_business", "shareLocation"),
+    stopLocation: async () =>
+      host.unsupported("whatsapp_business", "stopLocation"),
     to,
     typing: async () => host.unsupported("whatsapp_business", "typing"),
     unsend: () => host.unsupported("whatsapp_business", "unsend"),

@@ -174,6 +174,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "contact":
       case "richlink":
       case "poll":
+      case "digital_touch":
       case "wa_media":
       case "wa_template":
       case "wa_interactive":
@@ -193,6 +194,7 @@ function createBinder(host: SkylineHost, projectId: string) {
     background: async () => host.unsupported("whatsapp", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp", "edit"),
+    focusStatus: async () => null,
     getMessage: async () => null,
     group: {
       add: () => host.unsupported("whatsapp", "group.add"),
@@ -204,6 +206,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       setIcon: async () => host.unsupported("whatsapp", "group.setIcon"),
       setName: () => host.unsupported("whatsapp", "group.setName"),
     },
+    listMessages: async () => [],
     get phone() {
       return to;
     },
@@ -237,8 +240,56 @@ function createBinder(host: SkylineHost, projectId: string) {
         },
         sendOpts
       ),
-    sendFiles: async () => host.unsupported("whatsapp", "sendFiles"),
+    sendFiles: async (files, sendOpts) => {
+      if (files.length === 0) {
+        throw new Error("sendFiles: needs at least one file");
+      }
+      if (files.length === 1) {
+        return sendAttachment(
+          to,
+          {
+            data:
+              files[0].data instanceof Uint8Array
+                ? files[0].data
+                : files[0].data
+                  ? new Uint8Array(files[0].data)
+                  : undefined,
+            isAudioMessage: files[0].audio,
+            name: files[0].name,
+            path: files[0].path,
+            type: "attachment",
+          },
+          sendOpts
+        );
+      }
+      const items = [];
+      for (const file of files) {
+        const data = await readBytes({
+          data:
+            file.data instanceof Uint8Array
+              ? file.data
+              : file.data
+                ? new Uint8Array(file.data)
+                : undefined,
+          path: file.path,
+        });
+        const album = albumItem({
+          data,
+          mimeType: undefined,
+          name: file.name,
+        });
+        if (!album) {
+          host.unsupported("whatsapp", "sendFiles with non-album items");
+        }
+        items.push(album);
+      }
+      const res = await waFor(to).sendAlbum(to, items, host.newId());
+      void sendOpts;
+      return { guid: res.messageIds[0], sentAt: new Date() };
+    },
     shareContactCard: async () => host.unsupported("whatsapp", "shareContactCard"),
+    shareLocation: async () => host.unsupported("whatsapp", "shareLocation"),
+    stopLocation: async () => host.unsupported("whatsapp", "stopLocation"),
     to,
     typing: async () => host.unsupported("whatsapp", "typing"),
     unsend: () => host.unsupported("whatsapp", "unsend"),
