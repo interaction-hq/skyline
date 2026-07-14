@@ -329,6 +329,8 @@ export class ImessageGrpcClient {
   private readonly pollSvc: any;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
   private readonly faceTimeSvc: any;
+  // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
+  private readonly attachmentSvc: any;
   private readonly token: string;
   private readonly projectId: string;
 
@@ -365,6 +367,7 @@ export class ImessageGrpcClient {
     this.addressSvc = new pkg.AddressService(target, creds, shared);
     this.pollSvc = new pkg.PollService(target, creds, shared);
     this.faceTimeSvc = new pkg.FaceTimeService(target, creds, shared);
+    this.attachmentSvc = new pkg.AttachmentService(target, creds, shared);
   }
 
   private metadata(): grpc.Metadata {
@@ -1277,6 +1280,303 @@ export class ImessageGrpcClient {
     this.addressSvc.close?.();
     this.pollSvc.close?.();
     this.faceTimeSvc.close?.();
+    this.attachmentSvc.close?.();
+  }
+
+  getChatDisplayName(chatGuid: string): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      this.chat.GetChat(
+        { guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: proto response is dynamically typed.
+        (err: grpc.ServiceError | null, res: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            const name =
+              res?.chat?.display_name || res?.display_name || undefined;
+            resolve(name ? String(name) : null);
+          }
+        }
+      );
+    });
+  }
+
+  downloadAttachment(attachmentGuid: string): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      const call = this.attachmentSvc.Download(
+        { attachment_guid: attachmentGuid },
+        this.metadata()
+      ) as grpc.ClientReadableStream<{ data?: Uint8Array | Buffer }>;
+      const chunks: Uint8Array[] = [];
+      call.on("data", (chunk) => {
+        if (chunk?.data) {
+          chunks.push(
+            chunk.data instanceof Uint8Array
+              ? chunk.data
+              : new Uint8Array(chunk.data)
+          );
+        }
+      });
+      call.on("error", (err: Error) => reject(err));
+      call.on("end", () => {
+        const total = chunks.reduce((n, c) => n + c.length, 0);
+        const out = new Uint8Array(total);
+        let offset = 0;
+        for (const c of chunks) {
+          out.set(c, offset);
+          offset += c.length;
+        }
+        resolve(out);
+      });
+    });
+  }
+
+  downloadAttachmentStream(
+    attachmentGuid: string
+  ): ReadableStream<Uint8Array> {
+    const call = this.attachmentSvc.Download(
+      { attachment_guid: attachmentGuid },
+      this.metadata()
+    ) as grpc.ClientReadableStream<{ data?: Uint8Array | Buffer }>;
+    return new ReadableStream<Uint8Array>({
+      cancel() {
+        call.cancel();
+      },
+      start(controller) {
+        call.on("data", (chunk) => {
+          if (chunk?.data) {
+            controller.enqueue(
+              chunk.data instanceof Uint8Array
+                ? chunk.data
+                : new Uint8Array(chunk.data)
+            );
+          }
+        });
+        call.on("error", (err: Error) => controller.error(err));
+        call.on("end", () => controller.close());
+      },
+    });
+  }
+
+  getAttachmentInfo(attachmentGuid: string): Promise<InboundAttachment | null> {
+    return new Promise((resolve, reject) => {
+      this.attachmentSvc.GetAttachment(
+        { guid: attachmentGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: proto response is dynamically typed.
+        (err: grpc.ServiceError | null, res: any) => {
+          if (err) {
+            if (err.code === grpc.status.NOT_FOUND) {
+              resolve(null);
+            } else {
+              reject(err);
+            }
+          } else {
+            const att = res?.attachment;
+            if (!att?.guid) {
+              resolve(null);
+            } else {
+              resolve({
+                guid: att.guid,
+                mimeType: att.mime_type || undefined,
+                name: att.file_name || undefined,
+                size:
+                  att.total_bytes != null ? Number(att.total_bytes) : undefined,
+              });
+            }
+          }
+        }
+      );
+    });
+  }
+
+  votePoll(
+    chatGuid: string,
+    pollMessageGuid: string,
+    optionIdentifier: string
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.pollSvc.Vote(
+        {
+          chat_guid: chatGuid,
+          option_identifier: optionIdentifier,
+          poll_message_guid: pollMessageGuid,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  unvotePoll(chatGuid: string, pollMessageGuid: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.pollSvc.Unvote(
+        { chat_guid: chatGuid, poll_message_guid: pollMessageGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  addPollOption(
+    chatGuid: string,
+    pollMessageGuid: string,
+    optionText: string
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.pollSvc.AddOption(
+        {
+          chat_guid: chatGuid,
+          option_text: optionText,
+          poll_message_guid: pollMessageGuid,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  getPoll(pollMessageGuid: string): Promise<{
+    chatId: string;
+    options: { creatorHandle?: string; id?: string; text: string }[];
+    pollMessageGuid: string;
+    title: string;
+    votes: { optionId: string; participant?: string }[];
+  } | null> {
+    return new Promise((resolve, reject) => {
+      this.pollSvc.GetPoll(
+        { message_guid: pollMessageGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: proto response is dynamically typed.
+        (err: grpc.ServiceError | null, res: any) => {
+          if (err) {
+            if (err.code === grpc.status.NOT_FOUND) {
+              resolve(null);
+            } else {
+              reject(err);
+            }
+          } else if (!res?.message_guid) {
+            resolve(null);
+          } else {
+            resolve({
+              chatId: res.chat_guid,
+              options: (res.options ?? []).map(
+                (o: {
+                  creator_handle?: string;
+                  option_identifier?: string;
+                  text?: string;
+                }) => ({
+                  creatorHandle: o.creator_handle,
+                  id: o.option_identifier,
+                  text: o.text ?? "",
+                })
+              ),
+              pollMessageGuid: res.message_guid,
+              title: res.title ?? "",
+              votes: (res.votes ?? []).map(
+                (v: {
+                  option_identifier?: string;
+                  participant_address?: string;
+                }) => ({
+                  optionId: v.option_identifier ?? "",
+                  participant: v.participant_address,
+                })
+              ),
+            });
+          }
+        }
+      );
+    });
+  }
+
+  subscribePollEvents(handlers: {
+    onPollChange?: (event: {
+      action: string;
+      chatId: string;
+      date: Date;
+      pollMessageGuid: string;
+    }) => void;
+    onError?: (err: grpc.ServiceError) => void;
+    // biome-ignore lint/suspicious/noExplicitAny: streamed event is dynamically typed.
+  }): grpc.ClientReadableStream<any> {
+    const call = this.pollSvc.SubscribeEvents(
+      {},
+      this.metadata()
+    ) as grpc.ClientReadableStream<Record<string, unknown>>;
+    call.on("data", (event) => {
+      const changed = event?.poll_changed as
+        | {
+            action?: string;
+            chat_guid?: string;
+            poll_message_guid?: string;
+          }
+        | undefined;
+      if (!changed?.poll_message_guid) {
+        return;
+      }
+      handlers.onPollChange?.({
+        action: changed.action ?? "changed",
+        chatId: changed.chat_guid ?? "",
+        date: toDate(event.timestamp) ?? new Date(),
+        pollMessageGuid: changed.poll_message_guid,
+      });
+    });
+    call.on("error", (err: grpc.ServiceError) => handlers.onError?.(err));
+    return call;
+  }
+
+  subscribeGroupEvents(handlers: {
+    onGroupChange?: (event: {
+      backgroundChanged?: boolean;
+      backgroundRemoved?: boolean;
+      chatId: string;
+      date: Date;
+      iconChanged?: boolean;
+      iconRemoved?: boolean;
+      participantAdded?: string;
+      participantRemoved?: string;
+      renamedTo?: string;
+    }) => void;
+    onError?: (err: grpc.ServiceError) => void;
+    // biome-ignore lint/suspicious/noExplicitAny: streamed event is dynamically typed.
+  }): grpc.ClientReadableStream<any> {
+    const call = this.groupSvc.SubscribeEvents(
+      {},
+      this.metadata()
+    ) as grpc.ClientReadableStream<Record<string, unknown>>;
+    call.on("data", (event) => {
+      const changed = event?.group_changed as Record<string, unknown> | undefined;
+      if (!changed?.chat_guid) {
+        return;
+      }
+      handlers.onGroupChange?.({
+        backgroundChanged: Boolean(changed.background_changed),
+        backgroundRemoved: Boolean(changed.background_removed),
+        chatId: String(changed.chat_guid),
+        date: toDate(event.timestamp) ?? new Date(),
+        iconChanged: Boolean(changed.icon_changed),
+        iconRemoved: Boolean(changed.icon_removed),
+        participantAdded:
+          typeof changed.participant_added === "string"
+            ? changed.participant_added
+            : undefined,
+        participantRemoved:
+          typeof changed.participant_removed === "string"
+            ? changed.participant_removed
+            : undefined,
+        renamedTo:
+          typeof changed.renamed_to === "string" ? changed.renamed_to : undefined,
+      });
+    });
+    call.on("error", (err: grpc.ServiceError) => handlers.onError?.(err));
+    return call;
   }
 }
 

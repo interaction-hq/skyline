@@ -101,10 +101,16 @@ export interface MessageAttachment {
   name?: string;
   size?: number;
   transferName?: string;
+  /** Download the attachment bytes (issues a fresh fetch each call). */
+  read(): Promise<Uint8Array>;
+  /** Stream the attachment bytes (issues a fresh fetch each call). */
+  stream(): Promise<ReadableStream<Uint8Array>>;
 }
 
 export interface Message {
   attachments?: MessageAttachment[];
+  /** The open conversation this message belongs to. */
+  channel: Channel;
   content: MessageContent;
   /** Set for group conversations; identifies the group and the submitting member. */
   group?: GroupContext;
@@ -112,13 +118,26 @@ export interface Message {
   guid?: string;
   /** Platforms echo your own sends; guard replies on this. */
   isFromMe: boolean;
+  /** Rewrite this outbound message's text. */
+  edit(newText: string): Promise<void>;
   platform: Platform;
+  /** Tapback or emoji-react to this message. */
+  react(reaction: Reaction, opts?: { remove?: boolean }): Promise<void>;
+  /** Mark the conversation read (best-effort per platform). */
+  read(): Promise<void>;
   replyTo?: { messageGuid: string; partIndex?: number };
+  /** Reply in-thread to this message. */
+  reply(
+    content: string | Content,
+    opts?: SendOptions
+  ): Promise<SendReceipt>;
   sender: User;
   /** Delivery service when known — "iMessage", "SMS", etc. */
   service?: string;
   slack?: SlackMessageMeta;
   timestamp: Date;
+  /** Retract this outbound message. */
+  unsend(): Promise<void>;
 }
 
 /**
@@ -184,10 +203,33 @@ export interface SendErrorSignal {
   to: string;
 }
 
+export interface GroupChangeSignal {
+  backgroundChanged?: boolean;
+  backgroundRemoved?: boolean;
+  chatId: string;
+  iconChanged?: boolean;
+  iconRemoved?: boolean;
+  participantAdded?: string;
+  participantRemoved?: string;
+  platform: Platform;
+  renamedTo?: string;
+  timestamp: Date;
+}
+
+export interface PollChangeSignal {
+  action: string;
+  chatId: string;
+  platform: Platform;
+  pollMessageGuid: string;
+  timestamp: Date;
+}
+
 /** The event name → payload map for `app.on(...)`. */
 export interface SignalMap {
   edited: EditSignal;
   error: SendErrorSignal;
+  group: GroupChangeSignal;
+  poll: PollChangeSignal;
   reaction: ReactionSignal;
   read: ReadSignal;
   typing: TypingSignal;
@@ -228,6 +270,12 @@ export interface Channel {
   /** Focus / Do Not Disturb state for the other party, when the line reports it. */
   focusStatus(): Promise<FocusStatus | null>;
 
+  /** Fetch attachment bytes by guid when the line supports downloads. */
+  getAttachment(attachmentGuid: string): Promise<MessageAttachment | null>;
+
+  /** Read the conversation display name (group title), when set. */
+  getDisplayName(): Promise<string | null>;
+
   /** Fetch a message by guid when the line supports history lookup. */
   getMessage(messageGuid: string): Promise<Message | null>;
 
@@ -236,6 +284,8 @@ export interface Channel {
 
   /** @deprecated use `to`. Kept as an alias so older callers keep working. */
   readonly phone: string;
+  /** Poll helpers (iMessage and platforms that support interactive polls). */
+  readonly poll: PollOps;
   /** The platform this channel speaks. */
   readonly platform: Platform;
 
@@ -264,6 +314,12 @@ export interface Channel {
     content: string | Content,
     opts?: SendOptions
   ): Promise<SendReceipt>;
+
+  /**
+   * Run `fn` while showing a typing indicator. Clears typing when `fn`
+   * settles (success or throw).
+   */
+  responding<T>(fn: () => T | Promise<T>): Promise<T>;
 
   /**
    * Send a message: a plain string (text) or a content object from a builder
@@ -333,6 +389,9 @@ export interface GroupOps {
   /** Fetch the group icon bytes, or null when unset. */
   getIcon(): Promise<Uint8Array | null>;
 
+  /** Read the group display name, or null when unset. */
+  getName(): Promise<string | null>;
+
   /** Leave the group conversation. */
   leave(): Promise<void>;
 
@@ -350,6 +409,29 @@ export interface GroupOps {
 
   /** Rename the group. */
   setName(name: string): Promise<void>;
+}
+
+/** Interactive poll helpers on a channel. */
+export interface PollOps {
+  /** Add an option to an existing poll. */
+  addOption(pollMessageGuid: string, optionText: string): Promise<void>;
+
+  /** Fetch poll state by the poll's message guid. */
+  get(pollMessageGuid: string): Promise<PollInfo | null>;
+
+  /** Remove the agent's vote from a poll. */
+  unvote(pollMessageGuid: string): Promise<void>;
+
+  /** Cast a vote for an option identifier. */
+  vote(pollMessageGuid: string, optionIdentifier: string): Promise<void>;
+}
+
+export interface PollInfo {
+  chatId: string;
+  options: { creatorHandle?: string; id?: string; text: string }[];
+  pollMessageGuid: string;
+  title: string;
+  votes: { optionId: string; participant?: string }[];
 }
 
 export interface SkylineApp {

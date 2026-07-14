@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-14
+
+### Added
+- Message actions: `reply`, `react`, `edit`, `unsend`, `read`, plus bound `channel`.
+- `channel.responding(fn)` typing helper.
+- Attachment download: `MessageAttachment.read` / `stream`, `channel.getAttachment`.
+- `streamText(...)` content with iMessage send-then-edit delivery.
+- `custom(...)` escape hatch; `customizedMiniApp(...)` extension-card helper.
+- Poll ops: `vote` / `unvote` / `addOption` / `get`; `app.on("poll")`.
+- Group lifecycle: `app.on("group")`; `getDisplayName` / `group.getName`.
+
 ## [0.3.1] - 2026-07-14
 
 ### Added
@@ -84,7 +95,8 @@ bun add @skyline-ts/core @skyline-ts/imessage
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.3.1...main
+[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.3.2...main
+[0.3.2]: https://github.com/interactions-hq/skyline/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/interactions-hq/skyline/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/interactions-hq/skyline/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/interactions-hq/skyline/compare/v0.1.3...v0.2.0

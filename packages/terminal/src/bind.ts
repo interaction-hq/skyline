@@ -1,6 +1,7 @@
 import type { Content, SendOptions } from "@skyline-ts/core/content";
 import { toContent } from "@skyline-ts/core/content";
 import type { Channel, Platform } from "@skyline-ts/core";
+import { bindMessage, unsupportedPollOps, withResponding } from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import { terminal, type TerminalConfig } from "./config.js";
 import { startTerminalSession, type TerminalSession } from "./session.js";
@@ -21,7 +22,9 @@ function createBinder(host: SkylineHost) {
         return { guid: `term-${Date.now()}`, sentAt: new Date() };
       }
       case "app":
+      case "custom":
       case "flow":
+      case "stream_text":
       case "attachment":
       case "voice":
       case "contact":
@@ -47,6 +50,8 @@ function createBinder(host: SkylineHost) {
   const channelExtras = {
     background: async () => host.unsupported("terminal", "background"),
     focusStatus: async () => null,
+    getAttachment: async () => null,
+    getDisplayName: async () => null,
     getMessage: async () => null,
     listMessages: async () => [],
     sendFiles: async () => host.unsupported("terminal", "sendFiles"),
@@ -56,6 +61,7 @@ function createBinder(host: SkylineHost) {
     group: {
       add: () => host.unsupported("terminal", "group.add"),
       getIcon: async () => null,
+      getName: async () => null,
       leave: async () => host.unsupported("terminal", "group.leave"),
       participants: async () => host.unsupported("terminal", "group.participants"),
       remove: () => host.unsupported("terminal", "group.remove"),
@@ -72,7 +78,7 @@ function createBinder(host: SkylineHost) {
       throw new Error(`terminal session not ready for ${to}`);
     }
 
-    return {
+    const channel: Channel = {
       contact: async () => null,
       edit: async (messageGuid, newText) => {
         session.write(`agent edited ${messageGuid}: ${newText}`);
@@ -82,6 +88,7 @@ function createBinder(host: SkylineHost) {
         return to;
       },
       platform: "terminal",
+      poll: unsupportedPollOps((verb) => host.unsupported("terminal", verb)),
       reachable: async () => true,
       react: async (messageGuid, reaction, reactOpts) => {
         session.write(
@@ -90,6 +97,7 @@ function createBinder(host: SkylineHost) {
       },
       read: async () => {},
       readReceipt: async () => {},
+      responding: (fn) => withResponding(channel, fn),
       reply: (messageGuid, content, sendOpts) =>
         sendContent(session, content, { ...sendOpts, replyTo: messageGuid }),
       send: (content, sendOpts) => sendContent(session, content, sendOpts),
@@ -104,6 +112,7 @@ function createBinder(host: SkylineHost) {
         session.write(`agent unsent ${messageGuid}`);
       },
     };
+    return channel;
   };
 
   const connectLocal = (config: TerminalConfig): void => {
@@ -120,6 +129,7 @@ function createBinder(host: SkylineHost) {
         return to;
       },
       platform: "terminal",
+      poll: unsupportedPollOps((verb) => host.unsupported("terminal", verb)),
       reachable: async () => true,
       react: async (messageGuid, reaction, reactOpts) => {
         session?.write(
@@ -128,6 +138,7 @@ function createBinder(host: SkylineHost) {
       },
       read: async () => {},
       readReceipt: async () => {},
+      responding: (fn) => withResponding(channel, fn),
       reply: (messageGuid, content, sendOpts) =>
         channel.send(content, { ...sendOpts, replyTo: messageGuid }),
       send: (content, sendOpts) => {
@@ -152,14 +163,14 @@ function createBinder(host: SkylineHost) {
       onLine: (line) => {
         host.queue.push([
           channel,
-          {
+          bindMessage(channel, {
             content: { text: line, type: "text" },
             guid: `term-in-${Date.now()}`,
             isFromMe: false,
             platform: "terminal",
             sender: { displayName: "You", id: "you" },
             timestamp: new Date(),
-          },
+          }),
         ]);
       },
       prompt: config.prompt ?? "you> ",

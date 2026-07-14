@@ -6,6 +6,10 @@ import type {
 } from "@skyline-ts/core/content";
 import { toContent } from "@skyline-ts/core/content";
 import type { Channel, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
+import {
+  unsupportedPollOps,
+  withResponding,
+} from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import {
   WhatsappBusinessClient,
@@ -143,7 +147,9 @@ function createBinder(host: SkylineHost) {
         res = await wb.sendContacts(to, content.contacts, { replyTo });
         break;
       case "app":
+      case "custom":
       case "flow":
+      case "stream_text":
       case "contact":
       case "richlink":
       case "poll":
@@ -159,15 +165,19 @@ function createBinder(host: SkylineHost) {
     return { guid: res.messageId, sentAt: new Date() };
   };
 
-  const makeChannel = (to: string): Channel => ({
+  const makeChannel = (to: string): Channel => {
+    const channel: Channel = {
     background: async () => host.unsupported("whatsapp_business", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp_business", "edit"),
     focusStatus: async () => null,
+    getAttachment: async () => null,
+    getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
       add: () => host.unsupported("whatsapp_business", "group.add"),
       getIcon: async () => null,
+      getName: async () => null,
       leave: async () => host.unsupported("whatsapp_business", "group.leave"),
       participants: async () =>
         host.unsupported("whatsapp_business", "group.participants"),
@@ -182,6 +192,9 @@ function createBinder(host: SkylineHost) {
       return to;
     },
     platform: "whatsapp_business",
+    poll: unsupportedPollOps((verb) =>
+      host.unsupported("whatsapp_business", verb)
+    ),
     reachable: async () => true,
     react: async (messageGuid, reaction: Reaction, reactOpts) => {
       await wbFor(to).sendReaction(
@@ -192,6 +205,7 @@ function createBinder(host: SkylineHost) {
     },
     read: async () => host.unsupported("whatsapp_business", "read"),
     readReceipt: async () => host.unsupported("whatsapp_business", "readReceipt"),
+    responding: (fn) => withResponding(channel, fn),
     reply: (messageGuid, content, sendOpts) =>
       sendWaBusiness(to, content, { ...sendOpts, replyTo: messageGuid }),
     send: (content, sendOpts) => sendWaBusiness(to, content, sendOpts),
@@ -217,7 +231,9 @@ function createBinder(host: SkylineHost) {
     to,
     typing: async () => host.unsupported("whatsapp_business", "typing"),
     unsend: () => host.unsupported("whatsapp_business", "unsend"),
-  });
+    };
+    return channel;
+  };
 
   const connectLine = (line: ResolvedLine): void => {
     if (!(line.phone && line.business)) {

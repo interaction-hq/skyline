@@ -7,6 +7,12 @@ import type {
 } from "@skyline-ts/core/content";
 import { toContent } from "@skyline-ts/core/content";
 import type { Channel, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
+import {
+  bindMessage,
+  stubAttachmentDownload,
+  unsupportedPollOps,
+  withResponding,
+} from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import { grpcTarget, WhatsappGrpcClient } from "./grpc.js";
 import {
@@ -170,7 +176,9 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "group":
         return sendGroupAlbum(to, content, sendOpts);
       case "app":
+      case "custom":
       case "flow":
+      case "stream_text":
       case "contact":
       case "richlink":
       case "poll":
@@ -190,15 +198,19 @@ function createBinder(host: SkylineHost, projectId: string) {
     throw new Error("unreachable");
   };
 
-  const makeChannel = (to: string): Channel => ({
+  const makeChannel = (to: string): Channel => {
+    const channel: Channel = {
     background: async () => host.unsupported("whatsapp", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp", "edit"),
     focusStatus: async () => null,
+    getAttachment: async () => null,
+    getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
       add: () => host.unsupported("whatsapp", "group.add"),
       getIcon: async () => null,
+      getName: async () => null,
       leave: async () => host.unsupported("whatsapp", "group.leave"),
       participants: async () => host.unsupported("whatsapp", "group.participants"),
       remove: () => host.unsupported("whatsapp", "group.remove"),
@@ -211,6 +223,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       return to;
     },
     platform: "whatsapp",
+    poll: unsupportedPollOps((verb) => host.unsupported("whatsapp", verb)),
     reachable: async () => true,
     react: (messageGuid, reaction: Reaction, reactOpts) =>
       waFor(to).sendReaction(
@@ -220,6 +233,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       ),
     read: async () => host.unsupported("whatsapp", "read"),
     readReceipt: async () => host.unsupported("whatsapp", "readReceipt"),
+    responding: (fn) => withResponding(channel, fn),
     reply: (messageGuid, content, sendOpts) =>
       sendContent(to, content, { ...sendOpts, replyTo: messageGuid }),
     send: (content, sendOpts) => sendContent(to, content, sendOpts),
@@ -293,7 +307,9 @@ function createBinder(host: SkylineHost, projectId: string) {
     to,
     typing: async () => host.unsupported("whatsapp", "typing"),
     unsend: () => host.unsupported("whatsapp", "unsend"),
-  });
+    };
+    return channel;
+  };
 
   const connectLine = async (line: ResolvedLine): Promise<void> => {
     if (!line.phone) {
@@ -316,14 +332,14 @@ function createBinder(host: SkylineHost, projectId: string) {
       onAttachment(msg, date) {
         host.queue.push([
           channel,
-          {
+          bindMessage(channel, {
             attachments: [
-              {
+              stubAttachmentDownload({
                 guid: msg.messageId,
                 mimeType: msg.kind,
                 name: msg.name ?? msg.caption,
                 size: msg.fileSize,
-              },
+              }),
             ],
             content: {
               text: msg.caption ?? `[${msg.kind}]`,
@@ -337,7 +353,7 @@ function createBinder(host: SkylineHost, projectId: string) {
               : {}),
             sender: { id: msg.senderId },
             timestamp: date,
-          },
+          }),
         ]);
       },
       onReaction(msg, date) {
@@ -357,7 +373,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       onText(msg, date) {
         host.queue.push([
           channel,
-          {
+          bindMessage(channel, {
             content: { text: msg.text, type: "text" },
             guid: msg.messageId,
             isFromMe: false,
@@ -367,7 +383,7 @@ function createBinder(host: SkylineHost, projectId: string) {
               : {}),
             sender: { id: msg.senderId },
             timestamp: date,
-          },
+          }),
         ]);
       },
     });

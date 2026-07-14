@@ -207,6 +207,22 @@ export interface DigitalTouchContent {
   type: "digital_touch";
 }
 
+/** Provider-specific payload escape hatch. */
+export interface CustomContent {
+  raw: unknown;
+  type: "custom";
+}
+
+/**
+ * Stream a reply as it is generated. On iMessage the first chunk creates the
+ * bubble; later chunks edit it in place (within the platform edit budget).
+ */
+export interface StreamTextContent {
+  format?: "plain" | "markdown";
+  stream: () => AsyncIterable<string>;
+  type: "stream_text";
+}
+
 export interface GroupContent {
   items: Content[];
   type: "group";
@@ -224,6 +240,8 @@ export type Content =
   | RichlinkContent
   | PollContent
   | DigitalTouchContent
+  | StreamTextContent
+  | CustomContent
   | GroupContent
   | WaContent;
 
@@ -330,6 +348,103 @@ export function digitalTouch(
   input: Omit<DigitalTouchContent, "type">
 ): DigitalTouchContent {
   return { type: "digital_touch", ...input };
+}
+
+export function custom(raw: unknown): CustomContent {
+  return { raw, type: "custom" };
+}
+
+type StreamTextSource =
+  | AsyncIterable<string>
+  | ReadableStream<string>
+  | (() => AsyncIterable<string> | Promise<AsyncIterable<string>>)
+  | { textStream: AsyncIterable<string> };
+
+async function* iterateStreamSource(
+  source: StreamTextSource
+): AsyncIterable<string> {
+  if (typeof source === "function") {
+    yield* await source();
+    return;
+  }
+  if (typeof source === "object" && source !== null && "textStream" in source) {
+    yield* source.textStream;
+    return;
+  }
+  if (typeof ReadableStream !== "undefined" && source instanceof ReadableStream) {
+    const reader = source.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          return;
+        }
+        if (value != null && value !== "") {
+          yield value;
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return;
+  }
+  yield* source as AsyncIterable<string>;
+}
+
+/**
+ * Stream plain text into a single bubble (send first chunk, edit as more
+ * arrives). Markdown streaming is not supported on iMessage — use `markdown()`
+ * with the full body instead.
+ */
+export function streamText(
+  source: StreamTextSource,
+  opts?: { format?: "plain" | "markdown" }
+): StreamTextContent {
+  return {
+    format: opts?.format ?? "plain",
+    stream: () => iterateStreamSource(source),
+    type: "stream_text",
+  };
+}
+
+/**
+ * iMessage extension card — dedicated `teamId` + `bundleId` identity with a
+ * full layout. Sugar over `app(...)` for installed-extension bubbles.
+ */
+export function customizedMiniApp(input: {
+  appName?: string;
+  appStoreId?: number;
+  bundleId: string;
+  caption?: string;
+  data?: Record<string, string>;
+  image?: string;
+  imageSubtitle?: string;
+  imageTitle?: string;
+  interactive?: boolean;
+  subcaption?: string;
+  summary?: string;
+  teamId: string;
+  trailingCaption?: string;
+  trailingSubcaption?: string;
+  url: string;
+}): AppMessage {
+  return app({
+    appId: input.appName,
+    appStoreId: input.appStoreId,
+    bundleId: input.bundleId,
+    caption: input.caption,
+    data: input.data,
+    image: input.image,
+    imageSubtitle: input.imageSubtitle,
+    imageTitle: input.imageTitle,
+    interactive: input.interactive ?? true,
+    subcaption: input.subcaption,
+    summary: input.summary ?? input.appName,
+    teamId: input.teamId,
+    trailingCaption: input.trailingCaption,
+    trailingSubcaption: input.trailingSubcaption,
+    url: input.url,
+  });
 }
 
 export function group(...items: Content[]): GroupContent {

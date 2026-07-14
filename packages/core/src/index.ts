@@ -6,6 +6,7 @@ export type {
   AttachmentSend,
   ContactContent,
   Content,
+  CustomContent,
   DigitalTouchContent,
   DigitalTouchKind,
   Effect,
@@ -17,6 +18,7 @@ export type {
   Reaction,
   RichlinkContent,
   SendOptions,
+  StreamTextContent,
   Tapback,
   TextMessage,
   VoiceContent,
@@ -31,6 +33,8 @@ export {
   app,
   attachment,
   contactCard,
+  custom,
+  customizedMiniApp,
   digitalTouch,
   EFFECTS,
   flow,
@@ -41,6 +45,7 @@ export {
   payment,
   poll,
   richlink,
+  streamText,
   text,
   voice,
   wa,
@@ -58,6 +63,13 @@ export {
   errorBySlug,
   isRetryableError,
 } from "./errors.js";
+export type { MessageData } from "./message.js";
+export {
+  attachmentWithDownload,
+  bindMessage,
+  stubAttachmentDownload,
+} from "./message.js";
+export { unsupportedPollOps, withResponding } from "./channel-helpers.js";
 export type { LiveSessionOptions, SessionSnapshot } from "./session.js";
 export { LiveSession, session } from "./session.js";
 export {
@@ -73,6 +85,7 @@ export type {
   EditSignal,
   FlowContent,
   FocusStatus,
+  GroupChangeSignal,
   GroupContext,
   GroupOps,
   ListMessagesOptions,
@@ -81,6 +94,9 @@ export type {
   MessageContent,
   PaymentReceipt,
   Platform,
+  PollChangeSignal,
+  PollInfo,
+  PollOps,
   ReactionSignal,
   ReadSignal,
   ResolvedLine,

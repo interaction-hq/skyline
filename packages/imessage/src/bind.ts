@@ -4,6 +4,7 @@ import type {
   Content,
   Reaction,
   SendOptions,
+  StreamTextContent,
 } from "@skyline-ts/core/content";
 import { resolveEffect, toContent } from "@skyline-ts/core/content";
 import type {
@@ -17,11 +18,17 @@ import type {
   User,
   VisualAssetInput,
 } from "@skyline-ts/core";
+import {
+  attachmentWithDownload,
+  bindMessage,
+  withResponding,
+} from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import {
   dmChatGuid,
   grpcTarget,
   ImessageGrpcClient,
+  type InboundAttachment,
   type InboundGroup,
   type InboundTextMessage,
   readAssetBytes,
@@ -105,25 +112,101 @@ function contactToText(contact: ContactContent): string {
   return lines.join("\n");
 }
 
+const INITIAL_STREAM_THROTTLE_MS = 1000;
+const STREAM_BACKOFF = 2;
+const MAX_STREAM_EDITS = 5;
+
+async function sendStreamText(
+  grpc: ImessageGrpcClient,
+  chatGuid: string,
+  content: StreamTextContent,
+  clientMessageId: string,
+  sendOpts?: SendOptions
+): Promise<string> {
+  if (content.format === "markdown") {
+    throw new Error(
+      "stream_text with markdown is not supported on iMessage; use markdown() with the full body"
+    );
+  }
+  let sentGuid: string | undefined;
+  let full = "";
+  let lastSent = "";
+  let lastEditAt = 0;
+  let editCount = 0;
+
+  const flush = async (text: string) => {
+    if (!(sentGuid && text !== lastSent)) {
+      return;
+    }
+    await grpc.editMessage(chatGuid, sentGuid, text);
+    lastSent = text;
+    lastEditAt = Date.now();
+    editCount += 1;
+  };
+
+  for await (const delta of content.stream()) {
+    full += delta;
+    if (!sentGuid) {
+      const res = await grpc.send(
+        chatGuid,
+        full,
+        clientMessageId,
+        wireOpts(sendOpts)
+      );
+      sentGuid = res.guid;
+      lastSent = full;
+      lastEditAt = Date.now();
+      continue;
+    }
+    const canInterim = editCount < MAX_STREAM_EDITS - 1;
+    const gap = INITIAL_STREAM_THROTTLE_MS * STREAM_BACKOFF ** editCount;
+    if (canInterim && Date.now() - lastEditAt >= gap) {
+      await flush(full);
+    }
+  }
+  if (!sentGuid) {
+    throw new Error("stream_text produced no text");
+  }
+  await flush(full);
+  return sentGuid;
+}
+
+function attachDownloads(
+  grpc: ImessageGrpcClient,
+  attachments: InboundAttachment[] | undefined
+): MessageAttachment[] | undefined {
+  if (!attachments?.length) {
+    return;
+  }
+  return attachments.map((att) =>
+    attachmentWithDownload(
+      {
+        guid: att.guid,
+        mimeType: att.mimeType,
+        name: att.name,
+        size: att.size,
+      },
+      {
+        read: () => grpc.downloadAttachment(att.guid),
+        stream: async () => grpc.downloadAttachmentStream(att.guid),
+      }
+    )
+  );
+}
+
 function inboundToMessage(
+  channel: Channel,
   inbound: InboundTextMessage,
   channelTo: string,
+  grpc: ImessageGrpcClient,
   toGroupCtx: (
     fallbackHandle: string,
     g?: InboundGroup
   ) => GroupContext | undefined,
   senderUser: (id: string | undefined, fallback: string) => User
 ): Message {
-  const attachments: MessageAttachment[] | undefined = inbound.attachments?.map(
-    (att) => ({
-      guid: att.guid,
-      mimeType: att.mimeType,
-      name: att.name,
-      size: att.size,
-    })
-  );
-  return {
-    attachments,
+  return bindMessage(channel, {
+    attachments: attachDownloads(grpc, inbound.attachments),
     content: { text: inbound.text, type: "text" },
     group: toGroupCtx(channelTo, inbound.group),
     guid: inbound.guid,
@@ -133,7 +216,7 @@ function inboundToMessage(
     sender: senderUser(inbound.senderId, channelTo),
     service: inbound.service,
     timestamp: inbound.date,
-  };
+  });
 }
 
 function createBinder(host: SkylineHost, projectId: string) {
@@ -335,8 +418,13 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "wa_interactive":
       case "wa_location":
       case "wa_contacts":
+      case "custom":
         host.unsupported("imessage", `sending ${content.type} content`);
         break;
+      case "stream_text": {
+        guid = await sendStreamText(grpc, chatGuid, content, id, sendOpts);
+        break;
+      }
       default: {
         const _exhaustive: never = content;
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
@@ -365,7 +453,7 @@ function createBinder(host: SkylineHost, projectId: string) {
   const makeChannel = (to: string): Channel => {
     const chatGuid = chatGuidFor(to);
     const grpcFor = () => imFor(to);
-    return {
+    const channel: Channel = {
       background: async (input) => {
         const grpc = grpcFor();
         const data = await resolveVisualAsset(input);
@@ -400,16 +488,44 @@ function createBinder(host: SkylineHost, projectId: string) {
           return null;
         }
       },
+      getAttachment: async (attachmentGuid) => {
+        const grpc = grpcFor();
+        const info = await grpc.getAttachmentInfo(attachmentGuid);
+        if (!info) {
+          return null;
+        }
+        return attachmentWithDownload(
+          {
+            guid: info.guid,
+            mimeType: info.mimeType,
+            name: info.name,
+            size: info.size,
+          },
+          {
+            read: () => grpc.downloadAttachment(info.guid),
+            stream: async () => grpc.downloadAttachmentStream(info.guid),
+          }
+        );
+      },
+      getDisplayName: () => grpcFor().getChatDisplayName(chatGuid),
       getMessage: async (messageGuid) => {
         const raw = await grpcFor().getMessage(messageGuid);
         if (!raw) {
           return null;
         }
-        return inboundToMessage(raw, to, toGroupCtx, senderUser);
+        return inboundToMessage(
+          channel,
+          raw,
+          to,
+          grpcFor(),
+          toGroupCtx,
+          senderUser
+        );
       },
       group: {
         add: (handle) => grpcFor().addParticipant(chatGuid, handle),
         getIcon: () => grpcFor().getIcon(chatGuid),
+        getName: () => grpcFor().getChatDisplayName(chatGuid),
         leave: () => grpcFor().leaveChat(chatGuid),
         participants: async () => {
           const rows = await grpcFor().getParticipants(chatGuid);
@@ -439,11 +555,20 @@ function createBinder(host: SkylineHost, projectId: string) {
       listMessages: async (listOpts) => {
         const rows = await grpcFor().listMessages(chatGuid, listOpts);
         return rows.map((raw) =>
-          inboundToMessage(raw, to, toGroupCtx, senderUser)
+          inboundToMessage(channel, raw, to, grpcFor(), toGroupCtx, senderUser)
         );
       },
       get phone() {
         return to;
+      },
+      poll: {
+        addOption: (pollMessageGuid, optionText) =>
+          grpcFor().addPollOption(chatGuid, pollMessageGuid, optionText),
+        get: (pollMessageGuid) => grpcFor().getPoll(pollMessageGuid),
+        unvote: (pollMessageGuid) =>
+          grpcFor().unvotePoll(chatGuid, pollMessageGuid),
+        vote: (pollMessageGuid, optionIdentifier) =>
+          grpcFor().votePoll(chatGuid, pollMessageGuid, optionIdentifier),
       },
       platform: "imessage",
       reachable: () => grpcFor().checkAvailability(to, "imessage"),
@@ -455,6 +580,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       readReceipt: () => grpcFor().sendReadReceipt(chatGuid),
       reply: (messageGuid, content, sendOpts) =>
         sendContent(to, content, { ...sendOpts, replyTo: messageGuid }),
+      responding: (fn) => withResponding(channel, fn),
       send: (content, sendOpts) => sendContent(to, content, sendOpts),
       sendFile: async (file: AttachmentSend, sendOpts) => {
         const grpc = grpcFor();
@@ -485,7 +611,12 @@ function createBinder(host: SkylineHost, projectId: string) {
         const guids = await Promise.all(
           files.map((file) => uploadAttachmentGuid(grpc, file))
         );
-        const res = await grpc.sendMultipart(chatGuid, id, guids, wireOpts(sendOpts));
+        const res = await grpc.sendMultipart(
+          chatGuid,
+          id,
+          guids,
+          wireOpts(sendOpts)
+        );
         return { guid: res.guid, sentAt };
       },
       shareContactCard: () => grpcFor().shareContactInfo(chatGuid),
@@ -498,6 +629,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       },
       unsend: (messageGuid) => grpcFor().unsendMessage(chatGuid, messageGuid),
     };
+    return channel;
   };
 
   const connectLine = async (line: ResolvedLine): Promise<void> => {
@@ -522,7 +654,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       onApp(card, senderId, date, group) {
         host.queue.push([
           channel,
-          {
+          bindMessage(channel, {
             content: {
               appId: card.appId,
               caption: card.caption,
@@ -535,7 +667,7 @@ function createBinder(host: SkylineHost, projectId: string) {
             platform: "imessage",
             sender: senderUser(senderId, to),
             timestamp: date,
-          },
+          }),
         ]);
       },
       onEdit(edit, senderId, date, group) {
@@ -555,7 +687,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       onFlow(submission, senderId, date, group) {
         host.queue.push([
           channel,
-          {
+          bindMessage(channel, {
             content: {
               appId: submission.appId,
               done: submission.done,
@@ -569,7 +701,7 @@ function createBinder(host: SkylineHost, projectId: string) {
             platform: "imessage",
             sender: senderUser(senderId, to),
             timestamp: date,
-          },
+          }),
         ]);
       },
       onReaction(reaction, senderId, date, group) {
@@ -590,7 +722,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       onReceived(inbound) {
         host.queue.push([
           channel,
-          inboundToMessage(inbound, to, toGroupCtx, senderUser),
+          inboundToMessage(channel, inbound, to, grpc, toGroupCtx, senderUser),
         ]);
       },
       onSendError(err) {
@@ -647,10 +779,47 @@ function createBinder(host: SkylineHost, projectId: string) {
       },
     });
 
+    const groupStream = grpc.subscribeGroupEvents({
+      onGroupChange(event) {
+        host.emit(
+          "group",
+          {
+            backgroundChanged: event.backgroundChanged,
+            backgroundRemoved: event.backgroundRemoved,
+            chatId: event.chatId,
+            iconChanged: event.iconChanged,
+            iconRemoved: event.iconRemoved,
+            participantAdded: event.participantAdded,
+            participantRemoved: event.participantRemoved,
+            platform: "imessage",
+            renamedTo: event.renamedTo,
+            timestamp: event.date,
+          },
+          channel
+        );
+      },
+    });
+
+    const pollStream = grpc.subscribePollEvents({
+      onPollChange(event) {
+        host.emit(
+          "poll",
+          {
+            action: event.action,
+            chatId: event.chatId,
+            platform: "imessage",
+            pollMessageGuid: event.pollMessageGuid,
+            timestamp: event.date,
+          },
+          channel
+        );
+      },
+    });
+
     host.live.set(to, {
       grpc,
       platform: "imessage",
-      streams: [messageStream, chatStream],
+      streams: [messageStream, chatStream, groupStream, pollStream],
     });
     host.ready.add(to);
   };
