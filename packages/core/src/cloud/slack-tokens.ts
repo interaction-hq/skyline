@@ -1,4 +1,4 @@
-import { PLATFORM_API_BASE } from "../platform";
+import { PLATFORM_API_BASE } from "../platform.js";
 
 export interface SlackTokenData {
   auth: Record<string, string>;

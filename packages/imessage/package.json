@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/imessage",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "iMessage provider for skyline-ts — managed lines and bring-your-own endpoints.",
   "type": "module",
   "license": "MIT",
@@ -33,7 +33,7 @@
   "peerDependencies": {
     "@grpc/grpc-js": "^1.12.0",
     "@grpc/proto-loader": "^0.7.13",
-    "@skyline-ts/core": "^0.3.5"
+    "@skyline-ts/core": "^0.3.6"
   },
   "devDependencies": {
     "@grpc/grpc-js": "^1.12.0",

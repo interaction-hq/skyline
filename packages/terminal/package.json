@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/terminal",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Terminal provider for skyline-ts — chat with your agent from the command line.",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "@skyline-ts/core": "^0.3.5"
+    "@skyline-ts/core": "^0.3.6"
   },
   "devDependencies": {
     "@types/bun": "latest",

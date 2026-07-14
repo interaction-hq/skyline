@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-07-14
+
+### Fixed
+- ESM import in `@skyline-ts/core` Slack token helper (`../platform.js`) so `import("skyline-ts")` resolves under Node.
+
 ## [0.3.5] - 2026-07-14
 
 ### Changed
