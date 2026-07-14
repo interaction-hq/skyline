@@ -135,8 +135,72 @@ export type WaContent =
   | WaLocationContent
   | WaContactsContent;
 
+export interface AttachmentInput {
+  data?: Uint8Array;
+  isAudioMessage?: boolean;
+  isSticker?: boolean;
+  mimeType?: string;
+  name?: string;
+  path?: string;
+  url?: string;
+}
+
+export interface AttachmentContent extends AttachmentInput {
+  type: "attachment";
+}
+
+export interface MarkdownContent {
+  body: string;
+  type: "markdown";
+}
+
+export interface VoiceContent {
+  data?: Uint8Array;
+  mimeType?: string;
+  name?: string;
+  path?: string;
+  type: "voice";
+  url?: string;
+}
+
+export interface ContactContent {
+  emails?: string[];
+  firstName?: string;
+  lastName?: string;
+  phones?: string[];
+  type: "contact";
+  vcard?: string;
+}
+
+export interface RichlinkContent {
+  type: "richlink";
+  url: string;
+}
+
+export interface PollContent {
+  options: string[];
+  title: string;
+  type: "poll";
+}
+
+export interface GroupContent {
+  items: Content[];
+  type: "group";
+}
+
 /** Everything `channel.send()` accepts (besides a bare string). */
-export type Content = TextMessage | AppMessage | FlowMessage | WaContent;
+export type Content =
+  | TextMessage
+  | AppMessage
+  | FlowMessage
+  | AttachmentContent
+  | MarkdownContent
+  | VoiceContent
+  | ContactContent
+  | RichlinkContent
+  | PollContent
+  | GroupContent
+  | WaContent;
 
 /** Tapback reactions every platform understands, plus free-form emoji. */
 export type Tapback =
@@ -207,6 +271,41 @@ export interface AttachmentSend {
 /** Build a text message. */
 export function text(body: string): TextMessage {
   return { text: body, type: "text" };
+}
+
+export function attachment(input: AttachmentInput): AttachmentContent {
+  return { type: "attachment", ...input };
+}
+
+export function markdown(body: string): MarkdownContent {
+  return { body, type: "markdown" };
+}
+
+export function voice(
+  input: Omit<VoiceContent, "type">
+): VoiceContent {
+  return { type: "voice", ...input };
+}
+
+export function contactCard(
+  input: Omit<ContactContent, "type">
+): ContactContent {
+  return { type: "contact", ...input };
+}
+
+export function richlink(url: string): RichlinkContent {
+  return { type: "richlink", url };
+}
+
+export function poll(title: string, options: string[]): PollContent {
+  return { options, title, type: "poll" };
+}
+
+export function group(...items: Content[]): GroupContent {
+  if (items.length < 2) {
+    throw new Error("group: needs at least two items");
+  }
+  return { items, type: "group" };
 }
 
 /**
@@ -374,6 +473,11 @@ export function isWaContent(content: Content): content is WaContent {
     content.type === "wa_location" ||
     content.type === "wa_contacts"
   );
+}
+
+/** True when a content object bundles multiple send items. */
+export function isGroupContent(content: Content): content is GroupContent {
+  return content.type === "group";
 }
 
 /** Normalize the `send()` argument to a `Content`. */

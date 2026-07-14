@@ -17,6 +17,12 @@ export interface SlackInboundHandlers {
   onText?: (event: {
     botId?: string;
     channelId: string;
+    files?: {
+      id: string;
+      mimetype?: string;
+      name?: string;
+      size?: number;
+    }[];
     isBot?: boolean;
     messageId: string;
     subtype?: string;
@@ -41,8 +47,20 @@ interface SlackEnvelope {
     event?: {
       bot_id?: string;
       channel?: string;
+      files?: {
+        id?: string;
+        mimetype?: string;
+        name?: string;
+        size?: number;
+      }[];
       item?: { channel?: string; ts?: string };
       message?: {
+        files?: {
+          id?: string;
+          mimetype?: string;
+          name?: string;
+          size?: number;
+        }[];
         text?: string;
         ts?: string;
         user?: string;
@@ -125,16 +143,29 @@ export function connectSlackSocket(
       if (event.subtype && event.subtype !== "bot_message") {
         return;
       }
-      if (!(event.text && event.channel && event.ts)) {
+      const text = event.text ?? event.message?.text;
+      const ts = event.ts ?? event.message?.ts;
+      const files = event.files ?? event.message?.files;
+      if (!(text && event.channel && ts)) {
         return;
       }
       opts.handlers.onText?.({
         botId: event.bot_id,
         channelId: event.channel,
+        files: files
+          ?.filter((f): f is { id: string; mimetype?: string; name?: string; size?: number } =>
+            Boolean(f.id)
+          )
+          .map((f) => ({
+            id: f.id,
+            mimetype: f.mimetype,
+            name: f.name,
+            size: f.size,
+          })),
         isBot: Boolean(event.bot_id) || event.subtype === "bot_message",
-        messageId: event.ts,
+        messageId: ts,
         subtype: event.subtype,
-        text: event.text,
+        text,
         threadTs: event.thread_ts,
         userId: event.user ?? event.bot_id ?? "unknown",
       });

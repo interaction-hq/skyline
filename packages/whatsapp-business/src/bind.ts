@@ -17,6 +17,26 @@ import {
   type WhatsappBusinessDedicatedConfig,
 } from "./config.js";
 
+function isImageMime(mimeType?: string): boolean {
+  return Boolean(mimeType?.startsWith("image/"));
+}
+
+function isAudioMime(mimeType?: string): boolean {
+  return Boolean(mimeType?.startsWith("audio/"));
+}
+
+function mediaKindFromMime(
+  mimeType?: string
+): "image" | "audio" | "document" {
+  if (isAudioMime(mimeType)) {
+    return "audio";
+  }
+  if (isImageMime(mimeType)) {
+    return "image";
+  }
+  return "document";
+}
+
 function createBinder(host: SkylineHost) {
   const wbFor = (_to: string): WhatsappBusinessClient => {
     const line = host.lineForPlatform("whatsapp_business");
@@ -37,11 +57,49 @@ function createBinder(host: SkylineHost) {
     let res: WaSendResult;
     switch (content.type) {
       case "text":
-        res = await wb.sendText(to, content.text, {
+      case "markdown": {
+        const body = content.type === "markdown" ? content.body : content.text;
+        res = await wb.sendText(to, body, {
           previewUrl: sendOpts?.richLink,
           replyTo,
         });
         break;
+      }
+      case "attachment": {
+        if (!content.url) {
+          host.unsupported(
+            "whatsapp_business",
+            "attachment without a public https link (use wa.image/wa.document with link or media id)"
+          );
+        }
+        const kind = mediaKindFromMime(content.mimeType);
+        res = await wb.sendMedia(
+          to,
+          kind,
+          {
+            caption: content.name,
+            filename: content.name,
+            link: content.url,
+          },
+          { replyTo }
+        );
+        break;
+      }
+      case "voice": {
+        if (!content.url) {
+          host.unsupported(
+            "whatsapp_business",
+            "voice without a public https link (use wa.audio with link or media id)"
+          );
+        }
+        res = await wb.sendMedia(
+          to,
+          "audio",
+          { link: content.url },
+          { replyTo }
+        );
+        break;
+      }
       case "wa_media":
         res = await wb.sendMedia(
           to,
@@ -86,6 +144,10 @@ function createBinder(host: SkylineHost) {
         break;
       case "app":
       case "flow":
+      case "contact":
+      case "richlink":
+      case "poll":
+      case "group":
         host.unsupported("whatsapp_business", `sending ${content.type} content`);
         break;
       default: {
@@ -97,13 +159,20 @@ function createBinder(host: SkylineHost) {
   };
 
   const makeChannel = (to: string): Channel => ({
+    background: async () => host.unsupported("whatsapp_business", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp_business", "edit"),
+    getMessage: async () => null,
     group: {
       add: () => host.unsupported("whatsapp_business", "group.add"),
+      getIcon: async () => null,
+      leave: async () => host.unsupported("whatsapp_business", "group.leave"),
       participants: async () =>
         host.unsupported("whatsapp_business", "group.participants"),
       remove: () => host.unsupported("whatsapp_business", "group.remove"),
+      setBackground: async () =>
+        host.unsupported("whatsapp_business", "group.setBackground"),
+      setIcon: async () => host.unsupported("whatsapp_business", "group.setIcon"),
       setName: () => host.unsupported("whatsapp_business", "group.setName"),
     },
     get phone() {
@@ -135,6 +204,9 @@ function createBinder(host: SkylineHost) {
       );
       void sendOpts;
     },
+    sendFiles: async () => host.unsupported("whatsapp_business", "sendFiles"),
+    shareContactCard: async () =>
+      host.unsupported("whatsapp_business", "shareContactCard"),
     to,
     typing: async () => host.unsupported("whatsapp_business", "typing"),
     unsend: () => host.unsupported("whatsapp_business", "unsend"),

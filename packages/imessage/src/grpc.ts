@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as grpc from "@grpc/grpc-js";
@@ -28,6 +28,27 @@ export interface SendWireOptions {
   richLink?: boolean;
   scan?: boolean;
   subject?: string;
+}
+
+/** An attachment reference on an inbound message. */
+export interface InboundAttachment {
+  guid: string;
+  mimeType?: string;
+  name?: string;
+  size?: number;
+}
+
+/** A decoded inbound text or attachment-only message. */
+export interface InboundTextMessage {
+  attachments?: InboundAttachment[];
+  date: Date;
+  group?: InboundGroup;
+  guid?: string;
+  isFromMe?: boolean;
+  replyTo?: { messageGuid: string; partIndex?: number };
+  senderId?: string;
+  service?: string;
+  text: string;
 }
 
 /** A decoded inbound reaction (tapback/emoji), add or remove. */
@@ -304,6 +325,8 @@ export class ImessageGrpcClient {
   private readonly groupSvc: any;
   // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
   private readonly addressSvc: any;
+  // biome-ignore lint/suspicious/noExplicitAny: proto-loaded service is dynamically typed.
+  private readonly pollSvc: any;
   private readonly token: string;
   private readonly projectId: string;
 
@@ -338,6 +361,7 @@ export class ImessageGrpcClient {
     this.chat = new pkg.ChatService(target, creds, shared);
     this.groupSvc = new pkg.GroupService(target, creds, shared);
     this.addressSvc = new pkg.AddressService(target, creds, shared);
+    this.pollSvc = new pkg.PollService(target, creds, shared);
   }
 
   private metadata(): grpc.Metadata {
@@ -423,6 +447,35 @@ export class ImessageGrpcClient {
     }
     if (opts.effectId) {
       request.effect_id = opts.effectId;
+    }
+    return this.invokeSend(request, clientMessageId);
+  }
+
+  /** Send multiple uploaded attachments as one grouped bubble. */
+  sendMultipart(
+    chatGuid: string,
+    clientMessageId: string,
+    attachmentGuids: string[],
+    opts: SendWireOptions & { text?: string } = {}
+  ): Promise<{ guid: string }> {
+    const request: Record<string, unknown> = {
+      attachment_guids: attachmentGuids,
+      chat_guid: chatGuid,
+      client_message_id: clientMessageId,
+      dd_scan: opts.scan ?? false,
+      rich_link: opts.richLink ?? false,
+    };
+    if (opts.text) {
+      request.message = opts.text;
+    }
+    if (opts.replyTo) {
+      request.selected_message_guid = opts.replyTo;
+    }
+    if (opts.effectId) {
+      request.effect_id = opts.effectId;
+    }
+    if (opts.subject) {
+      request.subject = opts.subject;
     }
     return this.invokeSend(request, clientMessageId);
   }
@@ -659,12 +712,7 @@ export class ImessageGrpcClient {
   }
 
   subscribeEvents(handlers: {
-    onReceived: (
-      text: string,
-      senderId: string | undefined,
-      date: Date,
-      group?: InboundGroup
-    ) => void;
+    onReceived: (msg: InboundTextMessage) => void;
     /** An inbound app bubble carrying the state the sender produced. */
     onApp?: (
       card: InboundApp,
@@ -764,11 +812,11 @@ export class ImessageGrpcClient {
         return;
       }
 
-      const text: string | undefined = msg.text;
-      if (!text) {
+      const inbound = mapInboundText(msg, senderId, date, group);
+      if (!inbound.text && !inbound.attachments?.length) {
         return;
       }
-      handlers.onReceived(text, senderId, date, group);
+      handlers.onReceived(inbound);
     });
     call.on("error", (err: grpc.ServiceError) => handlers.onError?.(err));
     return call;
@@ -882,6 +930,143 @@ export class ImessageGrpcClient {
     return this.group("SetDisplayName", { chat_guid: chatGuid, name });
   }
 
+  setIcon(chatGuid: string, data: Uint8Array): Promise<void> {
+    return this.group("SetIcon", { chat_guid: chatGuid, data });
+  }
+
+  removeIcon(chatGuid: string): Promise<void> {
+    return this.group("RemoveIcon", { chat_guid: chatGuid });
+  }
+
+  getIcon(chatGuid: string): Promise<Uint8Array | null> {
+    return new Promise((resolve, reject) => {
+      this.groupSvc.GetIcon(
+        { chat_guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null, res: { data?: Buffer }) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(res.data ? new Uint8Array(res.data) : null);
+          }
+        }
+      );
+    });
+  }
+
+  setBackground(chatGuid: string, data: Uint8Array): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.groupSvc.SetBackground(
+        { chat_guid: chatGuid, data },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  removeBackground(chatGuid: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.groupSvc.RemoveBackground(
+        { chat_guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  leaveChat(chatGuid: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.chat.LeaveChat(
+        { guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  shareContactInfo(chatGuid: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.chat.ShareContactInfo(
+        { chat_guid: chatGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null) => (err ? reject(err) : resolve())
+      );
+    });
+  }
+
+  createChat(addresses: string[]): Promise<{ chatGuid: string }> {
+    return new Promise((resolve, reject) => {
+      this.chat.CreateChat(
+        { addresses, service: "iMessage" },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (
+          err: grpc.ServiceError | null,
+          res: { chat?: { guid?: string } }
+        ) => {
+          if (err) {
+            reject(err);
+          } else {
+            const chatGuid = res.chat?.guid;
+            if (!chatGuid) {
+              reject(new Error("createChat: missing chat guid"));
+            } else {
+              resolve({ chatGuid });
+            }
+          }
+        }
+      );
+    });
+  }
+
+  getMessage(messageGuid: string): Promise<InboundTextMessage | null> {
+    return new Promise((resolve, reject) => {
+      this.service.GetMessage(
+        { decode: true, guid: messageGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: proto response is dynamically typed.
+        (err: grpc.ServiceError | null, res: any) => {
+          if (err) {
+            if (err.code === grpc.status.NOT_FOUND) {
+              resolve(null);
+            } else {
+              reject(err);
+            }
+          } else if (!res?.guid) {
+            resolve(null);
+          } else {
+            const senderId: string | undefined = res.sender?.address;
+            const date = toDate(res.date_created) ?? new Date();
+            const group = resolveGroup(res, senderId);
+            resolve(mapInboundText(res, senderId, date, group));
+          }
+        }
+      );
+    });
+  }
+
+  sendPoll(
+    chatGuid: string,
+    title: string,
+    options: string[]
+  ): Promise<{ guid: string }> {
+    return new Promise((resolve, reject) => {
+      this.pollSvc.CreatePoll(
+        { chat_guid: chatGuid, options, title },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null, res: { guid: string }) =>
+          err ? reject(err) : resolve({ guid: res.guid })
+      );
+    });
+  }
+
   addParticipant(chatGuid: string, address: string): Promise<void> {
     return this.group("AddParticipant", { address, chat_guid: chatGuid });
   }
@@ -947,7 +1132,64 @@ export class ImessageGrpcClient {
     this.chat.close?.();
     this.groupSvc.close?.();
     this.addressSvc.close?.();
+    this.pollSvc.close?.();
   }
+}
+
+/** Read local file bytes for icon/background/attachment paths. */
+export function readAssetBytes(path: string): Uint8Array {
+  return new Uint8Array(readFileSync(path));
+}
+
+function mapInboundAttachments(
+  // biome-ignore lint/suspicious/noExplicitAny: proto attachment list is dynamically typed.
+  attachments: any[] | undefined
+): InboundAttachment[] | undefined {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return;
+  }
+  return attachments.map((att) => ({
+    guid: att.guid,
+    mimeType: att.mime_type || undefined,
+    name: att.file_name || undefined,
+    size: att.total_bytes != null ? Number(att.total_bytes) : undefined,
+  }));
+}
+
+function mapReplyTo(
+  // biome-ignore lint/suspicious/noExplicitAny: proto message is dynamically typed.
+  msg: any
+): { messageGuid: string; partIndex?: number } | undefined {
+  const messageGuid: string | undefined =
+    msg.reply_to_guid ?? msg.thread_originator_guid;
+  if (!messageGuid) {
+    return;
+  }
+  const partIndex =
+    msg.thread_originator_part != null
+      ? Number(msg.thread_originator_part)
+      : undefined;
+  return { messageGuid, partIndex };
+}
+
+function mapInboundText(
+  // biome-ignore lint/suspicious/noExplicitAny: proto message is dynamically typed.
+  msg: any,
+  senderId: string | undefined,
+  date: Date,
+  group?: InboundGroup
+): InboundTextMessage {
+  return {
+    attachments: mapInboundAttachments(msg.attachments),
+    date,
+    group,
+    guid: msg.guid || undefined,
+    isFromMe: Boolean(msg.is_from_me),
+    replyTo: mapReplyTo(msg),
+    senderId,
+    service: msg.sender?.service || undefined,
+    text: msg.text ?? "",
+  };
 }
 
 function toDate(

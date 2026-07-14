@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-14
+
+### Added
+- Inbound `Message.replyTo`, `attachments`, and `service` fields.
+- Content builders: `attachment`, `markdown`, `voice`, `contactCard`, `richlink`, `poll`, `group`.
+- Channel: `sendFiles`, `shareContactCard`, `getMessage`, `background`.
+- GroupOps: `setIcon`, `getIcon`, `setBackground`, `leave`.
+- iMessage: multipart album send, inbound reply/attachment mapping, polls, icon/background, leave, createChat, share contact card.
+- Slack: inbound file metadata and thread `replyTo`; attachment content upload.
+- WhatsApp personal: media/album sends and richer inbound handling.
+- WhatsApp Business: attachment/voice mapped to Graph media when a URL is provided.
+
+
 ## [0.2.0] - 2026-07-12
 
 ### Changed
@@ -63,7 +76,8 @@ bun add @skyline-ts/core @skyline-ts/imessage
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.2.0...main
+[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.3.0...main
+[0.3.0]: https://github.com/interactions-hq/skyline/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/interactions-hq/skyline/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/interactions-hq/skyline/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/interactions-hq/skyline/compare/v0.1.1...v0.1.2

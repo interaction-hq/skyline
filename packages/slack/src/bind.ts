@@ -1,6 +1,12 @@
-import type { AttachmentSend, Content, Reaction, SendOptions } from "@skyline-ts/core/content";
+import type {
+  AttachmentContent,
+  AttachmentSend,
+  Content,
+  Reaction,
+  SendOptions,
+} from "@skyline-ts/core/content";
 import { toContent } from "@skyline-ts/core/content";
-import type { Channel, Platform, ResolvedLine } from "@skyline-ts/core";
+import type { Channel, Message, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import {
   SlackGrpcClient,
@@ -27,6 +33,23 @@ async function readAttachmentBytes(file: AttachmentSend): Promise<Uint8Array> {
   throw new Error("sendFile requires file.data or file.path");
 }
 
+async function readAttachmentContent(
+  content: AttachmentContent
+): Promise<Uint8Array> {
+  if (content.data) {
+    return content.data;
+  }
+  if (content.path) {
+    const buf = await Bun.file(content.path).arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  if (content.url) {
+    const res = await fetch(content.url);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+  throw new Error("attachment needs data, path, or url");
+}
+
 function createBinder(host: SkylineHost) {
   const slackFor = (teamId?: string): SlackClient | SlackGrpcClient => {
     const line = host.lineForPlatform("slack", teamId);
@@ -36,15 +59,138 @@ function createBinder(host: SkylineHost) {
     return line.slack as SlackClient | SlackGrpcClient;
   };
 
+  const uploadFile = async (
+    to: string,
+    teamId: string | undefined,
+    file: AttachmentSend,
+    sendOpts?: SendOptions
+  ): Promise<SendReceipt> => {
+    const bytes = await readAttachmentBytes(file);
+    const res = await slackFor(teamId).uploadFile(
+      to,
+      {
+        data: bytes,
+        name: file.name ?? "attachment",
+      },
+      { replyTo: sendOpts?.replyTo }
+    );
+    return { guid: res.messageId, sentAt: new Date() };
+  };
+
+  const sendContent = async (
+    to: string,
+    teamId: string | undefined,
+    input: string | Content,
+    sendOpts?: SendOptions
+  ): Promise<SendReceipt> => {
+    const content = toContent(input);
+    switch (content.type) {
+      case "text":
+      case "markdown": {
+        const body = content.type === "markdown" ? content.body : content.text;
+        const res = await slackFor(teamId).sendText(to, body, {
+          replyTo: sendOpts?.replyTo,
+        });
+        return { guid: res.messageId, sentAt: new Date() };
+      }
+      case "attachment": {
+        const bytes = await readAttachmentContent(content);
+        const res = await slackFor(teamId).uploadFile(
+          to,
+          {
+            data: bytes,
+            name: content.name ?? "attachment",
+          },
+          { replyTo: sendOpts?.replyTo }
+        );
+        return { guid: res.messageId, sentAt: new Date() };
+      }
+      case "group": {
+        const first = content.items[0];
+        if (first?.type === "attachment") {
+          return sendContent(to, teamId, first, sendOpts);
+        }
+        host.unsupported("slack", "sending group content");
+        break;
+      }
+      case "app":
+      case "flow":
+      case "voice":
+      case "contact":
+      case "richlink":
+      case "poll":
+      case "wa_media":
+      case "wa_template":
+      case "wa_interactive":
+      case "wa_location":
+      case "wa_contacts":
+        host.unsupported("slack", `sending ${content.type} content`);
+        break;
+      default: {
+        const _exhaustive: never = content;
+        throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
+      }
+    }
+    throw new Error("unreachable");
+  };
+
+  const inboundSlackMessage = (
+    event: {
+      files?: {
+        id: string;
+        mimetype?: string;
+        name?: string;
+        size?: number;
+      }[];
+      isFromMe: boolean;
+      messageId: string;
+      subtype?: string;
+      text: string;
+      threadTs?: string;
+      userId: string;
+    },
+    teamId: string
+  ): Message => ({
+    content: { text: event.text, type: "text" },
+    ...(event.files?.length
+      ? {
+          attachments: event.files.map((f) => ({
+            guid: f.id,
+            mimeType: f.mimetype,
+            name: f.name,
+            size: f.size,
+          })),
+        }
+      : {}),
+    guid: event.messageId,
+    isFromMe: event.isFromMe,
+    platform: "slack",
+    ...(event.threadTs ? { replyTo: { messageGuid: event.threadTs } } : {}),
+    sender: { id: event.userId },
+    slack: {
+      subtype: event.subtype,
+      teamId,
+      threadTs: event.threadTs,
+      ts: event.messageId,
+    },
+    timestamp: new Date(),
+  });
+
   const makeChannel = (to: string, teamId?: string): Channel => ({
+    background: async () => host.unsupported("slack", "background"),
     contact: async () => null,
     edit: async (messageGuid, newText) => {
       await slackFor(teamId).editText(to, messageGuid, newText);
     },
+    getMessage: async () => null,
     group: {
       add: () => host.unsupported("slack", "group.add"),
+      getIcon: async () => null,
+      leave: async () => host.unsupported("slack", "group.leave"),
       participants: async () => host.unsupported("slack", "group.participants"),
       remove: () => host.unsupported("slack", "group.remove"),
+      setBackground: async () => host.unsupported("slack", "group.setBackground"),
+      setIcon: async () => host.unsupported("slack", "group.setIcon"),
       setName: () => host.unsupported("slack", "group.setName"),
     },
     get phone() {
@@ -63,32 +209,11 @@ function createBinder(host: SkylineHost) {
     read: async () => {},
     readReceipt: async () => {},
     reply: (messageGuid, content, sendOpts) =>
-      makeChannel(to, teamId).send(content, {
-        ...sendOpts,
-        replyTo: messageGuid,
-      }),
-    send: async (content, sendOpts) => {
-      const parsed = toContent(content);
-      if (parsed.type !== "text") {
-        host.unsupported("slack", `sending ${parsed.type} content`);
-      }
-      const res = await slackFor(teamId).sendText(to, parsed.text, {
-        replyTo: sendOpts?.replyTo,
-      });
-      return { guid: res.messageId, sentAt: new Date() };
-    },
-    sendFile: async (file, sendOpts) => {
-      const bytes = await readAttachmentBytes(file);
-      const res = await slackFor(teamId).uploadFile(
-        to,
-        {
-          data: bytes,
-          name: file.name ?? "attachment",
-        },
-        { replyTo: sendOpts?.replyTo }
-      );
-      return { guid: res.messageId, sentAt: new Date() };
-    },
+      sendContent(to, teamId, content, { ...sendOpts, replyTo: messageGuid }),
+    send: (content, sendOpts) => sendContent(to, teamId, content, sendOpts),
+    sendFile: (file, sendOpts) => uploadFile(to, teamId, file, sendOpts),
+    sendFiles: async () => host.unsupported("slack", "sendFiles"),
+    shareContactCard: async () => host.unsupported("slack", "shareContactCard"),
     to,
     typing: async () => {},
     unsend: async (messageGuid) => {
@@ -136,20 +261,18 @@ function createBinder(host: SkylineHost) {
           const channel = makeChannel(event.channelId, teamId);
           host.queue.push([
             channel,
-            {
-              content: { text: event.text, type: "text" },
-              guid: event.messageId,
-              isFromMe: event.isFromMe,
-              platform: "slack",
-              sender: { id: event.userId },
-              slack: {
+            inboundSlackMessage(
+              {
+                files: event.files,
+                isFromMe: event.isFromMe,
+                messageId: event.messageId,
                 subtype: event.subtype,
-                teamId,
+                text: event.text,
                 threadTs: event.threadTs,
-                ts: event.messageId,
+                userId: event.userId,
               },
-              timestamp: new Date(),
-            },
+              teamId
+            ),
           ]);
         },
       });
@@ -216,20 +339,18 @@ function createBinder(host: SkylineHost) {
             const channel = makeChannel(event.channelId, teamId);
             host.queue.push([
               channel,
-              {
-                content: { text: event.text, type: "text" },
-                guid: event.messageId,
-                isFromMe,
-                platform: "slack",
-                sender: { id: event.userId },
-                slack: {
+              inboundSlackMessage(
+                {
+                  files: event.files,
+                  isFromMe,
+                  messageId: event.messageId,
                   subtype: event.subtype,
-                  teamId,
+                  text: event.text,
                   threadTs: event.threadTs,
-                  ts: event.messageId,
+                  userId: event.userId,
                 },
-                timestamp: new Date(),
-              },
+                teamId
+              ),
             ]);
           },
         },

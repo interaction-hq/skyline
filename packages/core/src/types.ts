@@ -95,7 +95,16 @@ export interface SlackMessageMeta {
   ts?: string;
 }
 
+export interface MessageAttachment {
+  guid: string;
+  mimeType?: string;
+  name?: string;
+  size?: number;
+  transferName?: string;
+}
+
 export interface Message {
+  attachments?: MessageAttachment[];
   content: MessageContent;
   /** Set for group conversations; identifies the group and the submitting member. */
   group?: GroupContext;
@@ -104,7 +113,10 @@ export interface Message {
   /** Platforms echo your own sends; guard replies on this. */
   isFromMe: boolean;
   platform: Platform;
+  replyTo?: { messageGuid: string; partIndex?: number };
   sender: User;
+  /** Delivery service when known — "iMessage", "SMS", etc. */
+  service?: string;
   slack?: SlackMessageMeta;
   timestamp: Date;
 }
@@ -190,6 +202,10 @@ export interface SendReceipt {
   sentAt: Date;
 }
 
+export type VisualAssetInput =
+  | { data?: Uint8Array; mimeType?: string; path?: string }
+  | "clear";
+
 /**
  * A `Channel` is one open conversation, addressed by a single handle (`to`).
  * Common actions are flat (`send`, `react`, `reply`, `edit`, `unsend`, `typing`,
@@ -197,6 +213,9 @@ export interface SendReceipt {
  * Actions talk to the provider data plane for that line — no extra control-plane hop.
  */
 export interface Channel {
+  /** Set or clear the conversation background (group or chat wallpaper). */
+  background(input: VisualAssetInput): Promise<void>;
+
   /** The other party's contact card, when the line can resolve it. */
   contact(): Promise<Contact | null>;
 
@@ -205,6 +224,10 @@ export interface Channel {
 
   /** Group operations (only meaningful once the conversation is a group). */
   readonly group: GroupOps;
+
+  /** Fetch a message by guid when the line supports history lookup. */
+  getMessage(messageGuid: string): Promise<Message | null>;
+
   /** @deprecated use `to`. Kept as an alias so older callers keep working. */
   readonly phone: string;
   /** The platform this channel speaks. */
@@ -245,6 +268,12 @@ export interface Channel {
 
   /** Send an attachment (image/audio/file). */
   sendFile(file: AttachmentSend, opts?: SendOptions): Promise<SendReceipt>;
+
+  /** Send multiple attachments as an album or multipart message. */
+  sendFiles(files: AttachmentSend[], opts?: SendOptions): Promise<SendReceipt>;
+
+  /** Share your contact card in this conversation. */
+  shareContactCard(): Promise<void>;
   /** The handle (phone/email) this conversation routes through. */
   readonly to: string;
 
@@ -271,10 +300,25 @@ export interface Contact {
 export interface GroupOps {
   /** Add a participant by handle. */
   add(handle: string): Promise<void>;
+
+  /** Fetch the group icon bytes, or null when unset. */
+  getIcon(): Promise<Uint8Array | null>;
+
+  /** Leave the group conversation. */
+  leave(): Promise<void>;
+
   /** List current participants. */
   participants(): Promise<User[]>;
+
   /** Remove a participant by handle. */
   remove(handle: string): Promise<void>;
+
+  /** Set or clear the group background image. */
+  setBackground(input: VisualAssetInput): Promise<void>;
+
+  /** Set or clear the group icon. */
+  setIcon(input: VisualAssetInput): Promise<void>;
+
   /** Rename the group. */
   setName(name: string): Promise<void>;
 }

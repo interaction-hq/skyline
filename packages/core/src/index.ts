@@ -1,15 +1,23 @@
 export { BrokerError } from "./broker.js";
 export type {
   AppMessage,
+  AttachmentContent,
+  AttachmentInput,
   AttachmentSend,
+  ContactContent,
   Content,
   Effect,
   FlowMessage,
+  GroupContent,
+  MarkdownContent,
   PaymentRequest,
+  PollContent,
   Reaction,
+  RichlinkContent,
   SendOptions,
   Tapback,
   TextMessage,
+  VoiceContent,
   WaContactsContent,
   WaContent,
   WaInteractiveContent,
@@ -19,11 +27,19 @@ export type {
 } from "./content.js";
 export {
   app,
+  attachment,
+  contactCard,
   EFFECTS,
   flow,
+  group,
+  isGroupContent,
   isWaContent,
+  markdown,
   payment,
+  poll,
+  richlink,
   text,
+  voice,
   wa,
 } from "./content.js";
 export { definePlatform } from "./define-platform.js";
@@ -56,6 +72,7 @@ export type {
   GroupContext,
   GroupOps,
   Message,
+  MessageAttachment,
   MessageContent,
   PaymentReceipt,
   Platform,
@@ -72,6 +89,7 @@ export type {
   TypingSignal,
   UnsendSignal,
   User,
+  VisualAssetInput,
 } from "./types.js";
 export type {
   SkylineAttachment,

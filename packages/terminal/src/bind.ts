@@ -6,6 +6,60 @@ import { terminal, type TerminalConfig } from "./config.js";
 import { startTerminalSession, type TerminalSession } from "./session.js";
 
 function createBinder(host: SkylineHost) {
+  const sendContent = async (
+    session: TerminalSession,
+    content: string | Content,
+    sendOpts?: SendOptions
+  ) => {
+    const parsed = toContent(content);
+    switch (parsed.type) {
+      case "text":
+      case "markdown": {
+        const body = parsed.type === "markdown" ? parsed.body : parsed.text;
+        const prefix = sendOpts?.replyTo ? "↳ agent: " : "agent: ";
+        session.write(`${prefix}${body}`);
+        return { guid: `term-${Date.now()}`, sentAt: new Date() };
+      }
+      case "app":
+      case "flow":
+      case "attachment":
+      case "voice":
+      case "contact":
+      case "richlink":
+      case "poll":
+      case "group":
+      case "wa_media":
+      case "wa_template":
+      case "wa_interactive":
+      case "wa_location":
+      case "wa_contacts":
+        host.unsupported("terminal", `sending ${parsed.type} content`);
+        break;
+      default: {
+        const _exhaustive: never = parsed;
+        throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
+      }
+    }
+    throw new Error("unreachable");
+  };
+
+  const channelExtras = {
+    background: async () => host.unsupported("terminal", "background"),
+    getMessage: async () => null,
+    sendFiles: async () => host.unsupported("terminal", "sendFiles"),
+    shareContactCard: async () => host.unsupported("terminal", "shareContactCard"),
+    group: {
+      add: () => host.unsupported("terminal", "group.add"),
+      getIcon: async () => null,
+      leave: async () => host.unsupported("terminal", "group.leave"),
+      participants: async () => host.unsupported("terminal", "group.participants"),
+      remove: () => host.unsupported("terminal", "group.remove"),
+      setBackground: async () => host.unsupported("terminal", "group.setBackground"),
+      setIcon: async () => host.unsupported("terminal", "group.setIcon"),
+      setName: () => host.unsupported("terminal", "group.setName"),
+    },
+  };
+
   const makeChannel = (to: string): Channel => {
     const line = host.lineFor(to);
     const session = line.terminal as TerminalSession | undefined;
@@ -13,30 +67,12 @@ function createBinder(host: SkylineHost) {
       throw new Error(`terminal session not ready for ${to}`);
     }
 
-    const sendText = async (
-      content: string | Content,
-      sendOpts?: SendOptions
-    ) => {
-      const parsed = toContent(content);
-      if (parsed.type !== "text") {
-        host.unsupported("terminal", `sending ${parsed.type} content`);
-      }
-      const prefix = sendOpts?.replyTo ? "↳ agent: " : "agent: ";
-      session.write(`${prefix}${parsed.text}`);
-      return { guid: `term-${Date.now()}`, sentAt: new Date() };
-    };
-
     return {
       contact: async () => null,
       edit: async (messageGuid, newText) => {
         session.write(`agent edited ${messageGuid}: ${newText}`);
       },
-      group: {
-        add: () => host.unsupported("terminal", "group.add"),
-        participants: async () => host.unsupported("terminal", "group.participants"),
-        remove: () => host.unsupported("terminal", "group.remove"),
-        setName: () => host.unsupported("terminal", "group.setName"),
-      },
+      ...channelExtras,
       get phone() {
         return to;
       },
@@ -50,8 +86,8 @@ function createBinder(host: SkylineHost) {
       read: async () => {},
       readReceipt: async () => {},
       reply: (messageGuid, content, sendOpts) =>
-        sendText(content, { ...sendOpts, replyTo: messageGuid }),
-      send: sendText,
+        sendContent(session, content, { ...sendOpts, replyTo: messageGuid }),
+      send: (content, sendOpts) => sendContent(session, content, sendOpts),
       sendFile: async () => host.unsupported("terminal", "sendFile"),
       to,
       typing: async (on = true) => {
@@ -74,12 +110,7 @@ function createBinder(host: SkylineHost) {
       edit: async (messageGuid, newText) => {
         session?.write(`agent edited ${messageGuid}: ${newText}`);
       },
-      group: {
-        add: () => host.unsupported("terminal", "group.add"),
-        participants: async () => host.unsupported("terminal", "group.participants"),
-        remove: () => host.unsupported("terminal", "group.remove"),
-        setName: () => host.unsupported("terminal", "group.setName"),
-      },
+      ...channelExtras,
       get phone() {
         return to;
       },
@@ -94,14 +125,11 @@ function createBinder(host: SkylineHost) {
       readReceipt: async () => {},
       reply: (messageGuid, content, sendOpts) =>
         channel.send(content, { ...sendOpts, replyTo: messageGuid }),
-      send: async (content, sendOpts) => {
-        const parsed = toContent(content);
-        if (parsed.type !== "text") {
-          host.unsupported("terminal", `sending ${parsed.type} content`);
+      send: (content, sendOpts) => {
+        if (!session) {
+          throw new Error("terminal session not ready");
         }
-        const prefix = sendOpts?.replyTo ? "↳ agent: " : "agent: ";
-        session?.write(`${prefix}${parsed.text}`);
-        return { guid: `term-${Date.now()}`, sentAt: new Date() };
+        return sendContent(session, content, sendOpts);
       },
       sendFile: async () => host.unsupported("terminal", "sendFile"),
       to,

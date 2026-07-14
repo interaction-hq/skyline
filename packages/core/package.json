@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The skyline-ts runtime — Skyline, content builders, webhooks, and the provider authoring API.",
   "type": "module",
   "license": "MIT",
@@ -46,7 +46,10 @@
       "import": "./dist/host.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"

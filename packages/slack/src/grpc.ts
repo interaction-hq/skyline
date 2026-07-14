@@ -65,6 +65,12 @@ export interface SlackGrpcHandlers {
   }) => void;
   onText?: (event: {
     channelId: string;
+    files?: {
+      id: string;
+      mimetype?: string;
+      name?: string;
+      size?: number;
+    }[];
     isFromMe: boolean;
     messageId: string;
     subtype?: string;
@@ -278,6 +284,12 @@ export class SlackGrpcClient {
       const f = frame as {
         message?: {
           channel: string;
+          files?: {
+            id: string;
+            mimetype?: string;
+            name?: string;
+            size?: number;
+          }[];
           isFromMe?: boolean;
           subtype?: string;
           text: string;
@@ -298,6 +310,12 @@ export class SlackGrpcClient {
         const m = f.message;
         handlers.onText?.({
           channelId: m.channel,
+          files: m.files?.map((f) => ({
+            id: f.id,
+            mimetype: f.mimetype,
+            name: f.name,
+            size: f.size,
+          })),
           isFromMe: Boolean(m.isFromMe),
           messageId: m.ts,
           subtype: m.subtype,

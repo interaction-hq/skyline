@@ -9,8 +9,28 @@ const PACKAGE = "interactions.whatsapp.v1";
 /** A decoded inbound WhatsApp text message. */
 export interface WaInboundText {
   messageId: string;
+  replyToMessageId?: string;
   senderId: string;
   text: string;
+}
+
+/** A decoded inbound WhatsApp attachment message. */
+export interface WaInboundAttachment {
+  caption?: string;
+  fileSize?: number;
+  kind: string;
+  messageId: string;
+  name?: string;
+  replyToMessageId?: string;
+  senderId: string;
+}
+
+/** A decoded inbound WhatsApp reaction. */
+export interface WaInboundReaction {
+  emoji: string;
+  messageId: string;
+  removed: boolean;
+  senderId: string;
 }
 
 /**
@@ -116,7 +136,131 @@ export class WhatsappGrpcClient {
     });
   }
 
+  sendMediaMessage(
+    recipient: string,
+    media: {
+      caption?: string;
+      data: Uint8Array;
+      kind: "MEDIA_KIND_IMAGE" | "MEDIA_KIND_VIDEO";
+    },
+    clientMessageId: string
+  ): Promise<{ messageId: string }> {
+    return new Promise((resolve, reject) => {
+      this.service.SendMediaMessage(
+        {
+          client_message_id: clientMessageId,
+          media: {
+            caption: media.caption,
+            data: media.data,
+            kind: media.kind,
+          },
+          recipient,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: dynamic proto response.
+        (err: grpc.ServiceError | null, res: any) =>
+          err
+            ? reject(err)
+            : resolve({ messageId: res?.message?.message_id ?? "" })
+      );
+    });
+  }
+
+  sendDocument(
+    recipient: string,
+    data: Uint8Array,
+    opts: {
+      caption?: string;
+      fileName?: string;
+      mimeType?: string;
+    },
+    clientMessageId: string
+  ): Promise<{ messageId: string }> {
+    return new Promise((resolve, reject) => {
+      this.service.SendDocument(
+        {
+          caption: opts.caption,
+          client_message_id: clientMessageId,
+          data,
+          file_name: opts.fileName,
+          mime_type: opts.mimeType,
+          recipient,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: dynamic proto response.
+        (err: grpc.ServiceError | null, res: any) =>
+          err
+            ? reject(err)
+            : resolve({ messageId: res?.message?.message_id ?? "" })
+      );
+    });
+  }
+
+  sendAudio(
+    recipient: string,
+    data: Uint8Array,
+    mimeType: string | undefined,
+    clientMessageId: string
+  ): Promise<{ messageId: string }> {
+    return new Promise((resolve, reject) => {
+      this.service.SendAudio(
+        {
+          client_message_id: clientMessageId,
+          data,
+          mime_type: mimeType,
+          recipient,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: dynamic proto response.
+        (err: grpc.ServiceError | null, res: any) =>
+          err
+            ? reject(err)
+            : resolve({ messageId: res?.message?.message_id ?? "" })
+      );
+    });
+  }
+
+  sendAlbum(
+    recipient: string,
+    items: {
+      caption?: string;
+      data: Uint8Array;
+      kind: "MEDIA_KIND_IMAGE" | "MEDIA_KIND_VIDEO";
+    }[],
+    clientMessageId: string
+  ): Promise<{ messageIds: string[] }> {
+    return new Promise((resolve, reject) => {
+      this.service.SendAlbum(
+        {
+          client_message_id: clientMessageId,
+          items: items.map((item) => ({
+            caption: item.caption,
+            data: item.data,
+            kind: item.kind,
+          })),
+          recipient,
+        },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        // biome-ignore lint/suspicious/noExplicitAny: dynamic proto response.
+        (err: grpc.ServiceError | null, res: any) =>
+          err
+            ? reject(err)
+            : resolve({
+                messageIds: (res?.messages ?? []).map(
+                  (m: { message_id?: string }) => m.message_id ?? ""
+                ),
+              })
+      );
+    });
+  }
+
   subscribeEvents(handlers: {
+    onAttachment?: (msg: WaInboundAttachment, date: Date) => void;
+    onReaction?: (msg: WaInboundReaction, date: Date) => void;
     onText: (msg: WaInboundText, date: Date) => void;
     onError?: (err: grpc.ServiceError) => void;
     // biome-ignore lint/suspicious/noExplicitAny: streamed event is dynamically typed.
@@ -132,6 +276,34 @@ export class WhatsappGrpcClient {
       if (!changed || changed.is_from_me) {
         return;
       }
+      const date = toDate(changed.occurred_at) ?? new Date();
+      const senderId = changed.recipient ?? "";
+
+      if (changed.reaction) {
+        const reaction = changed.reaction;
+        handlers.onReaction?.({
+          emoji: reaction.emoji ?? "",
+          messageId: reaction.message_id ?? "",
+          removed: !reaction.emoji,
+          senderId: reaction.actor_jid ?? senderId,
+        }, date);
+        return;
+      }
+
+      if (changed.attachment) {
+        const attachment = changed.attachment;
+        handlers.onAttachment?.({
+          caption: attachment.caption,
+          fileSize: attachment.file_size,
+          kind: attachment.kind ?? "MESSAGE_ATTACHMENT_KIND_UNKNOWN",
+          messageId: attachment.message_id ?? "",
+          name: attachment.title,
+          replyToMessageId: attachment.reply_to_message_id,
+          senderId,
+        }, date);
+        return;
+      }
+
       const text = changed.text?.text ?? changed.text?.body;
       if (typeof text !== "string" || !text) {
         return;
@@ -139,10 +311,11 @@ export class WhatsappGrpcClient {
       handlers.onText(
         {
           messageId: changed.text?.message_id ?? "",
-          senderId: changed.recipient ?? "",
+          replyToMessageId: changed.text?.reply_to_message_id,
+          senderId,
           text,
         },
-        toDate(changed.occurred_at) ?? new Date()
+        date
       );
     });
     call.on("error", (err: grpc.ServiceError) => handlers.onError?.(err));
