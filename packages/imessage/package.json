@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/imessage",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "iMessage provider for skyline-ts — managed lines and bring-your-own endpoints.",
   "type": "module",
   "license": "MIT",

@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-14
+
+### Added
+- Content grammar: ops are first-class `Content` (`rename`, `avatar`, `addMember`, `removeMember`, `leaveChannel`, `reply`, `edit`, `unsend`, `read`, `typing`, `reaction`).
+- `ContentBuilder` / `resolveContent` — builders may be lazy; `channel.send` accepts `string | Content | ContentBuilder`.
+- Channel sugar: `rename`, `avatar`, `add`, `remove`, `leave` delegate to `send(content)`.
+- Message actions route through the same content path (`message.reply` → `send(reply(...))`, etc.).
+- iMessage: group lifecycle changes also arrive as inbound messages carrying ops content.
+
 ## [0.3.2] - 2026-07-14
 
 ### Added

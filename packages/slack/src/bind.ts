@@ -1,14 +1,15 @@
 import type {
   AttachmentContent,
   AttachmentSend,
-  Content,
+  ContentInput,
   Reaction,
   SendOptions,
 } from "@skyline-ts/core/content";
-import { toContent } from "@skyline-ts/core/content";
+import { resolveContent } from "@skyline-ts/core/content";
 import type { Channel, Message, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
 import {
   bindMessage,
+  contentSugar,
   stubAttachmentDownload,
   unsupportedPollOps,
   withResponding,
@@ -86,10 +87,10 @@ function createBinder(host: SkylineHost) {
   const sendContent = async (
     to: string,
     teamId: string | undefined,
-    input: string | Content,
+    input: ContentInput,
     sendOpts?: SendOptions
   ): Promise<SendReceipt> => {
-    const content = toContent(input);
+    const content = await resolveContent(input);
     switch (content.type) {
       case "text":
       case "markdown": {
@@ -126,6 +127,58 @@ function createBinder(host: SkylineHost) {
         host.unsupported("slack", "sending group content");
         break;
       }
+      case "reply": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reply: target message has no guid");
+        }
+        return sendContent(to, teamId, content.content, {
+          ...sendOpts,
+          replyTo: targetGuid,
+        });
+      }
+      case "edit": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("edit: target message has no guid");
+        }
+        const inner = content.content;
+        const newText =
+          inner.type === "text"
+            ? inner.text
+            : inner.type === "markdown"
+              ? inner.body
+              : undefined;
+        if (newText === undefined) {
+          host.unsupported("slack", `editing ${inner.type} content`);
+        }
+        await slackFor(teamId).editText(to, targetGuid, newText);
+        return { sentAt: new Date() };
+      }
+      case "unsend": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("unsend: target message has no guid");
+        }
+        await slackFor(teamId).deleteMessage(to, targetGuid);
+        return { sentAt: new Date() };
+      }
+      case "reaction": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reaction: target message has no guid");
+        }
+        await slackFor(teamId).addReaction(to, targetGuid, content.emoji);
+        return { sentAt: new Date() };
+      }
+      case "read":
+      case "typing":
+        return { sentAt: new Date() };
+      case "rename":
+      case "avatar":
+      case "addMember":
+      case "removeMember":
+      case "leaveChannel":
       case "app":
       case "custom":
       case "flow":
@@ -197,7 +250,11 @@ function createBinder(host: SkylineHost) {
     });
 
   const makeChannel = (to: string, teamId?: string): Channel => {
+    const send = (content: ContentInput, sendOpts?: SendOptions) =>
+      sendContent(to, teamId, content, sendOpts);
+    const sugar = contentSugar(send);
     const channel: Channel = {
+    ...sugar,
     background: async () => host.unsupported("slack", "background"),
     contact: async () => null,
     edit: async (messageGuid, newText) => {
@@ -208,15 +265,15 @@ function createBinder(host: SkylineHost) {
     getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
-      add: () => host.unsupported("slack", "group.add"),
+      add: (handle) => sugar.add(handle),
       getIcon: async () => null,
       getName: async () => null,
-      leave: async () => host.unsupported("slack", "group.leave"),
+      leave: () => sugar.leave(),
       participants: async () => host.unsupported("slack", "group.participants"),
-      remove: () => host.unsupported("slack", "group.remove"),
+      remove: (handle) => sugar.remove(handle),
       setBackground: async () => host.unsupported("slack", "group.setBackground"),
       setIcon: async () => host.unsupported("slack", "group.setIcon"),
-      setName: () => host.unsupported("slack", "group.setName"),
+      setName: (name) => sugar.rename(name),
     },
     listMessages: async () => [],
     get phone() {
@@ -237,8 +294,8 @@ function createBinder(host: SkylineHost) {
     readReceipt: async () => {},
     responding: (fn) => withResponding(channel, fn),
     reply: (messageGuid, content, sendOpts) =>
-      sendContent(to, teamId, content, { ...sendOpts, replyTo: messageGuid }),
-    send: (content, sendOpts) => sendContent(to, teamId, content, sendOpts),
+      send(content, { ...sendOpts, replyTo: messageGuid }),
+    send,
     sendFile: (file, sendOpts) => uploadFile(to, teamId, file, sendOpts),
     sendFiles: async (files, sendOpts) => {
       if (files.length === 0) {
@@ -258,9 +315,9 @@ function createBinder(host: SkylineHost) {
     unsend: async (messageGuid) => {
       await slackFor(teamId).deleteMessage(to, messageGuid);
     },
-    };
-    return channel;
   };
+  return channel;
+};
 
   const connectLine = (line: ResolvedLine): void => {
     if (!line.slack) {

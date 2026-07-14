@@ -2,11 +2,12 @@ import type {
   AttachmentSend,
   ContactContent,
   Content,
+  ContentInput,
   Reaction,
   SendOptions,
   StreamTextContent,
 } from "@skyline-ts/core/content";
-import { resolveEffect, toContent } from "@skyline-ts/core/content";
+import { resolveContent, resolveEffect } from "@skyline-ts/core/content";
 import type {
   Channel,
   GroupContext,
@@ -21,6 +22,7 @@ import type {
 import {
   attachmentWithDownload,
   bindMessage,
+  contentSugar,
   withResponding,
 } from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
@@ -219,6 +221,51 @@ function inboundToMessage(
   });
 }
 
+async function groupChangeToContent(
+  grpc: ImessageGrpcClient,
+  event: {
+    chatId: string;
+    iconChanged?: boolean;
+    iconRemoved?: boolean;
+    participantAdded?: string;
+    participantRemoved?: string;
+    renamedTo?: string;
+  }
+): Promise<Content | undefined> {
+  if (event.participantAdded) {
+    return { type: "addMember", members: [event.participantAdded] };
+  }
+  if (event.participantRemoved) {
+    return { type: "removeMember", members: [event.participantRemoved] };
+  }
+  if (event.renamedTo) {
+    return { type: "rename", displayName: event.renamedTo };
+  }
+  if (event.iconRemoved) {
+    return { type: "avatar", action: { kind: "clear" } };
+  }
+  if (event.iconChanged) {
+    try {
+      const data = await grpc.getIcon(event.chatId);
+      if (!data) {
+        return;
+      }
+      const snapshot = Uint8Array.from(data);
+      return {
+        type: "avatar",
+        action: {
+          kind: "set",
+          mimeType: "image/png",
+          read: async () => snapshot,
+        },
+      };
+    } catch {
+      return;
+    }
+  }
+  return;
+}
+
 function createBinder(host: SkylineHost, projectId: string) {
   const imFor = (to: string): ImessageGrpcClient => {
     const line = host.lineFor(to);
@@ -230,13 +277,13 @@ function createBinder(host: SkylineHost, projectId: string) {
 
   const sendContent = async (
     to: string,
-    input: string | Content,
+    input: ContentInput,
     sendOpts?: SendOptions
   ): Promise<SendReceipt> => {
     const grpc = imFor(to);
     const id = host.newId();
     const sentAt = new Date();
-    const content = toContent(input);
+    const content = await resolveContent(input);
     const chatGuid = chatGuidFor(to);
     let guid: string | undefined;
     switch (content.type) {
@@ -413,6 +460,90 @@ function createBinder(host: SkylineHost, projectId: string) {
         guid = res.guid;
         break;
       }
+      case "reply": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reply: target message has no guid");
+        }
+        return sendContent(to, content.content, {
+          ...sendOpts,
+          replyTo: targetGuid,
+        });
+      }
+      case "edit": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("edit: target message has no guid");
+        }
+        const inner = content.content;
+        const newText =
+          inner.type === "text"
+            ? inner.text
+            : inner.type === "markdown"
+              ? inner.body
+              : undefined;
+        if (newText === undefined) {
+          host.unsupported("imessage", `editing ${inner.type} content`);
+        }
+        await grpc.editMessage(chatGuid, targetGuid, newText);
+        break;
+      }
+      case "unsend": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("unsend: target message has no guid");
+        }
+        await grpc.unsendMessage(chatGuid, targetGuid);
+        break;
+      }
+      case "read": {
+        await grpc.markRead(chatGuid);
+        break;
+      }
+      case "typing": {
+        if (content.state === "start") {
+          await grpc.startTyping(chatGuid);
+        } else {
+          await grpc.stopTyping(chatGuid);
+        }
+        break;
+      }
+      case "reaction": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reaction: target message has no guid");
+        }
+        await grpc.sendReaction(chatGuid, targetGuid, content.emoji);
+        break;
+      }
+      case "rename": {
+        await grpc.setGroupName(chatGuid, content.displayName);
+        break;
+      }
+      case "avatar": {
+        if (content.action.kind === "clear") {
+          await grpc.removeIcon(chatGuid);
+        } else {
+          await grpc.setIcon(chatGuid, await content.action.read());
+        }
+        break;
+      }
+      case "addMember": {
+        for (const member of content.members) {
+          await grpc.addParticipant(chatGuid, member);
+        }
+        break;
+      }
+      case "removeMember": {
+        for (const member of content.members) {
+          await grpc.removeParticipant(chatGuid, member);
+        }
+        break;
+      }
+      case "leaveChannel": {
+        await grpc.leaveChat(chatGuid);
+        break;
+      }
       case "wa_media":
       case "wa_template":
       case "wa_interactive":
@@ -453,7 +584,11 @@ function createBinder(host: SkylineHost, projectId: string) {
   const makeChannel = (to: string): Channel => {
     const chatGuid = chatGuidFor(to);
     const grpcFor = () => imFor(to);
+    const send = (content: ContentInput, sendOpts?: SendOptions) =>
+      sendContent(to, content, sendOpts);
+    const sugar = contentSugar(send);
     const channel: Channel = {
+      ...sugar,
       background: async (input) => {
         const grpc = grpcFor();
         const data = await resolveVisualAsset(input);
@@ -523,15 +658,15 @@ function createBinder(host: SkylineHost, projectId: string) {
         );
       },
       group: {
-        add: (handle) => grpcFor().addParticipant(chatGuid, handle),
+        add: (handle) => sugar.add(handle),
         getIcon: () => grpcFor().getIcon(chatGuid),
         getName: () => grpcFor().getChatDisplayName(chatGuid),
-        leave: () => grpcFor().leaveChat(chatGuid),
+        leave: () => sugar.leave(),
         participants: async () => {
           const rows = await grpcFor().getParticipants(chatGuid);
           return rows.map((p) => ({ id: p.address }));
         },
-        remove: (handle) => grpcFor().removeParticipant(chatGuid, handle),
+        remove: (handle) => sugar.remove(handle),
         setBackground: async (input) => {
           const grpc = grpcFor();
           const data = await resolveVisualAsset(input);
@@ -542,15 +677,25 @@ function createBinder(host: SkylineHost, projectId: string) {
           }
         },
         setIcon: async (input) => {
-          const grpc = grpcFor();
-          const data = await resolveVisualAsset(input);
-          if (data) {
-            await grpc.setIcon(chatGuid, data);
-          } else {
-            await grpc.removeIcon(chatGuid);
+          if (input === "clear") {
+            await sugar.avatar("clear");
+            return;
           }
+          if (input.data) {
+            await sugar.avatar(input.data, {
+              mimeType: input.mimeType ?? "image/png",
+            });
+            return;
+          }
+          if (input.path) {
+            await sugar.avatar(input.path, {
+              mimeType: input.mimeType,
+            });
+            return;
+          }
+          await sugar.avatar("clear");
         },
-        setName: (name) => grpcFor().setGroupName(chatGuid, name),
+        setName: (name) => sugar.rename(name),
       },
       listMessages: async (listOpts) => {
         const rows = await grpcFor().listMessages(chatGuid, listOpts);
@@ -579,9 +724,9 @@ function createBinder(host: SkylineHost, projectId: string) {
       read: () => grpcFor().markRead(chatGuid),
       readReceipt: () => grpcFor().sendReadReceipt(chatGuid),
       reply: (messageGuid, content, sendOpts) =>
-        sendContent(to, content, { ...sendOpts, replyTo: messageGuid }),
+        send(content, { ...sendOpts, replyTo: messageGuid }),
       responding: (fn) => withResponding(channel, fn),
-      send: (content, sendOpts) => sendContent(to, content, sendOpts),
+      send,
       sendFile: async (file: AttachmentSend, sendOpts) => {
         const grpc = grpcFor();
         const id = host.newId();
@@ -797,6 +942,29 @@ function createBinder(host: SkylineHost, projectId: string) {
           },
           channel
         );
+
+        void (async () => {
+          const content = await groupChangeToContent(grpc, event);
+          if (!content) {
+            return;
+          }
+          host.queue.push([
+            channel,
+            bindMessage(channel, {
+              content,
+              guid: `${event.chatId}:group:${event.date.getTime()}`,
+              isFromMe: false,
+              platform: "imessage",
+              sender: senderUser(undefined, to),
+              timestamp: event.date,
+              group: {
+                chatId: event.chatId,
+                isGroup: true,
+                participant: senderUser(undefined, to),
+              },
+            }),
+          ]);
+        })();
       },
     });
 

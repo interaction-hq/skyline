@@ -1,6 +1,6 @@
 {
   "name": "skyline-ts",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Bring agents to any interface — unified messaging SDK for TypeScript. Batteries-included: the runtime plus every official provider.",
   "type": "module",
   "license": "MIT",

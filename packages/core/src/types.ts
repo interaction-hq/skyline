@@ -4,7 +4,15 @@
 // (`send`, `react`, `typing`, …); `app.incoming` is the merged inbound feed; the
 // non-message signals (reactions, typing, read receipts, …) arrive via `app.on`.
 
-import type { AttachmentSend, Content, Reaction, SendOptions } from "./content.js";
+import type {
+  AttachmentSend,
+  AvatarInput,
+  Content,
+  ContentInput,
+  MemberInput,
+  Reaction,
+  SendOptions,
+} from "./content/index.js";
 
 export type Platform =
   | "imessage"
@@ -64,7 +72,7 @@ export interface FlowContent {
   type: "flow";
 }
 
-export type MessageContent = TextContent | AppContent | FlowContent;
+export type MessageContent = Content | AppContent | FlowContent;
 
 export interface User {
   /** Display name when the platform exposes one. */
@@ -112,25 +120,23 @@ export interface Message {
   /** The open conversation this message belongs to. */
   channel: Channel;
   content: MessageContent;
+  direction: "inbound" | "outbound";
   /** Set for group conversations; identifies the group and the submitting member. */
   group?: GroupContext;
   /** The message's own guid, when the platform assigns one (iMessage does). */
   guid?: string;
   /** Platforms echo your own sends; guard replies on this. */
   isFromMe: boolean;
-  /** Rewrite this outbound message's text. */
-  edit(newText: string): Promise<void>;
+  /** Rewrite this outbound message's content. */
+  edit(content: ContentInput): Promise<void>;
   platform: Platform;
   /** Tapback or emoji-react to this message. */
   react(reaction: Reaction, opts?: { remove?: boolean }): Promise<void>;
-  /** Mark the conversation read (best-effort per platform). */
+  /** Mark the conversation read up to this inbound message. */
   read(): Promise<void>;
   replyTo?: { messageGuid: string; partIndex?: number };
   /** Reply in-thread to this message. */
-  reply(
-    content: string | Content,
-    opts?: SendOptions
-  ): Promise<SendReceipt>;
+  reply(content: ContentInput, opts?: SendOptions): Promise<SendReceipt>;
   sender: User;
   /** Delivery service when known — "iMessage", "SMS", etc. */
   service?: string;
@@ -255,13 +261,19 @@ export type VisualAssetInput =
  * Actions talk to the provider data plane for that line — no extra control-plane hop.
  */
 export interface Channel {
+  /** Add participants — sugar for `send(addMember(...))`. */
+  add(users: MemberInput): Promise<void>;
+
+  /** Set or clear the conversation avatar — sugar for `send(avatar(...))`. */
+  avatar(input: AvatarInput, options?: { mimeType?: string }): Promise<void>;
+
   /** Set or clear the conversation background (group or chat wallpaper). */
   background(input: VisualAssetInput): Promise<void>;
 
   /** The other party's contact card, when the line can resolve it. */
   contact(): Promise<Contact | null>;
 
-  /** Edit a message you sent. */
+  /** Edit a message you sent (by guid). Prefer `message.edit(...)`. */
   edit(messageGuid: string, newText: string): Promise<void>;
 
   /** Group operations (only meaningful once the conversation is a group). */
@@ -278,6 +290,9 @@ export interface Channel {
 
   /** Fetch a message by guid when the line supports history lookup. */
   getMessage(messageGuid: string): Promise<Message | null>;
+
+  /** Leave this group — sugar for `send(leaveChannel())`. */
+  leave(): Promise<void>;
 
   /** List recent messages in this conversation. */
   listMessages(opts?: ListMessagesOptions): Promise<Message[]>;
@@ -305,13 +320,19 @@ export interface Channel {
   /** Send a read receipt for the conversation. */
   readReceipt(): Promise<void>;
 
+  /** Remove participants — sugar for `send(removeMember(...))`. */
+  remove(users: MemberInput): Promise<void>;
+
+  /** Rename the conversation — sugar for `send(rename(...))`. */
+  rename(displayName: string): Promise<void>;
+
   /**
    * Reply to a specific message (threads off it). Sugar for
    * `send(content, { replyTo: messageGuid })`.
    */
   reply(
     messageGuid: string,
-    content: string | Content,
+    content: ContentInput,
     opts?: SendOptions
   ): Promise<SendReceipt>;
 
@@ -322,11 +343,10 @@ export interface Channel {
   responding<T>(fn: () => T | Promise<T>): Promise<T>;
 
   /**
-   * Send a message: a plain string (text) or a content object from a builder
-   * (`app(...)`, `flow(...)`, `payment(...)`). `opts` add reply threading,
-   * screen effects, a subject line, and rich-link rendering.
+   * Send content: a string, a content value, or a `ContentBuilder`
+   * (`text(...)`, `rename(...)`, `reply(...)`, …).
    */
-  send(content: string | Content, opts?: SendOptions): Promise<SendReceipt>;
+  send(content: ContentInput, opts?: SendOptions): Promise<SendReceipt>;
 
   /** Send an attachment (image/audio/file). */
   sendFile(file: AttachmentSend, opts?: SendOptions): Promise<SendReceipt>;

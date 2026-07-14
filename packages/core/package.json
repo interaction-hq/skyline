@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/core",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "The skyline-ts runtime — Skyline, content builders, webhooks, and the provider authoring API.",
   "type": "module",
   "license": "MIT",
@@ -22,8 +22,8 @@
       "import": "./dist/index.js"
     },
     "./content": {
-      "types": "./dist/content.d.ts",
-      "import": "./dist/content.js"
+      "types": "./dist/content/index.d.ts",
+      "import": "./dist/content/index.js"
     },
     "./webhooks": {
       "types": "./dist/webhooks.d.ts",

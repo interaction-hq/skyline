@@ -1,53 +1,65 @@
-// Bind Channel actions onto a Message so agents can `message.reply(...)` etc.
-
-import type { Content, Reaction, SendOptions } from "./content.js";
+import {
+  edit as editContent,
+  reaction as reactionContent,
+  read as readContent,
+  reply as replyContent,
+  unsend as unsendContent,
+  type ContentInput,
+  type Reaction,
+  type SendOptions,
+} from "./content/index.js";
 import type { Channel, Message, MessageAttachment, SendReceipt } from "./types.js";
 
 export type MessageData = Omit<
   Message,
-  "channel" | "edit" | "react" | "read" | "reply" | "unsend"
->;
+  "channel" | "direction" | "edit" | "react" | "read" | "reply" | "unsend"
+> & {
+  direction?: "inbound" | "outbound";
+};
 
-/**
- * Attach conversation actions to a message payload. Inbound binders and
- * `getMessage` / `listMessages` use this so agents chain off the message object.
- */
 export function bindMessage(channel: Channel, data: MessageData): Message {
   const guid = data.guid;
-  return {
+  const direction =
+    data.direction ?? (data.isFromMe ? "outbound" : "inbound");
+
+  let self: Message | undefined;
+
+  const requireSelf = (action: string): Message => {
+    if (!self) {
+      throw new Error(`${action}() called before message construction completed`);
+    }
+    return self;
+  };
+
+  self = {
     ...data,
     channel,
-    edit: async (newText: string) => {
-      if (!guid) {
-        throw new Error("edit: message has no guid");
-      }
-      await channel.edit(guid, newText);
+    direction,
+    edit: async (content: ContentInput) => {
+      await channel.send(editContent(content, requireSelf("edit")));
     },
     react: async (reaction: Reaction, opts?: { remove?: boolean }) => {
       if (!guid) {
         throw new Error("react: message has no guid");
       }
-      await channel.react(guid, reaction, opts);
+      if (opts?.remove) {
+        await channel.react(guid, reaction, opts);
+        return;
+      }
+      await channel.send(reactionContent(reaction, requireSelf("react")));
     },
     read: async () => {
-      await channel.read();
+      await channel.send(readContent(requireSelf("read")));
     },
-    reply: (content: string | Content, opts?: SendOptions) => {
-      if (!guid) {
-        throw new Error("reply: message has no guid");
-      }
-      return channel.reply(guid, content, opts);
-    },
+    reply: (content: ContentInput, opts?: SendOptions) =>
+      channel.send(replyContent(content, requireSelf("reply")), opts),
     unsend: async () => {
-      if (!guid) {
-        throw new Error("unsend: message has no guid");
-      }
-      await channel.unsend(guid);
+      await channel.send(unsendContent(requireSelf("unsend")));
     },
   };
+  return self;
 }
 
-/** Attachments that cannot be downloaded on this line. */
 export function stubAttachmentDownload(
   meta: Omit<MessageAttachment, "read" | "stream">
 ): MessageAttachment {
@@ -77,7 +89,6 @@ export function attachmentWithDownload(
   };
 }
 
-/** Resolve a SendReceipt into nothing extra — kept for call-site clarity. */
 export function asReceipt(guid: string | undefined): SendReceipt {
   return { guid, sentAt: new Date() };
 }

@@ -740,7 +740,7 @@ export class ImessageGrpcClient {
       date: Date,
       group?: InboundGroup
     ) => void;
-    /** An inbound edit of a previously-sent message. */
+    /** An inbound edit of an existing message. */
     onEdit?: (
       edit: InboundEdit,
       senderId: string | undefined,

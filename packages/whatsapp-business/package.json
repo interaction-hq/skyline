@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/whatsapp-business",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "WhatsApp Business provider for skyline-ts.",
   "type": "module",
   "license": "MIT",

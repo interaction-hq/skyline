@@ -1,12 +1,4 @@
-// Skyline outbound content builders.
-//
-// `channel.send()` accepts either a plain string (a text message) or a content
-// object produced by one of these builders. This is the backend-send surface:
-// compose a rich bubble from a server, an agent, or an automation — no human in
-// the Messages UI. Mirrors the launcher-side send, so a card looks the same
-// however it originates.
-
-import type { Flow, PaymentProvider } from "./miniapp/experience.js";
+import type { Flow, PaymentProvider } from "../miniapp/experience.js";
 
 export type { Flow };
 
@@ -224,12 +216,11 @@ export interface StreamTextContent {
 }
 
 export interface GroupContent {
-  items: Content[];
+  items: PayloadContent[];
   type: "group";
 }
 
-/** Everything `channel.send()` accepts (besides a bare string). */
-export type Content =
+export type PayloadContent =
   | TextMessage
   | AppMessage
   | FlowMessage
@@ -447,7 +438,7 @@ export function customizedMiniApp(input: {
   });
 }
 
-export function group(...items: Content[]): GroupContent {
+export function group(...items: PayloadContent[]): GroupContent {
   if (items.length < 2) {
     throw new Error("group: needs at least two items");
   }
@@ -610,8 +601,7 @@ export const wa = {
   },
 };
 
-/** True when a content object is a WhatsApp Business rich type. */
-export function isWaContent(content: Content): content is WaContent {
+export function isWaContent(content: PayloadContent): content is WaContent {
   return (
     content.type === "wa_media" ||
     content.type === "wa_template" ||
@@ -621,12 +611,6 @@ export function isWaContent(content: Content): content is WaContent {
   );
 }
 
-/** True when a content object bundles multiple send items. */
-export function isGroupContent(content: Content): content is GroupContent {
+export function isGroupContent(content: PayloadContent): content is GroupContent {
   return content.type === "group";
-}
-
-/** Normalize the `send()` argument to a `Content`. */
-export function toContent(input: string | Content): Content {
-  return typeof input === "string" ? text(input) : input;
 }

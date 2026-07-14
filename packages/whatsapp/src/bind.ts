@@ -1,14 +1,15 @@
 import type {
   AttachmentSend,
-  Content,
+  ContentInput,
   GroupContent,
   Reaction,
   SendOptions,
 } from "@skyline-ts/core/content";
-import { toContent } from "@skyline-ts/core/content";
+import { resolveContent } from "@skyline-ts/core/content";
 import type { Channel, Platform, ResolvedLine, SendReceipt } from "@skyline-ts/core";
 import {
   bindMessage,
+  contentSugar,
   stubAttachmentDownload,
   unsupportedPollOps,
   withResponding,
@@ -152,10 +153,10 @@ function createBinder(host: SkylineHost, projectId: string) {
 
   const sendContent = async (
     to: string,
-    input: string | Content,
+    input: ContentInput,
     sendOpts?: SendOptions
   ): Promise<SendReceipt> => {
-    const content = toContent(input);
+    const content = await resolveContent(input);
     const grpc = waFor(to);
     const id = host.newId();
     switch (content.type) {
@@ -175,6 +176,34 @@ function createBinder(host: SkylineHost, projectId: string) {
       }
       case "group":
         return sendGroupAlbum(to, content, sendOpts);
+      case "reply": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reply: target message has no guid");
+        }
+        return sendContent(to, content.content, {
+          ...sendOpts,
+          replyTo: targetGuid,
+        });
+      }
+      case "reaction": {
+        const targetGuid = content.target.guid;
+        if (!targetGuid) {
+          throw new Error("reaction: target message has no guid");
+        }
+        await grpc.sendReaction(to, targetGuid, content.emoji);
+        return { sentAt: new Date() };
+      }
+      case "read":
+      case "typing":
+        return { sentAt: new Date() };
+      case "edit":
+      case "unsend":
+      case "rename":
+      case "avatar":
+      case "addMember":
+      case "removeMember":
+      case "leaveChannel":
       case "app":
       case "custom":
       case "flow":
@@ -199,7 +228,11 @@ function createBinder(host: SkylineHost, projectId: string) {
   };
 
   const makeChannel = (to: string): Channel => {
+    const send = (content: ContentInput, sendOpts?: SendOptions) =>
+      sendContent(to, content, sendOpts);
+    const sugar = contentSugar(send);
     const channel: Channel = {
+    ...sugar,
     background: async () => host.unsupported("whatsapp", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp", "edit"),
@@ -208,15 +241,15 @@ function createBinder(host: SkylineHost, projectId: string) {
     getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
-      add: () => host.unsupported("whatsapp", "group.add"),
+      add: (handle) => sugar.add(handle),
       getIcon: async () => null,
       getName: async () => null,
-      leave: async () => host.unsupported("whatsapp", "group.leave"),
+      leave: () => sugar.leave(),
       participants: async () => host.unsupported("whatsapp", "group.participants"),
-      remove: () => host.unsupported("whatsapp", "group.remove"),
+      remove: (handle) => sugar.remove(handle),
       setBackground: async () => host.unsupported("whatsapp", "group.setBackground"),
       setIcon: async () => host.unsupported("whatsapp", "group.setIcon"),
-      setName: () => host.unsupported("whatsapp", "group.setName"),
+      setName: (name) => sugar.rename(name),
     },
     listMessages: async () => [],
     get phone() {
@@ -231,12 +264,12 @@ function createBinder(host: SkylineHost, projectId: string) {
         messageGuid,
         reactOpts?.remove ? "" : reaction
       ),
-    read: async () => host.unsupported("whatsapp", "read"),
+    read: async () => {},
     readReceipt: async () => host.unsupported("whatsapp", "readReceipt"),
     responding: (fn) => withResponding(channel, fn),
     reply: (messageGuid, content, sendOpts) =>
-      sendContent(to, content, { ...sendOpts, replyTo: messageGuid }),
-    send: (content, sendOpts) => sendContent(to, content, sendOpts),
+      send(content, { ...sendOpts, replyTo: messageGuid }),
+    send,
     sendFile: async (file: AttachmentSend, sendOpts) =>
       sendAttachment(
         to,
