@@ -10,6 +10,7 @@
     "example:terminal": "bun run examples/terminal-agent.ts",
     "example:cloud": "bun run examples/cloud-agent.ts",
     "example:multi": "bun run examples/multi-platform-agent.ts",
+    "example:telegram": "bun run examples/telegram-agent.ts",
     "broker:check": "bun run packages/core/src/skyline.check.ts",
     "release": "cd packages/skyline-ts && bun run prepublishOnly && npm publish --access public"
   },
