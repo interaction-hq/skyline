@@ -3,7 +3,7 @@
  * platforms that lack a native mapping throw UnsupportedError.
  */
 
-import type { AttachmentInput } from "./builders.js";
+import type { AttachmentInput, MessageEntity } from "./builders.js";
 
 export interface KeyboardButton {
   callbackData?: string;
@@ -26,6 +26,14 @@ export interface KeyboardContent {
 
 export interface LocationContent {
   address?: string;
+  /** Foursquare venue identifier (venue sends). */
+  foursquareId?: string;
+  /** Foursquare venue category, e.g. `arts_entertainment/aquarium`. */
+  foursquareType?: string;
+  /** Google Places identifier (venue sends). */
+  googlePlaceId?: string;
+  /** Google Places category. */
+  googlePlaceType?: string;
   heading?: number;
   horizontalAccuracy?: number;
   latitude: number;
@@ -46,6 +54,8 @@ export interface ForwardContent {
   fromChatId: string;
   messageId: string;
   type: "forward";
+  /** Start offset in seconds for a forwarded video. */
+  videoStartTimestamp?: number;
 }
 
 export interface ForwardManyContent {
@@ -56,14 +66,22 @@ export interface ForwardManyContent {
 
 export interface CopyContent {
   caption?: string;
+  captionEntities?: MessageEntity[];
   fromChatId: string;
   messageId: string;
+  parseMode?: "HTML" | "MarkdownV2";
+  /** Render the copied caption above the media. */
+  showCaptionAboveMedia?: boolean;
   type: "copy";
+  /** Start offset in seconds for a copied video. */
+  videoStartTimestamp?: number;
 }
 
 export interface CopyManyContent {
   fromChatId: string;
   messageIds: string[];
+  /** Drop captions from the copied messages. */
+  removeCaption?: boolean;
   type: "copy_many";
 }
 
@@ -75,6 +93,8 @@ export interface LabeledPrice {
 export interface InvoiceContent {
   currency: string;
   description: string;
+  /** Let the user pick a shipping option that changes the final price. */
+  isFlexible?: boolean;
   maxTipAmount?: number;
   needEmail?: boolean;
   needName?: boolean;
@@ -90,6 +110,8 @@ export interface InvoiceContent {
   providerToken?: string;
   sendEmailToProvider?: boolean;
   sendPhoneNumberToProvider?: boolean;
+  /** Deep-link start parameter; empty forwards the invoice, unset makes it single-chat. */
+  startParameter?: string;
   suggestedTipAmounts?: number[];
   title: string;
   type: "invoice";
@@ -126,6 +148,7 @@ export interface GiftContent {
   giftId: string;
   payForUpgrade?: boolean;
   text?: string;
+  textEntities?: MessageEntity[];
   textParseMode?: "HTML" | "MarkdownV2";
   type: "gift";
   userId?: string;
@@ -149,6 +172,18 @@ export interface LivePhotoContent {
   video: AttachmentInput;
 }
 
+/** Inbound/outbound ref to a chat story (not business story post media). */
+export interface StoryMessageContent {
+  chatId?: string;
+  storyId: string;
+  type: "story";
+}
+
+export interface GiveawayContent {
+  payload?: Record<string, string | number | boolean | null>;
+  type: "giveaway" | "giveaway_winners";
+}
+
 export type InteractiveContent =
   | KeyboardContent
   | LocationContent
@@ -163,7 +198,9 @@ export type InteractiveContent =
   | PaidMediaContent
   | GiftContent
   | RichMessageContent
-  | LivePhotoContent;
+  | LivePhotoContent
+  | StoryMessageContent
+  | GiveawayContent;
 
 export function keyboard(input: Omit<KeyboardContent, "type">): KeyboardContent {
   if (!input.buttons?.length) {
@@ -270,8 +307,26 @@ export function isInteractiveContent(content: {
     case "gift":
     case "rich_message":
     case "live_photo":
+    case "story":
+    case "giveaway":
+    case "giveaway_winners":
       return true;
     default:
       return false;
   }
+}
+
+export function story(
+  input: Omit<StoryMessageContent, "type">
+): StoryMessageContent {
+  return { type: "story", ...input };
+}
+
+export function giveaway(
+  input: Omit<GiveawayContent, "type"> & {
+    type?: GiveawayContent["type"];
+  } = {}
+): GiveawayContent {
+  const { type: kind = "giveaway", ...rest } = input;
+  return { type: kind, ...rest };
 }

@@ -8,7 +8,16 @@ export interface AddMember {
 
 export interface RemoveMember {
   members: string[];
+  /** Also delete the removed member's recent messages (ban). */
+  revokeMessages?: boolean;
   type: "removeMember";
+  /** Ban until this Unix time; omitted / 0 bans permanently. */
+  untilDate?: number;
+}
+
+export interface RemoveMemberOptions {
+  revokeMessages?: boolean;
+  untilDate?: number;
 }
 
 export interface LeaveChannel {
@@ -32,13 +41,21 @@ export function addMember(users: MemberInput): ContentBuilder {
   };
 }
 
-export function removeMember(users: MemberInput): ContentBuilder {
+export function removeMember(
+  users: MemberInput,
+  opts?: RemoveMemberOptions
+): ContentBuilder {
   const members = toMemberIds(users);
   if (members.length === 0) {
     throw new Error("removeMember() requires at least one member");
   }
   return {
-    build: async () => ({ members, type: "removeMember" }),
+    build: async () => ({
+      members,
+      revokeMessages: opts?.revokeMessages,
+      type: "removeMember",
+      untilDate: opts?.untilDate,
+    }),
   };
 }
 

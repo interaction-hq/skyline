@@ -559,6 +559,9 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "paid_media":
       case "gift":
       case "rich_message":
+      case "story":
+      case "giveaway":
+      case "giveaway_winners":
       case "live_photo":
       case "media_album":
       case "wa_contacts":
@@ -695,6 +698,11 @@ function createBinder(host: SkylineHost, projectId: string) {
         getIcon: () => grpcFor().getIcon(chatGuid),
         getName: () => grpcFor().getChatDisplayName(chatGuid),
         leave: () => sugar.leave(),
+        member: async (handle) => {
+          const rows = await grpcFor().getParticipants(chatGuid);
+          const found = rows.find((p) => p.address === handle);
+          return found ? { status: "member", user: { id: found.address } } : null;
+        },
         memberCount: async () => {
           const rows = await grpcFor().getParticipants(chatGuid);
           return rows.length;

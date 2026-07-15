@@ -38,7 +38,21 @@ export interface TelegramFile {
 export interface TelegramUser {
   first_name?: string;
   id: number;
+  language_code?: string;
+  last_name?: string;
   username?: string;
+}
+
+export interface TelegramMessageEntity {
+  custom_emoji_id?: string;
+  date_time_format?: string;
+  language?: string;
+  length: number;
+  offset: number;
+  type: string;
+  unix_time?: number;
+  url?: string;
+  user?: TelegramUser;
 }
 
 export interface TelegramChat {
@@ -48,21 +62,88 @@ export interface TelegramChat {
   username?: string;
 }
 
+export interface TelegramPollMedia {
+  animation?: { file_id?: string; file_unique_id?: string };
+  audio?: { file_id?: string; file_unique_id?: string };
+  document?: { file_id?: string; file_unique_id?: string };
+  link?: { title?: string; url?: string };
+  live_photo?: { file_id?: string; file_unique_id?: string };
+  location?: { latitude: number; longitude: number };
+  photo?: { file_id?: string; file_unique_id?: string }[];
+  sticker?: { file_id?: string; file_unique_id?: string };
+  venue?: { location?: { latitude: number; longitude: number }; title?: string };
+  video?: { file_id?: string; file_unique_id?: string };
+}
+
+export interface TelegramPollOption {
+  media?: TelegramPollMedia;
+  persistent_id?: string;
+  text: string;
+  voter_count?: number;
+}
+
+export interface TelegramPoll {
+  allows_multiple_answers?: boolean;
+  allows_revoting?: boolean;
+  close_date?: number;
+  correct_option_ids?: number[];
+  country_codes?: string[];
+  description?: string;
+  description_entities?: TelegramMessageEntity[];
+  explanation?: string;
+  explanation_entities?: TelegramMessageEntity[];
+  explanation_media?: TelegramPollMedia;
+  id: string;
+  is_anonymous?: boolean;
+  is_closed?: boolean;
+  media?: TelegramPollMedia;
+  members_only?: boolean;
+  open_period?: number;
+  options: TelegramPollOption[];
+  question: string;
+  question_entities?: TelegramMessageEntity[];
+  total_voter_count?: number;
+  type?: string;
+}
+
 export interface TelegramMessage {
   animation?: {
+    duration?: number;
     file_id: string;
     file_name?: string;
+    height?: number;
     mime_type?: string;
     file_size?: number;
+    thumbnail?: { file_id: string };
+    width?: number;
   };
   audio?: {
+    duration?: number;
     file_id: string;
     file_name?: string;
     mime_type?: string;
+    performer?: string;
     file_size?: number;
+    thumbnail?: { file_id: string };
+    title?: string;
   };
+  author_signature?: string;
+  boost_added?: { boost_count?: number };
+  business_connection_id?: string;
   caption?: string;
+  caption_entities?: TelegramMessageEntity[];
+  channel_chat_created?: boolean;
   chat: TelegramChat;
+  chat_background_set?: unknown;
+  chat_owner_changed?: unknown;
+  chat_owner_left?: unknown;
+  chat_shared?: { chat_id: number; request_id?: number };
+  checklist?: unknown;
+  checklist_tasks_added?: unknown;
+  checklist_tasks_done?: unknown;
+  community_chat_added?: unknown;
+  community_chat_removed?: unknown;
+  connected_website?: string;
   contact?: {
     first_name?: string;
     last_name?: string;
@@ -71,27 +152,78 @@ export interface TelegramMessage {
     vcard?: string;
   };
   date: number;
+  delete_chat_photo?: boolean;
   dice?: { emoji: string; value: number };
+  direct_message_price_changed?: unknown;
   document?: {
     file_id: string;
     file_name?: string;
     mime_type?: string;
     file_size?: number;
+    thumbnail?: { file_id: string };
   };
+  edit_date?: number;
+  effect_id?: string;
+  entities?: TelegramMessageEntity[];
+  ephemeral_message_id?: number;
+  external_reply?: {
+    chat?: TelegramChat;
+    has_media_spoiler?: boolean;
+    message_id?: number;
+    origin?: { type?: string };
+  };
+  forum_topic_closed?: unknown;
+  forum_topic_created?: {
+    icon_color?: number;
+    icon_custom_emoji_id?: string;
+    name?: string;
+  };
+  forum_topic_edited?: { icon_custom_emoji_id?: string; name?: string };
+  forum_topic_reopened?: unknown;
+  forward_date?: number;
+  forward_from?: TelegramUser;
+  forward_from_chat?: TelegramChat;
+  forward_from_message_id?: number;
   forward_origin?: {
     chat?: TelegramChat;
     date?: number;
     message_id?: number;
+    sender_user?: TelegramUser;
+    sender_user_name?: string;
     type: string;
   };
   from?: TelegramUser;
   game?: { description?: string; short_name?: string; title?: string };
+  general_forum_topic_hidden?: unknown;
+  general_forum_topic_unhidden?: unknown;
+  gift?: unknown;
+  gift_upgrade_sent?: unknown;
+  giveaway?: unknown;
+  giveaway_completed?: unknown;
+  giveaway_created?: unknown;
+  giveaway_winners?: unknown;
+  group_chat_created?: boolean;
+  guest_query_id?: string;
+  has_media_spoiler?: boolean;
+  has_protected_content?: boolean;
   invoice?: {
     currency: string;
     description: string;
     start_parameter?: string;
     title: string;
     total_amount: number;
+  };
+  is_automatic_forward?: boolean;
+  is_from_offline?: boolean;
+  is_paid_post?: boolean;
+  is_topic_message?: boolean;
+  left_chat_member?: TelegramUser;
+  link_preview_options?: {
+    is_disabled?: boolean;
+    prefer_large_media?: boolean;
+    prefer_small_media?: boolean;
+    show_above_text?: boolean;
+    url?: string;
   };
   live_photo?: {
     photo?: { file_id: string; file_size?: number }[];
@@ -102,21 +234,96 @@ export interface TelegramMessage {
       file_size?: number;
     };
   };
-  location?: { latitude: number; longitude: number };
+  location?: {
+    heading?: number;
+    horizontal_accuracy?: number;
+    latitude: number;
+    live_period?: number;
+    longitude: number;
+    proximity_alert_radius?: number;
+  };
+  managed_bot_created?: unknown;
+  media_group_id?: string;
+  message_auto_delete_timer_changed?: unknown;
   message_id: number;
   message_thread_id?: number;
+  migrate_from_chat_id?: number;
+  migrate_to_chat_id?: number;
+  new_chat_members?: TelegramUser[];
+  new_chat_photo?: unknown;
+  new_chat_title?: string;
+  paid_media?: unknown;
+  paid_message_price_changed?: unknown;
+  paid_star_count?: number;
+  passport_data?: unknown;
   photo?: { file_id: string; file_size?: number }[];
-  poll?: {
-    allows_multiple_answers?: boolean;
-    id: string;
-    is_anonymous?: boolean;
-    is_closed?: boolean;
-    options: { text: string; voter_count: number }[];
-    question: string;
-    total_voter_count?: number;
-    type?: string;
+  pinned_message?: { message_id?: number };
+  poll?: TelegramPoll;
+  poll_option_added?: unknown;
+  poll_option_deleted?: unknown;
+  proximity_alert_triggered?: unknown;
+  quote?: {
+    entities?: TelegramMessageEntity[];
+    is_manual?: boolean;
+    position?: number;
+    text: string;
   };
-  reply_to_message?: { message_id: number };
+  receiver_user?: TelegramUser;
+  refunded_payment?: {
+    currency: string;
+    invoice_payload?: string;
+    telegram_payment_charge_id?: string;
+    total_amount: number;
+  };
+  reply_markup?: {
+    inline_keyboard?: {
+      callback_data?: string;
+      callback_game?: unknown;
+      copy_text?: { text?: string };
+      login_url?: {
+        bot_username?: string;
+        forward_text?: string;
+        request_write_access?: boolean;
+        url: string;
+      };
+      pay?: boolean;
+      switch_inline_query?: string;
+      switch_inline_query_chosen_chat?: {
+        allow_bot_chats?: boolean;
+        allow_channel_chats?: boolean;
+        allow_group_chats?: boolean;
+        allow_user_chats?: boolean;
+        query?: string;
+      };
+      switch_inline_query_current_chat?: string;
+      text: string;
+      url?: string;
+      web_app?: { url: string };
+    }[][];
+  };
+  suggested_post_info?: {
+    price?: { amount?: number; currency?: string };
+    send_date?: number;
+    state?: string;
+  };
+  direct_messages_topic?: { topic_id?: number; name?: string };
+  guest_bot_caller_user?: TelegramUser;
+  guest_bot_caller_chat?: TelegramChat;
+  reply_to_checklist_task_id?: number;
+  reply_to_message?: {
+    caption?: string;
+    from?: TelegramUser;
+    message_id: number;
+    text?: string;
+  };
+  reply_to_poll_option_id?: string;
+  reply_to_story?: { id?: number };
+  rich_message?: unknown;
+  sender_boost_count?: number;
+  sender_business_bot?: TelegramUser;
+  sender_chat?: TelegramChat;
+  sender_tag?: string;
+  show_caption_above_media?: boolean;
   sticker?: {
     emoji?: string;
     file_id: string;
@@ -124,25 +331,58 @@ export interface TelegramMessage {
     is_animated?: boolean;
     is_video?: boolean;
   };
+  story?: { chat?: TelegramChat; id?: number };
+  successful_payment?: {
+    currency: string;
+    invoice_payload: string;
+    provider_payment_charge_id?: string;
+    telegram_payment_charge_id?: string;
+    total_amount: number;
+  };
+  suggested_post_approval_failed?: unknown;
+  suggested_post_approved?: unknown;
+  suggested_post_declined?: unknown;
+  suggested_post_paid?: unknown;
+  suggested_post_refunded?: unknown;
+  supergroup_chat_created?: boolean;
   text?: string;
+  unique_gift?: unknown;
+  users_shared?: { request_id?: number; users?: TelegramUser[] };
   venue?: {
     address: string;
     location: { latitude: number; longitude: number };
     title: string;
   };
+  via_bot?: TelegramUser;
   video?: {
+    duration?: number;
     file_id: string;
     file_name?: string;
+    height?: number;
     mime_type?: string;
     file_size?: number;
+    thumbnail?: { file_id: string };
+    width?: number;
   };
-  video_note?: { file_id: string; file_size?: number };
+  video_chat_ended?: { duration?: number };
+  video_chat_participants_invited?: { users?: TelegramUser[] };
+  video_chat_scheduled?: { start_date?: number };
+  video_chat_started?: unknown;
+  video_note?: {
+    duration?: number;
+    file_id: string;
+    file_size?: number;
+    length?: number;
+    thumbnail?: { file_id: string };
+  };
   voice?: {
     duration?: number;
     file_id: string;
     file_size?: number;
     mime_type?: string;
   };
+  web_app_data?: { button_text?: string; data: string };
+  write_access_allowed?: unknown;
 }
 
 export interface TelegramUpdate {
@@ -197,12 +437,7 @@ export interface TelegramUpdate {
     new_chat_member: { status: string; user: TelegramUser };
     old_chat_member: { status: string; user: TelegramUser };
   };
-  poll?: {
-    id: string;
-    is_closed?: boolean;
-    options: { text: string; voter_count: number }[];
-    question: string;
-  };
+  poll?: TelegramPoll;
   poll_answer?: {
     option_ids: number[];
     poll_id: string;
@@ -361,7 +596,15 @@ export class TelegramClient {
     chatId: string,
     text: string,
     opts?: {
-      linkPreview?: boolean;
+      linkPreview?:
+        | boolean
+        | {
+            disabled?: boolean;
+            preferLargeMedia?: boolean;
+            preferSmallMedia?: boolean;
+            showAboveText?: boolean;
+            url?: string;
+          };
       parseMode?: "HTML" | "MarkdownV2";
       protect?: boolean;
       replyMarkup?: unknown;
@@ -375,8 +618,9 @@ export class TelegramClient {
     if (opts?.parseMode) {
       params.parse_mode = opts.parseMode;
     }
-    if (opts?.linkPreview === false) {
-      params.link_preview_options = { is_disabled: true };
+    const linkPreviewOptions = linkPreviewToTelegram(opts?.linkPreview);
+    if (linkPreviewOptions) {
+      params.link_preview_options = linkPreviewOptions;
     }
     return this.call("sendMessage", params);
   }
@@ -415,10 +659,12 @@ export class TelegramClient {
   setMessageReaction(
     chatId: string,
     messageId: string,
-    emoji: string | null
+    emoji: string | null,
+    opts?: { isBig?: boolean }
   ): Promise<true> {
     return this.call("setMessageReaction", {
       chat_id: chatId,
+      is_big: opts?.isBig,
       message_id: Number(messageId),
       reaction: emoji ? [{ emoji, type: "emoji" }] : [],
     });
@@ -491,21 +737,71 @@ export class TelegramClient {
     });
   }
 
+  deleteWebhook(opts?: { dropPendingUpdates?: boolean }): Promise<true> {
+    return this.call("deleteWebhook", {
+      drop_pending_updates: opts?.dropPendingUpdates,
+    });
+  }
+
   getChat(chatId: string): Promise<{ title?: string; type?: string }> {
     return this.call("getChat", { chat_id: chatId });
   }
 }
 
+/** Map Skyline `linkPreview` to Telegram `link_preview_options`. */
+export function linkPreviewToTelegram(
+  linkPreview?:
+    | boolean
+    | {
+        disabled?: boolean;
+        preferLargeMedia?: boolean;
+        preferSmallMedia?: boolean;
+        showAboveText?: boolean;
+        url?: string;
+      }
+): Record<string, unknown> | undefined {
+  if (linkPreview === undefined || linkPreview === true) {
+    return undefined;
+  }
+  if (linkPreview === false) {
+    return { is_disabled: true };
+  }
+  return {
+    ...(linkPreview.disabled ? { is_disabled: true } : {}),
+    ...(linkPreview.url ? { url: linkPreview.url } : {}),
+    ...(linkPreview.preferLargeMedia ? { prefer_large_media: true } : {}),
+    ...(linkPreview.preferSmallMedia ? { prefer_small_media: true } : {}),
+    ...(linkPreview.showAboveText ? { show_above_text: true } : {}),
+  };
+}
+
 export function applyCommonOpts(
   params: Record<string, unknown>,
   opts?: {
+    allowPaidBroadcast?: boolean;
+    allowSendingWithoutReply?: boolean;
+    businessConnectionId?: string;
+    callbackQueryId?: string;
     caption?: string;
+    directMessagesTopicId?: number | string;
     entities?: unknown[];
+    messageEffectId?: string;
     parseMode?: "HTML" | "MarkdownV2";
     protect?: boolean;
+    quote?: {
+      entities?: { length: number; offset: number; type: string }[];
+      parseMode?: "HTML" | "MarkdownV2";
+      position?: number;
+      text: string;
+    };
+    receiverUserId?: number | string;
     replyMarkup?: unknown;
     replyTo?: string;
     silent?: boolean;
+    suggestedPost?: {
+      price?: { amount: number; currency: string };
+      send_date?: number;
+    };
     threadId?: number | string;
   }
 ): void {
@@ -513,7 +809,59 @@ export function applyCommonOpts(
     return;
   }
   if (opts.replyTo) {
-    params.reply_parameters = { message_id: Number(opts.replyTo) };
+    params.reply_parameters = {
+      message_id: Number(opts.replyTo),
+      ...(opts.allowSendingWithoutReply
+        ? { allow_sending_without_reply: true }
+        : {}),
+      ...(opts.quote
+        ? {
+            quote: opts.quote.text,
+            ...(opts.quote.position != null
+              ? { quote_position: opts.quote.position }
+              : {}),
+            ...(opts.quote.parseMode
+              ? { quote_parse_mode: opts.quote.parseMode }
+              : {}),
+            ...(opts.quote.entities?.length
+              ? { quote_entities: opts.quote.entities }
+              : {}),
+          }
+        : {}),
+    };
+  }
+  if (opts.businessConnectionId) {
+    params.business_connection_id = opts.businessConnectionId;
+  }
+  if (opts.callbackQueryId) {
+    params.callback_query_id = opts.callbackQueryId;
+  }
+  if (opts.directMessagesTopicId != null) {
+    params.direct_messages_topic_id = Number(opts.directMessagesTopicId);
+  }
+  if (opts.receiverUserId != null) {
+    params.receiver_user_id = Number(opts.receiverUserId);
+  }
+  if (opts.suggestedPost) {
+    params.suggested_post_parameters = {
+      ...(opts.suggestedPost.price
+        ? {
+            price: {
+              amount: opts.suggestedPost.price.amount,
+              currency: opts.suggestedPost.price.currency,
+            },
+          }
+        : {}),
+      ...(opts.suggestedPost.send_date != null
+        ? { send_date: opts.suggestedPost.send_date }
+        : {}),
+    };
+  }
+  if (opts.messageEffectId) {
+    params.message_effect_id = opts.messageEffectId;
+  }
+  if (opts.allowPaidBroadcast) {
+    params.allow_paid_broadcast = true;
   }
   if (opts.threadId != null) {
     params.message_thread_id = Number(opts.threadId);
@@ -675,6 +1023,48 @@ export function replyMarkupToTelegram(
               out.switch_inline_query_current_chat =
                 btn.switchInlineQueryCurrentChat;
             }
+            if (btn.switchInlineQueryChosenChat) {
+              out.switch_inline_query_chosen_chat = {
+                ...(btn.switchInlineQueryChosenChat.query != null
+                  ? { query: btn.switchInlineQueryChosenChat.query }
+                  : {}),
+                ...(btn.switchInlineQueryChosenChat.allowUserChats
+                  ? { allow_user_chats: true }
+                  : {}),
+                ...(btn.switchInlineQueryChosenChat.allowBotChats
+                  ? { allow_bot_chats: true }
+                  : {}),
+                ...(btn.switchInlineQueryChosenChat.allowGroupChats
+                  ? { allow_group_chats: true }
+                  : {}),
+                ...(btn.switchInlineQueryChosenChat.allowChannelChats
+                  ? { allow_channel_chats: true }
+                  : {}),
+              };
+            }
+            if (btn.loginUrl) {
+              out.login_url = {
+                url: btn.loginUrl.url,
+                ...(btn.loginUrl.forwardText
+                  ? { forward_text: btn.loginUrl.forwardText }
+                  : {}),
+                ...(btn.loginUrl.botUsername
+                  ? { bot_username: btn.loginUrl.botUsername }
+                  : {}),
+                ...(btn.loginUrl.requestWriteAccess
+                  ? { request_write_access: true }
+                  : {}),
+              };
+            }
+            if (btn.copyText) {
+              out.copy_text = { text: btn.copyText };
+            }
+            if (btn.pay) {
+              out.pay = true;
+            }
+            if (btn.callbackGame) {
+              out.callback_game = {};
+            }
             return out;
           })
         ),
@@ -731,6 +1121,13 @@ export function startTelegramPolling(
   let offset = 0;
 
   const loop = async () => {
+    // getUpdates returns 409 while a webhook is registered; clear it so
+    // long-poll works after switching away from a webhook deployment.
+    try {
+      await client.deleteWebhook();
+    } catch {
+      /* no webhook set / start polling anyway */
+    }
     try {
       // Drain backlog so a new process does not replay stale callbacks/messages.
       for (;;) {
@@ -843,7 +1240,12 @@ export function createTelegramWebhookHandler(opts: {
 export async function ensureTelegramWebhook(
   client: TelegramClient,
   webhookUrl: string,
-  secretToken?: string
+  opts?: {
+    certificate?: string;
+    ipAddress?: string;
+    maxConnections?: number;
+    secretToken?: string;
+  }
 ): Promise<void> {
   const info = await client.call<{ url?: string }>("getWebhookInfo");
   if (info.url === webhookUrl) {
@@ -851,8 +1253,11 @@ export async function ensureTelegramWebhook(
   }
   await client.call("setWebhook", {
     allowed_updates: [...ALLOWED_UPDATES],
+    certificate: opts?.certificate,
     drop_pending_updates: false,
-    secret_token: secretToken,
+    ip_address: opts?.ipAddress,
+    max_connections: opts?.maxConnections,
+    secret_token: opts?.secretToken,
     url: webhookUrl,
   });
 }

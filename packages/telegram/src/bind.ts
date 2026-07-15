@@ -9,6 +9,10 @@ import type {
   BusinessConnectionInfo,
   BusinessOps,
   Channel,
+  ChatInfo,
+  ChatInfoTelegram,
+  ChatInviteLink,
+  ChatMember,
   EphemeralOps,
   GameHighScore,
   GiftsPage,
@@ -19,11 +23,13 @@ import type {
   PostsOps,
   PreparedInlineResult,
   PreparedKeyboardResult,
+  ReactionTypeInfo,
   StickerInfo,
   StickerOps,
   StickerSet,
   StoryOps,
   StoryRef,
+  TransactionPartnerInfo,
   User,
   WebAppOps,
 } from "@skyline-ts/core";
@@ -38,11 +44,15 @@ import {
   withResponding,
 } from "@skyline-ts/core/host";
 import {
+  type TelegramMessage,
+  type TelegramMessageEntity,
+  type TelegramPoll,
   TelegramClient,
   asTelegramParams,
   createTelegramWebhookHandler,
   ensureTelegramWebhook,
   inlineQueryResultToTelegram,
+  linkPreviewToTelegram,
   replyMarkupToTelegram,
   startTelegramPolling,
 } from "./client.js";
@@ -54,7 +64,9 @@ import {
 } from "./config.js";
 import {
   dispatchTelegramUpdate,
+  entitiesFromTelegram,
   getCachedPoll,
+  messageFromTelegram,
   rememberPollFromTelegram,
 } from "./inbound.js";
 import {
@@ -72,6 +84,493 @@ function telegramUser(user: {
     displayName: user.first_name ?? user.username,
     handle: user.username,
     id: String(user.id),
+  };
+}
+
+interface TgGeo {
+  latitude: number;
+  longitude: number;
+}
+
+interface TgChatFullInfo {
+  accent_color_id?: number;
+  accepted_gift_types?: {
+    limited_gifts?: boolean;
+    premium_subscription?: boolean;
+    unique_gifts?: boolean;
+    unlimited_gifts?: boolean;
+  };
+  active_usernames?: string[];
+  available_reactions?: {
+    custom_emoji_id?: string;
+    emoji?: string;
+    type: string;
+  }[];
+  background_custom_emoji_id?: string;
+  bio?: string;
+  birthdate?: { day: number; month: number; year?: number };
+  business_intro?: {
+    message?: string;
+    sticker?: {
+      emoji?: string;
+      file_id: string;
+      is_animated?: boolean;
+      is_video?: boolean;
+      set_name?: string;
+    };
+    title?: string;
+  };
+  business_location?: { address: string; location?: TgGeo };
+  business_opening_hours?: {
+    opening_hours?: { closing_minute: number; opening_minute: number }[];
+    time_zone_name: string;
+  };
+  can_send_paid_media?: boolean;
+  can_set_sticker_set?: boolean;
+  community?: { id: number; name: string };
+  custom_emoji_sticker_set_name?: string;
+  description?: string;
+  emoji_status_custom_emoji_id?: string;
+  emoji_status_expiration_date?: number;
+  first_name?: string;
+  first_profile_audio?: {
+    duration?: number;
+    file_id: string;
+    file_unique_id?: string;
+    mime_type?: string;
+    performer?: string;
+    title?: string;
+  };
+  guard_bot?: { first_name?: string; id: number; username?: string };
+  has_aggressive_anti_spam_enabled?: boolean;
+  has_hidden_members?: boolean;
+  has_private_forwards?: boolean;
+  has_protected_content?: boolean;
+  has_restricted_voice_and_video_messages?: boolean;
+  has_visible_history?: boolean;
+  id: number;
+  invite_link?: string;
+  is_direct_messages?: boolean;
+  is_forum?: boolean;
+  join_by_request?: boolean;
+  join_to_send_messages?: boolean;
+  last_name?: string;
+  linked_chat_id?: number;
+  location?: { address: string; location: TgGeo };
+  max_reaction_count?: number;
+  message_auto_delete_time?: number;
+  paid_message_star_count?: number;
+  parent_chat?: TgChatFullInfo;
+  permissions?: Record<string, boolean | undefined>;
+  personal_chat?: TgChatFullInfo;
+  photo?: {
+    big_file_id: string;
+    big_file_unique_id: string;
+    small_file_id: string;
+    small_file_unique_id: string;
+  };
+  pinned_message?: TelegramMessage;
+  profile_accent_color_id?: number;
+  profile_background_custom_emoji_id?: string;
+  rating?: {
+    current_level_rating: number;
+    level: number;
+    next_level_rating?: number;
+    rating: number;
+  };
+  slow_mode_delay?: number;
+  sticker_set_name?: string;
+  title?: string;
+  type: string;
+  unique_gift_colors?: {
+    dark_theme_main_color: number;
+    dark_theme_other_colors: number[];
+    light_theme_main_color: number;
+    light_theme_other_colors: number[];
+    model_custom_emoji_id: string;
+    symbol_custom_emoji_id: string;
+  };
+  unrestrict_boost_count?: number;
+  username?: string;
+}
+
+function reactionTypeInfoFromTelegram(raw: {
+  custom_emoji_id?: string;
+  emoji?: string;
+  type: string;
+}): ReactionTypeInfo {
+  if (raw.type === "custom_emoji") {
+    return { customEmojiId: raw.custom_emoji_id ?? "", type: "custom_emoji" };
+  }
+  if (raw.type === "paid") {
+    return { type: "paid" };
+  }
+  return { emoji: raw.emoji ?? "", type: "emoji" };
+}
+
+/** Map Telegram `ChatFullInfo` (from getChat) into the unified `ChatInfo`. */
+function chatInfoFromTelegram(
+  client: TelegramClient,
+  channel: Channel,
+  raw: TgChatFullInfo
+): ChatInfo {
+  const g = raw.accepted_gift_types;
+  const telegram: ChatInfoTelegram = {
+    acceptedGiftTypes: g
+      ? {
+          limitedGifts: Boolean(g.limited_gifts),
+          premiumSubscription: Boolean(g.premium_subscription),
+          unlimitedGifts: Boolean(g.unlimited_gifts),
+          uniqueGifts: Boolean(g.unique_gifts),
+        }
+      : undefined,
+    accentColorId: raw.accent_color_id,
+    activeUsernames: raw.active_usernames,
+    availableReactions: Array.isArray(raw.available_reactions)
+      ? raw.available_reactions.map(reactionTypeInfoFromTelegram)
+      : undefined,
+    backgroundCustomEmojiId: raw.background_custom_emoji_id,
+    birthdate: raw.birthdate
+      ? {
+          day: raw.birthdate.day,
+          month: raw.birthdate.month,
+          year: raw.birthdate.year,
+        }
+      : undefined,
+    businessIntro: raw.business_intro
+      ? {
+          message: raw.business_intro.message,
+          sticker: raw.business_intro.sticker
+            ? {
+                emoji: raw.business_intro.sticker.emoji,
+                fileId: raw.business_intro.sticker.file_id,
+                isAnimated: raw.business_intro.sticker.is_animated,
+                isVideo: raw.business_intro.sticker.is_video,
+                setName: raw.business_intro.sticker.set_name,
+              }
+            : undefined,
+          title: raw.business_intro.title,
+        }
+      : undefined,
+    businessLocation: raw.business_location
+      ? {
+          address: raw.business_location.address,
+          location: raw.business_location.location
+            ? {
+                latitude: raw.business_location.location.latitude,
+                longitude: raw.business_location.location.longitude,
+              }
+            : undefined,
+        }
+      : undefined,
+    businessOpeningHours: raw.business_opening_hours
+      ? {
+          openingHours: (
+            raw.business_opening_hours.opening_hours ?? []
+          ).map((interval: { closing_minute: number; opening_minute: number }) => ({
+            closingMinute: interval.closing_minute,
+            openingMinute: interval.opening_minute,
+          })),
+          timeZoneName: raw.business_opening_hours.time_zone_name,
+        }
+      : undefined,
+    canSendPaidMedia: raw.can_send_paid_media,
+    community: raw.community
+      ? { id: String(raw.community.id), name: raw.community.name }
+      : undefined,
+    customEmojiStickerSetName: raw.custom_emoji_sticker_set_name,
+    emojiStatusCustomEmojiId: raw.emoji_status_custom_emoji_id,
+    emojiStatusExpirationDate: raw.emoji_status_expiration_date,
+    firstProfileAudio: raw.first_profile_audio
+      ? {
+          duration: raw.first_profile_audio.duration,
+          fileId: raw.first_profile_audio.file_id,
+          fileUniqueId: raw.first_profile_audio.file_unique_id,
+          mimeType: raw.first_profile_audio.mime_type,
+          performer: raw.first_profile_audio.performer,
+          title: raw.first_profile_audio.title,
+        }
+      : undefined,
+    guardBot: raw.guard_bot ? telegramUser(raw.guard_bot) : undefined,
+    hasPrivateForwards: raw.has_private_forwards,
+    hasRestrictedVoiceAndVideoMessages:
+      raw.has_restricted_voice_and_video_messages,
+    isDirectMessages: raw.is_direct_messages,
+    maxReactionCount: raw.max_reaction_count,
+    paidMessageStarCount: raw.paid_message_star_count,
+    parentChat: raw.parent_chat
+      ? chatInfoFromTelegram(client, channel, raw.parent_chat)
+      : undefined,
+    personalChat: raw.personal_chat
+      ? chatInfoFromTelegram(client, channel, raw.personal_chat)
+      : undefined,
+    profileAccentColorId: raw.profile_accent_color_id,
+    profileBackgroundCustomEmojiId: raw.profile_background_custom_emoji_id,
+    rating: raw.rating
+      ? {
+          currentLevelRating: raw.rating.current_level_rating,
+          level: raw.rating.level,
+          nextLevelRating: raw.rating.next_level_rating,
+          rating: raw.rating.rating,
+        }
+      : undefined,
+    uniqueGiftColors: raw.unique_gift_colors
+      ? {
+          darkThemeMainColor: raw.unique_gift_colors.dark_theme_main_color,
+          darkThemeOtherColors: raw.unique_gift_colors.dark_theme_other_colors,
+          lightThemeMainColor: raw.unique_gift_colors.light_theme_main_color,
+          lightThemeOtherColors: raw.unique_gift_colors.light_theme_other_colors,
+          modelCustomEmojiId: raw.unique_gift_colors.model_custom_emoji_id,
+          symbolCustomEmojiId: raw.unique_gift_colors.symbol_custom_emoji_id,
+        }
+      : undefined,
+    unrestrictBoostCount: raw.unrestrict_boost_count,
+  };
+  const pinned = raw.pinned_message
+    ? messageFromTelegram(channel, client, raw.pinned_message, "")
+    : undefined;
+  return {
+    bio: raw.bio,
+    canSetStickerSet: raw.can_set_sticker_set,
+    description: raw.description,
+    firstName: raw.first_name,
+    hasAggressiveAntiSpamEnabled: raw.has_aggressive_anti_spam_enabled,
+    hasHiddenMembers: raw.has_hidden_members,
+    hasProtectedContent: raw.has_protected_content,
+    hasVisibleHistory: raw.has_visible_history,
+    id: String(raw.id),
+    inviteLink: raw.invite_link,
+    isForum: raw.is_forum,
+    joinByRequest: raw.join_by_request,
+    joinToSendMessages: raw.join_to_send_messages,
+    lastName: raw.last_name,
+    linkedChatId:
+      raw.linked_chat_id != null ? String(raw.linked_chat_id) : undefined,
+    location: raw.location
+      ? {
+          address: raw.location.address,
+          location: {
+            latitude: raw.location.location.latitude,
+            longitude: raw.location.location.longitude,
+          },
+        }
+      : undefined,
+    messageAutoDeleteTime: raw.message_auto_delete_time,
+    permissions: raw.permissions
+      ? {
+          canAddWebPagePreviews: raw.permissions.can_add_web_page_previews,
+          canChangeInfo: raw.permissions.can_change_info,
+          canInviteUsers: raw.permissions.can_invite_users,
+          canManageTopics: raw.permissions.can_manage_topics,
+          canPinMessages: raw.permissions.can_pin_messages,
+          canSendAudios: raw.permissions.can_send_audios,
+          canSendDocuments: raw.permissions.can_send_documents,
+          canSendMessages: raw.permissions.can_send_messages,
+          canSendOtherMessages: raw.permissions.can_send_other_messages,
+          canSendPhotos: raw.permissions.can_send_photos,
+          canSendPolls: raw.permissions.can_send_polls,
+          canSendVideoNotes: raw.permissions.can_send_video_notes,
+          canSendVideos: raw.permissions.can_send_videos,
+          canSendVoiceNotes: raw.permissions.can_send_voice_notes,
+        }
+      : undefined,
+    photo: raw.photo
+      ? {
+          bigFileId: raw.photo.big_file_id,
+          bigFileUniqueId: raw.photo.big_file_unique_id,
+          smallFileId: raw.photo.small_file_id,
+          smallFileUniqueId: raw.photo.small_file_unique_id,
+        }
+      : undefined,
+    pinnedMessage: pinned,
+    slowModeDelay: raw.slow_mode_delay,
+    stickerSetName: raw.sticker_set_name,
+    telegram,
+    title: raw.title,
+    type: raw.type,
+    username: raw.username,
+  };
+}
+
+interface TgChatInviteLink {
+  creates_join_request?: boolean;
+  creator?: { first_name?: string; id: number; username?: string };
+  expire_date?: number;
+  invite_link: string;
+  is_primary?: boolean;
+  is_revoked?: boolean;
+  member_limit?: number;
+  name?: string;
+  pending_join_request_count?: number;
+  subscription_period?: number;
+  subscription_price?: number;
+}
+
+function inviteLinkFromTelegram(raw: TgChatInviteLink): ChatInviteLink {
+  return {
+    createsJoinRequest: Boolean(raw.creates_join_request),
+    creator: telegramUser(raw.creator ?? { id: 0 }),
+    expireDate: raw.expire_date,
+    inviteLink: raw.invite_link,
+    isPrimary: Boolean(raw.is_primary),
+    isRevoked: Boolean(raw.is_revoked),
+    memberLimit: raw.member_limit,
+    name: raw.name,
+    pendingJoinRequestCount: raw.pending_join_request_count,
+    subscriptionPeriod: raw.subscription_period,
+    subscriptionPrice: raw.subscription_price,
+  };
+}
+
+interface TgChatMember {
+  can_add_web_page_previews?: boolean;
+  can_be_edited?: boolean;
+  can_change_info?: boolean;
+  can_delete_messages?: boolean;
+  can_delete_stories?: boolean;
+  can_edit_messages?: boolean;
+  can_edit_stories?: boolean;
+  can_edit_tag?: boolean;
+  can_invite_users?: boolean;
+  can_manage_chat?: boolean;
+  can_manage_direct_messages?: boolean;
+  can_manage_tags?: boolean;
+  can_manage_topics?: boolean;
+  can_manage_video_chats?: boolean;
+  can_pin_messages?: boolean;
+  can_post_messages?: boolean;
+  can_post_stories?: boolean;
+  can_promote_members?: boolean;
+  can_react_to_messages?: boolean;
+  can_restrict_members?: boolean;
+  can_send_audios?: boolean;
+  can_send_documents?: boolean;
+  can_send_messages?: boolean;
+  can_send_other_messages?: boolean;
+  can_send_photos?: boolean;
+  can_send_polls?: boolean;
+  can_send_video_notes?: boolean;
+  can_send_videos?: boolean;
+  can_send_voice_notes?: boolean;
+  custom_title?: string;
+  is_anonymous?: boolean;
+  is_member?: boolean;
+  status: string;
+  tag?: string;
+  until_date?: number;
+  user: { first_name?: string; id: number; username?: string };
+}
+
+function chatMemberFromTelegram(raw: TgChatMember): ChatMember {
+  const user = telegramUser(raw.user);
+  switch (raw.status) {
+    case "creator":
+      return {
+        customTitle: raw.custom_title,
+        isAnonymous: Boolean(raw.is_anonymous),
+        status: "creator",
+        user,
+      };
+    case "administrator":
+      return {
+        canBeEdited: Boolean(raw.can_be_edited),
+        canChangeInfo: Boolean(raw.can_change_info),
+        canDeleteMessages: Boolean(raw.can_delete_messages),
+        canDeleteStories: Boolean(raw.can_delete_stories),
+        canEditMessages: raw.can_edit_messages,
+        canEditStories: Boolean(raw.can_edit_stories),
+        canInviteUsers: Boolean(raw.can_invite_users),
+        canManageChat: Boolean(raw.can_manage_chat),
+        canManageDirectMessages: raw.can_manage_direct_messages,
+        canManageTags: raw.can_manage_tags,
+        canManageTopics: raw.can_manage_topics,
+        canManageVideoChats: Boolean(raw.can_manage_video_chats),
+        canPinMessages: raw.can_pin_messages,
+        canPostMessages: raw.can_post_messages,
+        canPostStories: Boolean(raw.can_post_stories),
+        canPromoteMembers: Boolean(raw.can_promote_members),
+        canRestrictMembers: Boolean(raw.can_restrict_members),
+        customTitle: raw.custom_title,
+        isAnonymous: Boolean(raw.is_anonymous),
+        status: "administrator",
+        user,
+      };
+    case "restricted":
+      return {
+        canAddWebPagePreviews: Boolean(raw.can_add_web_page_previews),
+        canChangeInfo: Boolean(raw.can_change_info),
+        canEditTag: Boolean(raw.can_edit_tag),
+        canInviteUsers: Boolean(raw.can_invite_users),
+        canManageTopics: Boolean(raw.can_manage_topics),
+        canPinMessages: Boolean(raw.can_pin_messages),
+        canReactToMessages: Boolean(raw.can_react_to_messages),
+        canSendAudios: Boolean(raw.can_send_audios),
+        canSendDocuments: Boolean(raw.can_send_documents),
+        canSendMessages: Boolean(raw.can_send_messages),
+        canSendOtherMessages: Boolean(raw.can_send_other_messages),
+        canSendPhotos: Boolean(raw.can_send_photos),
+        canSendPolls: Boolean(raw.can_send_polls),
+        canSendVideoNotes: Boolean(raw.can_send_video_notes),
+        canSendVideos: Boolean(raw.can_send_videos),
+        canSendVoiceNotes: Boolean(raw.can_send_voice_notes),
+        isMember: Boolean(raw.is_member),
+        status: "restricted",
+        tag: raw.tag,
+        untilDate: raw.until_date ?? 0,
+        user,
+      };
+    case "kicked":
+      return { status: "kicked", untilDate: raw.until_date ?? 0, user };
+    case "left":
+      return { status: "left", user };
+    default:
+      return { status: "member", tag: raw.tag, untilDate: raw.until_date, user };
+  }
+}
+
+interface TgTransactionPartner {
+  chat?: { id: number };
+  commission_per_mille?: number;
+  gift?: { id?: string | number };
+  invoice_payload?: string;
+  paid_media_payload?: string;
+  premium_subscription_duration?: number;
+  request_count?: number;
+  sponsor_user?: { id: number };
+  subscription_period?: number;
+  transaction_type?: string;
+  type: string;
+  user?: { first_name?: string; id: number; username?: string };
+  withdrawal_state?: { date?: number; type: string; url?: string };
+}
+
+function transactionPartnerFromTelegram(
+  raw?: TgTransactionPartner
+): TransactionPartnerInfo | undefined {
+  if (!raw) {
+    return;
+  }
+  return {
+    chatId: raw.chat != null ? String(raw.chat.id) : undefined,
+    commissionPerMille: raw.commission_per_mille,
+    giftId: raw.gift?.id != null ? String(raw.gift.id) : undefined,
+    invoicePayload: raw.invoice_payload,
+    paidMediaPayload: raw.paid_media_payload,
+    premiumSubscriptionDuration: raw.premium_subscription_duration,
+    requestCount: raw.request_count,
+    sponsorUserId:
+      raw.sponsor_user != null ? String(raw.sponsor_user.id) : undefined,
+    subscriptionPeriod: raw.subscription_period,
+    transactionType: raw.transaction_type,
+    type: raw.type,
+    user: raw.user ? telegramUser(raw.user) : undefined,
+    withdrawalState: raw.withdrawal_state
+      ? {
+          date: raw.withdrawal_state.date,
+          type: raw.withdrawal_state.type,
+          url: raw.withdrawal_state.url,
+        }
+      : undefined,
   };
 }
 
@@ -214,10 +713,10 @@ function createBinder(host: SkylineHost) {
         "telegram"
       );
     const sugar = contentSugar(send);
-    const listAdmins = async () => {
+    const listAdmins = async (opts?: { returnBots?: boolean }) => {
       const admins = await client().call<
         { user: { id: number; username?: string; first_name?: string } }[]
-      >("getChatAdministrators", { chat_id: to });
+      >("getChatAdministrators", { chat_id: to, return_bots: opts?.returnBots });
       return admins.map((row) => ({
         displayName: row.user.first_name ?? row.user.username,
         handle: row.user.username,
@@ -279,10 +778,13 @@ function createBinder(host: SkylineHost) {
       business: createTelegramBusinessOps((method, params) =>
         client().call(method, params)
       ),
-      clearReactions: async (messageGuid) => {
+      clearReactions: async (opts) => {
         await client().call("deleteAllMessageReactions", {
+          actor_chat_id: opts?.actorChatId
+            ? Number(opts.actorChatId)
+            : undefined,
           chat_id: to,
-          message_id: Number(messageGuid),
+          user_id: opts?.userId ? Number(opts.userId) : undefined,
         });
       },
       commands: {
@@ -403,7 +905,6 @@ function createBinder(host: SkylineHost) {
         }>("getUserPersonalChatMessages", {
           user_id: Number(userId),
           limit: opts?.limit,
-          offset_id: opts?.offsetId,
         });
         return {
           messages: (result.messages ?? []).map((msg) => ({
@@ -415,24 +916,10 @@ function createBinder(host: SkylineHost) {
         };
       },
       info: async () => {
-        const chat = await client().call<{
-          description?: string;
-          id: number;
-          invite_link?: string;
-          is_forum?: boolean;
-          title?: string;
-          type: string;
-          username?: string;
-        }>("getChat", { chat_id: to });
-        return {
-          description: chat.description,
-          id: String(chat.id),
-          inviteLink: chat.invite_link,
-          isForum: chat.is_forum,
-          title: chat.title,
-          type: chat.type,
-          username: chat.username,
-        };
+        const chat = await client().call<TgChatFullInfo>("getChat", {
+          chat_id: to,
+        });
+        return chatInfoFromTelegram(client(), channel, chat);
       },
       group: {
         add: () =>
@@ -451,6 +938,13 @@ function createBinder(host: SkylineHost) {
           }
         },
         leave: () => sugar.leave(),
+        member: async (handle) => {
+          const raw = await client().call<TgChatMember>("getChatMember", {
+            chat_id: to,
+            user_id: Number(handle),
+          });
+          return chatMemberFromTelegram(raw);
+        },
         memberCount: async () =>
           client().call<number>("getChatMemberCount", { chat_id: to }),
         /** Bot API: administrators (full member lists are not available to bots). */
@@ -462,50 +956,48 @@ function createBinder(host: SkylineHost) {
         setName: (name) => sugar.rename(name),
       },
       invite: {
-        create: async (opts) => {
-          const link = await client().call<{ invite_link: string }>(
-            "createChatInviteLink",
-            { chat_id: to, ...asTelegramParams(opts ?? {}) }
-          );
-          return link.invite_link;
-        },
-        createSubscription: async (opts) => {
-          const link = await client().call<{ invite_link: string }>(
-            "createChatSubscriptionInviteLink",
-            { chat_id: to, ...asTelegramParams(opts) }
-          );
-          return link.invite_link;
-        },
-        edit: async (inviteLink, opts) => {
-          const link = await client().call<{ invite_link: string }>(
-            "editChatInviteLink",
-            {
+        create: async (opts) =>
+          inviteLinkFromTelegram(
+            await client().call<TgChatInviteLink>("createChatInviteLink", {
+              chat_id: to,
+              ...asTelegramParams(opts ?? {}),
+            })
+          ),
+        createSubscription: async (opts) =>
+          inviteLinkFromTelegram(
+            await client().call<TgChatInviteLink>(
+              "createChatSubscriptionInviteLink",
+              { chat_id: to, ...asTelegramParams(opts) }
+            )
+          ),
+        edit: async (inviteLink, opts) =>
+          inviteLinkFromTelegram(
+            await client().call<TgChatInviteLink>("editChatInviteLink", {
               chat_id: to,
               invite_link: inviteLink,
               ...asTelegramParams(opts ?? {}),
-            }
-          );
-          return link.invite_link;
-        },
-        editSubscription: async (inviteLink, opts) => {
-          const link = await client().call<{ invite_link: string }>(
-            "editChatSubscriptionInviteLink",
-            {
-              chat_id: to,
-              invite_link: inviteLink,
-              ...asTelegramParams(opts ?? {}),
-            }
-          );
-          return link.invite_link;
-        },
+            })
+          ),
+        editSubscription: async (inviteLink, opts) =>
+          inviteLinkFromTelegram(
+            await client().call<TgChatInviteLink>(
+              "editChatSubscriptionInviteLink",
+              {
+                chat_id: to,
+                invite_link: inviteLink,
+                ...asTelegramParams(opts ?? {}),
+              }
+            )
+          ),
         export: async () =>
           client().call<string>("exportChatInviteLink", { chat_id: to }),
-        revoke: async (inviteLink) => {
-          await client().call("revokeChatInviteLink", {
-            chat_id: to,
-            invite_link: inviteLink,
-          });
-        },
+        revoke: async (inviteLink) =>
+          inviteLinkFromTelegram(
+            await client().call<TgChatInviteLink>("revokeChatInviteLink", {
+              chat_id: to,
+              invite_link: inviteLink,
+            })
+          ),
       },
       invoiceLink: async (input) => {
         const {
@@ -540,11 +1032,7 @@ function createBinder(host: SkylineHost) {
         addOption: async () => host.unsupported("telegram", "poll.addOption"),
         get: async (pollMessageGuid) => getCachedPoll(to, pollMessageGuid),
         stop: async (pollMessageGuid) => {
-          const poll = await client().call<{
-            id: string;
-            options: { text: string; voter_count: number }[];
-            question: string;
-          }>("stopPoll", {
+          const poll = await client().call<TelegramPoll>("stopPoll", {
             chat_id: to,
             message_id: Number(pollMessageGuid),
           });
@@ -749,23 +1237,43 @@ function createBinder(host: SkylineHost) {
         },
         me: async () => {
           const me = await client().call<{
+            added_to_attachment_menu?: boolean;
+            allows_users_to_create_topics?: boolean;
             can_connect_to_business?: boolean;
             can_join_groups?: boolean;
+            can_manage_bots?: boolean;
             can_read_all_group_messages?: boolean;
             first_name: string;
+            has_main_web_app?: boolean;
+            has_topics_enabled?: boolean;
             id: number;
             is_bot: boolean;
+            is_premium?: boolean;
+            language_code?: string;
+            last_name?: string;
+            supports_guest_queries?: boolean;
             supports_inline_queries?: boolean;
+            supports_join_request_queries?: boolean;
             username?: string;
           }>("getMe");
           return {
+            addedToAttachmentMenu: me.added_to_attachment_menu,
+            allowsUsersToCreateTopics: me.allows_users_to_create_topics,
             canConnectToBusiness: me.can_connect_to_business,
             canJoinGroups: me.can_join_groups,
+            canManageBots: me.can_manage_bots,
             canReadAllGroupMessages: me.can_read_all_group_messages,
             firstName: me.first_name,
+            hasMainWebApp: me.has_main_web_app,
+            hasTopicsEnabled: me.has_topics_enabled,
             id: String(me.id),
             isBot: me.is_bot,
+            isPremium: me.is_premium,
+            languageCode: me.language_code,
+            lastName: me.last_name,
+            supportsGuestQueries: me.supports_guest_queries,
             supportsInlineQueries: me.supports_inline_queries,
+            supportsJoinRequestQueries: me.supports_join_request_queries,
             username: me.username,
           };
         },
@@ -830,7 +1338,8 @@ function createBinder(host: SkylineHost) {
               date: number;
               id: string;
               nanostar_amount?: number;
-              source?: { type?: string };
+              receiver?: TgTransactionPartner;
+              source?: TgTransactionPartner;
             }[];
           }>("getStarTransactions", {
             limit: opts?.limit,
@@ -842,7 +1351,8 @@ function createBinder(host: SkylineHost) {
               date: tx.date,
               id: tx.id,
               nanostarAmount: tx.nanostar_amount,
-              source: tx.source?.type,
+              receiver: transactionPartnerFromTelegram(tx.receiver),
+              source: transactionPartnerFromTelegram(tx.source),
             })),
           };
         },
@@ -864,7 +1374,9 @@ function createBinder(host: SkylineHost) {
         if (!isAllowedReactionEmoji(emoji)) {
           host.unsupported("telegram", `reaction emoji "${reaction}"`);
         }
-        await client().setMessageReaction(to, messageGuid, emoji);
+        await client().setMessageReaction(to, messageGuid, emoji, {
+          isBig: reactOpts?.big,
+        });
       },
       read: async () => {},
       readReceipt: async () => {},
@@ -1100,9 +1612,10 @@ function createBinder(host: SkylineHost) {
       webApp: createTelegramWebAppOps((method, params) =>
         client().call(method, params)
       ),
-      unban: async (userId) => {
+      unban: async (userId, opts) => {
         await client().call("unbanChatMember", {
           chat_id: to,
+          only_if_banned: opts?.onlyIfBanned,
           user_id: Number(userId),
         });
       },
@@ -1146,14 +1659,28 @@ function createBinder(host: SkylineHost) {
       baseUrl: line.telegram.baseUrl,
       botToken,
     });
+    const includeRaw = Boolean(line.telegram?.includeRaw);
     const onUpdate = (update: Parameters<typeof dispatchTelegramUpdate>[5]) => {
-      dispatchTelegramUpdate(host, makeChannel, client, botId, key, update);
+      dispatchTelegramUpdate(
+        host,
+        makeChannel,
+        client,
+        botId,
+        key,
+        update,
+        includeRaw
+      );
     };
 
     const webhookUrl = line.telegram.webhookUrl;
     const webhookSecret = line.telegram.webhookSecret;
     if (webhookUrl) {
-      void ensureTelegramWebhook(client, webhookUrl, webhookSecret);
+      void ensureTelegramWebhook(client, webhookUrl, {
+        certificate: line.telegram.webhookCertificate,
+        ipAddress: line.telegram.webhookIpAddress,
+        maxConnections: line.telegram.webhookMaxConnections,
+        secretToken: webhookSecret,
+      });
       webhookHandlers.set(
         botId,
         createTelegramWebhookHandler({
@@ -1162,6 +1689,7 @@ function createBinder(host: SkylineHost) {
         })
       );
       host.live.set(key, {
+        includeRaw,
         platform: "telegram",
         streams: [],
         telegram: client,
@@ -1172,6 +1700,7 @@ function createBinder(host: SkylineHost) {
 
     const poll = startTelegramPolling(client, { onUpdate });
     host.live.set(key, {
+      includeRaw,
       platform: "telegram",
       streams: [poll],
       telegram: client,
@@ -1193,19 +1722,48 @@ export function bind(host: SkylineHost, _config: TelegramConfig): void {
 }
 
 type TelegramOwnedGift = {
+  can_be_transferred?: boolean;
+  can_be_upgraded?: boolean;
+  convert_star_count?: number;
+  entities?: TelegramMessageEntity[];
   gift?: { id?: string | number; star_count?: number };
+  is_private?: boolean;
+  is_saved?: boolean;
+  is_upgrade_separate?: boolean;
+  next_transfer_date?: number;
   owned_gift_id?: string;
+  prepaid_upgrade_star_count?: number;
   send_date?: number;
+  sender_user?: { id: number };
+  text?: string;
+  transfer_star_count?: number;
   type?: string;
+  unique_gift_number?: number;
+  was_refunded?: boolean;
 };
 
 function ownedGiftFromTelegram(gift: TelegramOwnedGift): OwnedGift {
   return {
+    canBeTransferred: gift.can_be_transferred,
+    canBeUpgraded: gift.can_be_upgraded,
+    convertStarCount: gift.convert_star_count,
+    entities: entitiesFromTelegram(gift.entities),
     giftId: String(gift.gift?.id ?? ""),
+    isPrivate: gift.is_private,
+    isSaved: gift.is_saved,
+    isUpgradeSeparate: gift.is_upgrade_separate,
+    nextTransferDate: gift.next_transfer_date,
     ownedGiftId: gift.owned_gift_id,
+    prepaidUpgradeStarCount: gift.prepaid_upgrade_star_count,
     sendDate: gift.send_date,
+    senderUserId:
+      gift.sender_user != null ? String(gift.sender_user.id) : undefined,
     starCount: gift.gift?.star_count,
+    text: gift.text,
+    transferStarCount: gift.transfer_star_count,
     type: gift.type,
+    uniqueGiftNumber: gift.unique_gift_number,
+    wasRefunded: gift.was_refunded,
   };
 }
 
@@ -1388,12 +1946,50 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
   return {
     availableGifts: async () => {
       const result = await call<{
-        gifts?: { id: string | number; star_count?: number }[];
+        gifts?: {
+          background?: {
+            center_color: number;
+            edge_color: number;
+            text_color: number;
+          };
+          has_colors?: boolean;
+          id: string | number;
+          is_premium?: boolean;
+          personal_remaining_count?: number;
+          personal_total_count?: number;
+          publisher_chat?: { id: number };
+          remaining_count?: number;
+          star_count?: number;
+          sticker?: TelegramSticker;
+          total_count?: number;
+          unique_gift_variant_count?: number;
+          upgrade_star_count?: number;
+        }[];
       }>("getAvailableGifts");
       return {
         gifts: (result.gifts ?? []).map((gift) => ({
+          background: gift.background
+            ? {
+                centerColor: gift.background.center_color,
+                edgeColor: gift.background.edge_color,
+                textColor: gift.background.text_color,
+              }
+            : undefined,
+          hasColors: gift.has_colors,
           id: String(gift.id),
+          isPremium: gift.is_premium,
+          personalRemainingCount: gift.personal_remaining_count,
+          personalTotalCount: gift.personal_total_count,
+          publisherChatId:
+            gift.publisher_chat != null
+              ? String(gift.publisher_chat.id)
+              : undefined,
+          remainingCount: gift.remaining_count,
           starCount: gift.star_count,
+          sticker: gift.sticker ? stickerInfo(gift.sticker) : undefined,
+          totalCount: gift.total_count,
+          uniqueGiftVariantCount: gift.unique_gift_variant_count,
+          upgradeStarCount: gift.upgrade_star_count,
         })),
       };
     },
@@ -1436,47 +2032,30 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
       giftsPageFromTelegram(
         await call("getBusinessAccountGifts", asTelegramParams(opts))
       ),
-    managedAccessSettings: async (opts) => {
+    managedAccessSettings: async (userId) => {
       const settings = await call<{
-        can_change_gift_settings?: boolean;
-        can_delete_all_messages?: boolean;
-        can_delete_sent_messages?: boolean;
-        can_delete_stories?: boolean;
-        can_edit_bio?: boolean;
-        can_edit_name?: boolean;
-        can_edit_profile_photo?: boolean;
-        can_edit_stories?: boolean;
-        can_edit_username?: boolean;
-        can_manage_bot?: boolean;
-        can_manage_stories?: boolean;
-        can_post_stories?: boolean;
-        can_read_messages?: boolean;
-        can_reply?: boolean;
-        can_sell_gifts?: boolean;
-        can_view_gifts_and_stars?: boolean;
-      }>("getManagedBotAccessSettings", asTelegramParams(opts ?? {}));
+        added_users?: {
+          first_name?: string;
+          id: number;
+          language_code?: string;
+          username?: string;
+        }[];
+        is_access_restricted: boolean;
+      }>("getManagedBotAccessSettings", { user_id: Number(userId) });
       return {
-        canChangeGiftSettings: settings.can_change_gift_settings,
-        canDeleteAllMessages: settings.can_delete_all_messages,
-        canDeleteSentMessages: settings.can_delete_sent_messages,
-        canDeleteStories: settings.can_delete_stories,
-        canEditBio: settings.can_edit_bio,
-        canEditName: settings.can_edit_name,
-        canEditProfilePhoto: settings.can_edit_profile_photo,
-        canEditStories: settings.can_edit_stories,
-        canEditUsername: settings.can_edit_username,
-        canManageBot: settings.can_manage_bot,
-        canManageStories: settings.can_manage_stories,
-        canPostStories: settings.can_post_stories,
-        canReadMessages: settings.can_read_messages,
-        canReply: settings.can_reply,
-        canSellGifts: settings.can_sell_gifts,
-        canViewGiftsAndStars: settings.can_view_gifts_and_stars,
+        addedUsers: (settings.added_users ?? []).map((user) => ({
+          displayName: user.first_name ?? user.username,
+          handle: user.username,
+          id: String(user.id),
+          languageCode: user.language_code,
+        })),
+        isAccessRestricted: settings.is_access_restricted,
       };
     },
-    managedToken: async () => {
+    managedToken: async (userId) => {
       const result = await call<string | { token?: string }>(
-        "getManagedBotToken"
+        "getManagedBotToken",
+        { user_id: Number(userId) }
       );
       if (typeof result === "string") {
         return { token: result };
@@ -1501,10 +2080,10 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
     removeUserVerification: async (userId) => {
       await call("removeUserVerification", { user_id: Number(userId) });
     },
-    replaceManagedToken: async (opts) => {
+    replaceManagedToken: async (userId) => {
       const result = await call<string | { token?: string }>(
         "replaceManagedBotToken",
-        asTelegramParams(opts ?? {})
+        { user_id: Number(userId) }
       );
       if (typeof result === "string") {
         return { token: result };
@@ -1521,7 +2100,11 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
       await call("setBusinessAccountGiftSettings", asTelegramParams(input));
     },
     setManagedAccessSettings: async (input) => {
-      await call("setManagedBotAccessSettings", asTelegramParams(input));
+      await call("setManagedBotAccessSettings", {
+        added_user_ids: input.addedUserIds?.map(Number),
+        is_access_restricted: input.isAccessRestricted,
+        user_id: Number(input.userId),
+      });
     },
     setName: async (input) => {
       await call("setBusinessAccountName", asTelegramParams(input));
@@ -1575,22 +2158,20 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
 
 export function createTelegramWebAppOps(call: Call): WebAppOps {
   return {
-    answerGuest: async (queryId, opts) => {
-      await call("answerGuestQuery", {
-        guest_query_id: queryId,
-        cache_time: opts?.cacheTime,
-        is_personal: opts?.isPersonal,
-        next_offset: opts?.nextOffset,
-        results: opts?.results?.map(inlineQueryResultToTelegram),
-      });
+    answerGuest: async (queryId, result) => {
+      const res = await call<{ inline_message_id: string }>(
+        "answerGuestQuery",
+        {
+          guest_query_id: queryId,
+          result: inlineQueryResultToTelegram(result),
+        }
+      );
+      return { inlineMessageId: res.inline_message_id };
     },
-    answerJoinRequest: async (queryId, opts) => {
+    answerJoinRequest: async (queryId, result) => {
       await call("answerChatJoinRequestQuery", {
-        query_id: queryId,
-        cache_time: opts?.cacheTime,
-        is_personal: opts?.isPersonal,
-        next_offset: opts?.nextOffset,
-        results: opts?.results?.map(inlineQueryResultToTelegram),
+        chat_join_request_query_id: queryId,
+        result,
       });
     },
     savePreparedInline: async (input) => {
@@ -1601,7 +2182,6 @@ export function createTelegramWebAppOps(call: Call): WebAppOps {
         allow_bot_chats: input.allowBotChats,
         allow_channel_chats: input.allowChannelChats,
         allow_group_chats: input.allowGroupChats,
-        allow_paid_broadcast: input.allowPaidBroadcast,
         allow_user_chats: input.allowUserChats,
         result: inlineQueryResultToTelegram(input.result),
         user_id: Number(input.userId),
@@ -1628,8 +2208,8 @@ export function createTelegramWebAppOps(call: Call): WebAppOps {
     },
     sendJoinRequest: async (input) => {
       await call("sendChatJoinRequestWebApp", {
-        chat_id: input.chatId,
-        request_id: input.requestId,
+        chat_join_request_query_id: input.queryId,
+        web_app_url: input.webAppUrl,
       });
     },
   };
@@ -1640,46 +2220,52 @@ export function createTelegramEphemeralOps(
   chatId: string
 ): EphemeralOps {
   return {
-    delete: async (messageGuid) => {
+    delete: async (receiverUserId, ephemeralMessageId) => {
       await call("deleteEphemeralMessage", {
         chat_id: chatId,
-        message_id: Number(messageGuid),
+        ephemeral_message_id: Number(ephemeralMessageId),
+        receiver_user_id: Number(receiverUserId),
       });
     },
-    editCaption: async (messageGuid, caption, opts) => {
+    editCaption: async (receiverUserId, ephemeralMessageId, caption, opts) => {
       await call("editEphemeralMessageCaption", {
         caption,
         chat_id: chatId,
-        message_id: Number(messageGuid),
+        ephemeral_message_id: Number(ephemeralMessageId),
+        receiver_user_id: Number(receiverUserId),
         ...asTelegramParams(opts ?? {}),
       });
     },
-    editMarkup: async (messageGuid, markup) => {
+    editMarkup: async (receiverUserId, ephemeralMessageId, markup) => {
       await call("editEphemeralMessageReplyMarkup", {
         chat_id: chatId,
-        message_id: Number(messageGuid),
+        ephemeral_message_id: Number(ephemeralMessageId),
+        receiver_user_id: Number(receiverUserId),
         reply_markup: replyMarkupToTelegram(markup),
       });
     },
-    editMedia: async (messageGuid, media, opts) => {
+    editMedia: async (receiverUserId, ephemeralMessageId, media, opts) => {
       await call("editEphemeralMessageMedia", {
         chat_id: chatId,
+        ephemeral_message_id: Number(ephemeralMessageId),
         media: {
           media: media.fileId ?? media.url,
           type: media.type,
         },
-        message_id: Number(messageGuid),
+        receiver_user_id: Number(receiverUserId),
         ...(opts?.replyMarkup
           ? { reply_markup: replyMarkupToTelegram(opts.replyMarkup) }
           : {}),
       });
     },
-    editText: async (messageGuid, text, opts) => {
+    editText: async (receiverUserId, ephemeralMessageId, text, opts) => {
       await call("editEphemeralMessageText", {
         chat_id: chatId,
         entities: opts?.entities?.map((entity) => asTelegramParams(entity)),
-        message_id: Number(messageGuid),
+        ephemeral_message_id: Number(ephemeralMessageId),
+        link_preview_options: linkPreviewToTelegram(opts?.linkPreview),
         parse_mode: opts?.parseMode,
+        receiver_user_id: Number(receiverUserId),
         reply_markup: opts?.replyMarkup
           ? replyMarkupToTelegram(opts.replyMarkup)
           : undefined,

@@ -1,14 +1,36 @@
-import type { Content } from "@skyline-ts/core/content";
-import type { Channel, JsonValue, Message, PollInfo } from "@skyline-ts/core";
+import type { Content, ReplyMarkup } from "@skyline-ts/core/content";
+import type {
+  Channel,
+  ChatRef,
+  JsonValue,
+  Message,
+  MessageCustomEmoji,
+  MessageDateTime,
+  MessageExternalReply,
+  MessageForward,
+  MessageEntity,
+  MessageLinkPreview,
+  GiftEventInfo,
+  MessageQuote,
+  MessageSystemEvent,
+  PollInfo,
+  PollMediaInfo,
+  User,
+} from "@skyline-ts/core";
 import {
   attachmentWithDownload,
   bindMessage,
   type SkylineHost,
 } from "@skyline-ts/core/host";
 import type {
+  TelegramChat,
   TelegramClient,
   TelegramMessage,
+  TelegramMessageEntity,
+  TelegramPoll,
+  TelegramPollMedia,
   TelegramUpdate,
+  TelegramUser,
 } from "./client.js";
 
 const pollByMessage = new Map<string, PollInfo>();
@@ -28,27 +50,123 @@ export function rememberPoll(info: PollInfo, pollId?: string): void {
   }
 }
 
+function pollMediaFromTelegram(
+  raw?: TelegramPollMedia
+): PollMediaInfo | undefined {
+  if (!raw) {
+    return;
+  }
+  const file = (m?: { file_id?: string; file_unique_id?: string }) => ({
+    fileId: m?.file_id,
+    fileUniqueId: m?.file_unique_id,
+  });
+  if (raw.photo?.length) {
+    const largest = raw.photo.at(-1);
+    return { ...file(largest), kind: "photo" };
+  }
+  if (raw.video) {
+    return { ...file(raw.video), kind: "video" };
+  }
+  if (raw.animation) {
+    return { ...file(raw.animation), kind: "animation" };
+  }
+  if (raw.audio) {
+    return { ...file(raw.audio), kind: "audio" };
+  }
+  if (raw.document) {
+    return { ...file(raw.document), kind: "document" };
+  }
+  if (raw.sticker) {
+    return { ...file(raw.sticker), kind: "sticker" };
+  }
+  if (raw.live_photo) {
+    return { ...file(raw.live_photo), kind: "live_photo" };
+  }
+  if (raw.location) {
+    return {
+      kind: "location",
+      location: {
+        latitude: raw.location.latitude,
+        longitude: raw.location.longitude,
+      },
+    };
+  }
+  if (raw.venue) {
+    return {
+      kind: "venue",
+      location: raw.venue.location
+        ? {
+            latitude: raw.venue.location.latitude,
+            longitude: raw.venue.location.longitude,
+          }
+        : undefined,
+      title: raw.venue.title,
+    };
+  }
+  if (raw.link) {
+    return { kind: "link", link: raw.link.url, title: raw.link.title };
+  }
+  return;
+}
+
+export function entitiesFromTelegram(
+  raw?: TelegramMessageEntity[]
+): MessageEntity[] | undefined {
+  if (!raw?.length) {
+    return;
+  }
+  return raw.map((e) => ({
+    customEmojiId: e.custom_emoji_id,
+    language: e.language,
+    length: e.length,
+    offset: e.offset,
+    type: e.type as MessageEntity["type"],
+    url: e.url,
+    user: e.user ? skylineUser(e.user) : undefined,
+  }));
+}
+
 export function rememberPollFromTelegram(
   chatId: string,
   messageGuid: string,
-  poll: {
-    id: string;
-    options: { text: string; voter_count: number }[];
-    question: string;
-  }
+  poll: TelegramPoll
 ): void {
+  const telegram: PollInfo["telegram"] = {
+    countryCodes: poll.country_codes,
+    descriptionEntities: entitiesFromTelegram(poll.description_entities),
+    explanationEntities: entitiesFromTelegram(poll.explanation_entities),
+    explanationMedia: pollMediaFromTelegram(poll.explanation_media),
+    media: pollMediaFromTelegram(poll.media),
+    membersOnly: poll.members_only,
+    questionEntities: entitiesFromTelegram(poll.question_entities),
+  };
   rememberPoll(
     {
+      allowsMultipleAnswers: poll.allows_multiple_answers,
+      allowsRevoting: poll.allows_revoting,
       chatId,
+      closeDate: poll.close_date,
+      correctOptionIds: poll.correct_option_ids,
+      description: poll.description,
+      explanation: poll.explanation,
+      id: poll.id,
+      isAnonymous: poll.is_anonymous,
+      isClosed: poll.is_closed,
+      openPeriod: poll.open_period,
       options: poll.options.map((o, index) => ({
-        id: String(index),
+        id: o.persistent_id ?? String(index),
+        media: pollMediaFromTelegram(o.media),
         text: o.text,
+        voterCount: o.voter_count,
       })),
       pollMessageGuid: messageGuid,
+      telegram,
       title: poll.question,
+      totalVoterCount: poll.total_voter_count,
+      type: poll.type === "quiz" ? "quiz" : "regular",
       votes: poll.options.flatMap((o, index) =>
-        Array.from({ length: o.voter_count }, () => ({
-          optionId: String(index),
+        Array.from({ length: o.voter_count ?? 0 }, () => ({
+          optionId: o.persistent_id ?? String(index),
         }))
       ),
     },
@@ -319,12 +437,17 @@ function mediaFromMessage(
   attachments?: Message["attachments"];
   content: Content;
 } {
+  const elevated = extraContentFromMessage(msg);
+  if (elevated) {
+    return { content: elevated };
+  }
+
   if (msg.poll) {
-    rememberPollFromTelegram(String(msg.chat.id), String(msg.message_id), {
-      id: msg.poll.id,
-      options: msg.poll.options,
-      question: msg.poll.question,
-    });
+    rememberPollFromTelegram(
+      String(msg.chat.id),
+      String(msg.message_id),
+      msg.poll
+    );
     return {
       content: {
         allowsMultipleAnswers: msg.poll.allows_multiple_answers,
@@ -452,10 +575,22 @@ function mediaFromMessage(
     return {
       attachments,
       content: {
-        caption: msg.caption,
-        mimeType: "image/jpeg",
-        name: "live-photo.jpg",
-        type: "attachment",
+        type: "live_photo",
+        ...(msg.caption ? { caption: msg.caption } : {}),
+        ...(msg.has_media_spoiler ? { hasSpoiler: true } : {}),
+        ...(msg.show_caption_above_media
+          ? { showCaptionAboveMedia: true }
+          : {}),
+        photo: {
+          mimeType: "image/jpeg",
+          name: "live-photo.jpg",
+          ...(still?.file_id ? { url: `tg-file:${still.file_id}` } : {}),
+        },
+        video: {
+          mimeType: motion?.mime_type ?? "video/mp4",
+          name: motion?.file_name ?? "live-photo.mp4",
+          ...(motion?.file_id ? { url: `tg-file:${motion.file_id}` } : {}),
+        },
       },
     };
   }
@@ -498,6 +633,16 @@ function mediaFromMessage(
         fileDownload(client, guid)
       ),
     ];
+    const media = msg.video ?? msg.animation ?? msg.audio ?? msg.video_note;
+    const thumbFileId =
+      media && "thumbnail" in media ? media.thumbnail?.file_id : undefined;
+    const duration =
+      msg.video?.duration ??
+      msg.animation?.duration ??
+      msg.audio?.duration ??
+      msg.video_note?.duration;
+    const width = msg.video?.width ?? msg.animation?.width;
+    const height = msg.video?.height ?? msg.animation?.height;
     return {
       attachments,
       content: {
@@ -508,6 +653,21 @@ function mediaFromMessage(
         mimeType,
         name,
         type: "attachment",
+        ...(duration != null ? { duration } : {}),
+        ...(width != null ? { width } : {}),
+        ...(height != null ? { height } : {}),
+        ...(msg.video_note?.length != null
+          ? { length: msg.video_note.length }
+          : {}),
+        ...(msg.audio?.performer ? { performer: msg.audio.performer } : {}),
+        ...(msg.audio?.title ? { title: msg.audio.title } : {}),
+        ...(msg.has_media_spoiler ? { hasSpoiler: true } : {}),
+        ...(msg.show_caption_above_media
+          ? { showCaptionAboveMedia: true }
+          : {}),
+        ...(thumbFileId
+          ? { thumbnail: { url: `tg-file:${thumbFileId}` } }
+          : {}),
       },
     };
   }
@@ -530,6 +690,18 @@ function mediaFromMessage(
         latitude: msg.location.latitude,
         longitude: msg.location.longitude,
         type: "location",
+        ...(msg.location.heading != null
+          ? { heading: msg.location.heading }
+          : {}),
+        ...(msg.location.horizontal_accuracy != null
+          ? { horizontalAccuracy: msg.location.horizontal_accuracy }
+          : {}),
+        ...(msg.location.live_period != null
+          ? { livePeriod: msg.location.live_period }
+          : {}),
+        ...(msg.location.proximity_alert_radius != null
+          ? { proximityAlertRadius: msg.location.proximity_alert_radius }
+          : {}),
       },
     };
   }
@@ -545,16 +717,19 @@ export function messageFromTelegram(
   channel: Channel,
   client: TelegramClient,
   msg: TelegramMessage,
-  botId: string
+  botId: string,
+  includeRaw = false
 ): Message | undefined {
   if (msg.from && String(msg.from.id) === botId) {
     return;
   }
+  const systemEvent = systemEventFromMessage(msg);
   const mapped = mediaFromMessage(client, msg);
   if (
     mapped.content.type === "text" &&
     !mapped.content.text &&
-    !mapped.attachments?.length
+    !mapped.attachments?.length &&
+    !systemEvent
   ) {
     return;
   }
@@ -562,12 +737,92 @@ export function messageFromTelegram(
     msg.chat.type === "group" ||
     msg.chat.type === "supergroup" ||
     msg.chat.type === "channel";
+  const forward = forwardFromMessage(msg);
+  const quote = quoteFromMessage(msg);
+  const linkPreview = linkPreviewFromMessage(msg);
+  const externalReply = externalReplyFromMessage(msg);
+  const markup = markupFromMessage(msg);
+  const raw = includeRaw ? asJsonValue(msg) : undefined;
+  const facetSource = msg.text ?? msg.caption ?? "";
+  const facetEntities = msg.text ? msg.entities : msg.caption_entities;
+  const facets = facetsFromText(facetSource, facetEntities);
+  const sender =
+    skylineUser(msg.from) ??
+    ({
+      id: String(msg.chat.id),
+      displayName: msg.chat.title ?? msg.chat.username,
+      ...(msg.chat.username ? { handle: msg.chat.username } : {}),
+    } as const);
+  const viaUser = skylineUser(msg.via_bot);
+
   return bindMessage(channel, {
     ...(mapped.attachments ? { attachments: mapped.attachments } : {}),
+    ...(msg.author_signature
+      ? { authorSignature: msg.author_signature }
+      : {}),
+    ...(msg.business_connection_id
+      ? { businessConnectionId: msg.business_connection_id }
+      : {}),
+    ...(facets.cashtags ? { cashtags: facets.cashtags } : {}),
+    ...(facets.commands ? { commands: facets.commands } : {}),
     content: mapped.content,
+    ...(facets.customEmojis ? { customEmojis: facets.customEmojis } : {}),
+    ...(facets.dateTimes ? { dateTimes: facets.dateTimes } : {}),
+    ...(msg.direct_messages_topic?.topic_id != null
+      ? {
+          directMessagesTopic: {
+            topicId: msg.direct_messages_topic.topic_id,
+            ...(msg.direct_messages_topic.name
+              ? { name: msg.direct_messages_topic.name }
+              : {}),
+          },
+        }
+      : {}),
+    ...(msg.edit_date != null
+      ? { editTimestamp: new Date(msg.edit_date * 1000) }
+      : {}),
+    ...(msg.effect_id ? { effectId: msg.effect_id } : {}),
+    ...(msg.ephemeral_message_id != null
+      ? { ephemeralMessageId: String(msg.ephemeral_message_id) }
+      : {}),
+    ...(externalReply ? { externalReply } : {}),
+    ...(forward ? { forward } : {}),
+    ...(skylineUser(msg.guest_bot_caller_user) ||
+    chatRef(msg.guest_bot_caller_chat)
+      ? {
+          guestBotCaller: {
+            ...(skylineUser(msg.guest_bot_caller_user)
+              ? { user: skylineUser(msg.guest_bot_caller_user) }
+              : {}),
+            ...(chatRef(msg.guest_bot_caller_chat)
+              ? { chat: chatRef(msg.guest_bot_caller_chat) }
+              : {}),
+          },
+        }
+      : {}),
+    ...(msg.guest_query_id ? { guestQueryId: msg.guest_query_id } : {}),
     guid: String(msg.message_id),
-    ...(msg.reply_to_message
-      ? { replyTo: { messageGuid: String(msg.reply_to_message.message_id) } }
+    ...(msg.has_media_spoiler ? { hasMediaSpoiler: true } : {}),
+    ...(msg.has_protected_content ? { hasProtectedContent: true } : {}),
+    ...(facets.hashtags ? { hashtags: facets.hashtags } : {}),
+    ...(msg.is_automatic_forward ? { isAutomaticForward: true } : {}),
+    ...(msg.is_from_offline ? { isFromOffline: true } : {}),
+    ...(msg.is_paid_post ? { isPaidPost: true } : {}),
+    ...(msg.is_topic_message ? { isTopicMessage: true } : {}),
+    ...(linkPreview ? { linkPreview } : {}),
+    ...(facets.links ? { links: facets.links } : {}),
+    ...(facets.markdown ? { markdown: facets.markdown } : {}),
+    ...(markup ? { markup } : {}),
+    ...(msg.media_group_id ? { mediaGroupId: msg.media_group_id } : {}),
+    ...(facets.mentions ? { mentions: facets.mentions } : {}),
+    ...(msg.paid_star_count != null
+      ? { paidStarCount: msg.paid_star_count }
+      : {}),
+    ...(facets.phones ? { phones: facets.phones } : {}),
+    ...(quote ? { quote } : {}),
+    ...(raw ? { raw } : {}),
+    ...(skylineUser(msg.receiver_user)
+      ? { receiver: skylineUser(msg.receiver_user) }
       : {}),
     ...(isGroup
       ? {
@@ -575,32 +830,88 @@ export function messageFromTelegram(
             chatId: String(msg.chat.id),
             isGroup: true,
             kind: msg.chat.type,
-            participant: {
-              displayName: msg.from?.first_name ?? msg.from?.username,
-              handle: msg.from?.username,
-              id: msg.from ? String(msg.from.id) : String(msg.chat.id),
-            },
+            participant: sender,
           },
         }
       : {}),
     isFromMe: false,
     platform: "telegram",
-    ...(msg.reply_to_message
+    ...(msg.reply_to_message ||
+    msg.reply_to_story ||
+    msg.reply_to_checklist_task_id != null ||
+    msg.reply_to_poll_option_id
       ? {
           replyTo: {
-            messageGuid: String(msg.reply_to_message.message_id),
+            messageGuid: msg.reply_to_message
+              ? String(msg.reply_to_message.message_id)
+              : msg.reply_to_story?.id != null
+                ? String(msg.reply_to_story.id)
+                : "0",
+            ...(msg.reply_to_message?.from
+              ? {
+                  senderHandle: msg.reply_to_message.from.username,
+                  senderId: String(msg.reply_to_message.from.id),
+                }
+              : {}),
+            ...(msg.reply_to_message?.text || msg.reply_to_message?.caption
+              ? {
+                  text:
+                    msg.reply_to_message.text ?? msg.reply_to_message.caption,
+                }
+              : {}),
+            ...(msg.reply_to_story?.id != null
+              ? { storyId: String(msg.reply_to_story.id) }
+              : {}),
+            ...(msg.reply_to_checklist_task_id != null
+              ? { checklistTaskId: msg.reply_to_checklist_task_id }
+              : {}),
+            ...(msg.reply_to_poll_option_id
+              ? { pollOptionId: msg.reply_to_poll_option_id }
+              : {}),
           },
         }
       : {}),
-    sender: {
-      displayName: msg.from?.first_name ?? msg.from?.username,
-      handle: msg.from?.username,
-      id: msg.from ? String(msg.from.id) : String(msg.chat.id),
-    },
+    sender,
+    ...(msg.sender_boost_count != null
+      ? { senderBoostCount: msg.sender_boost_count }
+      : {}),
+    ...(skylineUser(msg.sender_business_bot)
+      ? { senderBusinessBot: skylineUser(msg.sender_business_bot) }
+      : {}),
+    ...(chatRef(msg.sender_chat) ? { senderChat: chatRef(msg.sender_chat) } : {}),
+    ...(msg.sender_tag ? { senderTag: msg.sender_tag } : {}),
+    ...(msg.show_caption_above_media ? { showCaptionAboveMedia: true } : {}),
+    ...(msg.suggested_post_info
+      ? {
+          suggestedPostInfo: {
+            ...(msg.suggested_post_info.state
+              ? { state: msg.suggested_post_info.state }
+              : {}),
+            ...(msg.suggested_post_info.price
+              ? {
+                  price: {
+                    ...(msg.suggested_post_info.price.currency
+                      ? { currency: msg.suggested_post_info.price.currency }
+                      : {}),
+                    ...(msg.suggested_post_info.price.amount != null
+                      ? { amount: msg.suggested_post_info.price.amount }
+                      : {}),
+                  },
+                }
+              : {}),
+            ...(msg.suggested_post_info.send_date != null
+              ? { sendDate: msg.suggested_post_info.send_date }
+              : {}),
+          },
+        }
+      : {}),
+    ...(systemEvent ? { systemEvent } : {}),
     ...(msg.message_thread_id != null
       ? { threadId: msg.message_thread_id }
       : {}),
     timestamp: new Date(msg.date * 1000),
+    ...(viaUser?.handle ? { viaHandle: viaUser.handle } : {}),
+    ...(viaUser ? { viaUser } : {}),
   });
 }
 
@@ -608,7 +919,8 @@ export function resultsFromUpdate(
   channel: Channel,
   client: TelegramClient,
   update: TelegramUpdate,
-  botId: string
+  botId: string,
+  includeRaw = false
 ): InboundResult[] {
   const out: InboundResult[] = [];
 
@@ -642,7 +954,13 @@ export function resultsFromUpdate(
   }
 
   if (msg) {
-    const message = messageFromTelegram(channel, client, msg, botId);
+    const message = messageFromTelegram(
+      channel,
+      client,
+      msg,
+      botId,
+      includeRaw
+    );
     if (message) {
       out.push({
         kind: "message",
@@ -854,11 +1172,7 @@ export function resultsFromUpdate(
   if (update.poll) {
     const pollId = update.poll.id;
     const pollMessageGuid = resolvePollMessageGuid(channel.to, pollId);
-    rememberPollFromTelegram(channel.to, pollMessageGuid, {
-      id: pollId,
-      options: update.poll.options,
-      question: update.poll.question,
-    });
+    rememberPollFromTelegram(channel.to, pollMessageGuid, update.poll);
     out.push({
       kind: "poll",
       action: update.poll.is_closed ? "closed" : "update",
@@ -866,7 +1180,7 @@ export function resultsFromUpdate(
       isClosed: update.poll.is_closed,
       options: update.poll.options.map((o) => ({
         text: o.text,
-        voterCount: o.voter_count,
+        voterCount: o.voter_count ?? 0,
       })),
       pollId,
       pollMessageGuid,
@@ -1012,7 +1326,8 @@ export function dispatchTelegramUpdate(
   client: TelegramClient,
   botId: string,
   fallbackKey: string,
-  update: TelegramUpdate
+  update: TelegramUpdate,
+  includeRaw = false
 ): void {
   const chatId = chatIdFromUpdate(update);
   if (!chatId && !update.poll && !update.poll_answer) {
@@ -1021,18 +1336,26 @@ export function dispatchTelegramUpdate(
   const channel = makeChannel(chatId ?? fallbackKey);
   if (chatId && !host.live.has(chatId)) {
     host.live.set(chatId, {
+      includeRaw,
       platform: "telegram",
       streams: [],
       telegram: client,
     });
     host.ready.add(chatId);
   }
-  const results = resultsFromUpdate(channel, client, update, botId);
+  const results = resultsFromUpdate(
+    channel,
+    client,
+    update,
+    botId,
+    includeRaw
+  );
   for (const result of results) {
     const resultChannel =
       result.chatId === channel.to ? channel : makeChannel(result.chatId);
     if (result.chatId !== "0" && !host.live.has(result.chatId)) {
       host.live.set(result.chatId, {
+        includeRaw,
         platform: "telegram",
         streams: [],
         telegram: client,
@@ -1271,4 +1594,978 @@ export function dispatchTelegramUpdate(
       }
     }
   }
+}
+
+function asJsonValue(value: unknown): JsonValue | undefined {
+  try {
+    return JSON.parse(JSON.stringify(value)) as JsonValue;
+  } catch {
+    return;
+  }
+}
+
+function chatRef(chat?: TelegramChat): ChatRef | undefined {
+  if (!chat) {
+    return;
+  }
+  return {
+    id: String(chat.id),
+    ...(chat.username ? { handle: chat.username } : {}),
+    ...(chat.title ? { title: chat.title } : {}),
+    ...(chat.type ? { kind: chat.type as ChatRef["kind"] } : {}),
+  };
+}
+
+function skylineUser(user?: TelegramUser): User | undefined {
+  if (!user) {
+    return;
+  }
+  return {
+    id: String(user.id),
+    displayName: user.first_name ?? user.username,
+    ...(user.username ? { handle: user.username } : {}),
+    ...(user.language_code ? { languageCode: user.language_code } : {}),
+  };
+}
+
+function entitySlice(text: string, entity: TelegramMessageEntity): string {
+  return text.substring(entity.offset, entity.offset + entity.length);
+}
+
+const FORMAT_ENTITY_TYPES = new Set([
+  "bold",
+  "italic",
+  "underline",
+  "strikethrough",
+  "spoiler",
+  "code",
+  "pre",
+  "blockquote",
+  "expandable_blockquote",
+  "text_link",
+]);
+
+type InboundTextFacets = {
+  cashtags?: string[];
+  commands?: { args?: string; command: string }[];
+  customEmojis?: MessageCustomEmoji[];
+  dateTimes?: MessageDateTime[];
+  hashtags?: string[];
+  links?: { text: string; url: string }[];
+  markdown?: string;
+  mentions?: User[];
+  phones?: string[];
+};
+
+function facetsFromText(
+  text: string,
+  entities?: TelegramMessageEntity[]
+): InboundTextFacets {
+  if (!text || !entities?.length) {
+    return {};
+  }
+
+  const mentions: User[] = [];
+  const links: { text: string; url: string }[] = [];
+  const hashtags: string[] = [];
+  const cashtags: string[] = [];
+  const commands: { args?: string; command: string }[] = [];
+  const phones: string[] = [];
+  const customEmojis: MessageCustomEmoji[] = [];
+  const dateTimes: MessageDateTime[] = [];
+
+  for (const entity of entities) {
+    const slice = entitySlice(text, entity);
+    switch (entity.type) {
+      case "mention": {
+        const handle = slice.replace(/^@/, "");
+        if (handle) {
+          mentions.push({ handle, id: handle });
+        }
+        break;
+      }
+      case "text_mention": {
+        const user = skylineUser(entity.user);
+        if (user) {
+          mentions.push(user);
+        }
+        break;
+      }
+      case "url":
+      case "email":
+        links.push({ text: slice, url: slice });
+        break;
+      case "text_link":
+        if (entity.url) {
+          links.push({ text: slice, url: entity.url });
+        }
+        break;
+      case "hashtag":
+        hashtags.push(slice.replace(/^#/, ""));
+        break;
+      case "cashtag":
+        cashtags.push(slice.replace(/^\$/, ""));
+        break;
+      case "phone_number":
+        phones.push(slice);
+        break;
+      case "custom_emoji":
+        if (entity.custom_emoji_id) {
+          customEmojis.push({ id: entity.custom_emoji_id, text: slice });
+        }
+        break;
+      case "date_time":
+        if (entity.unix_time != null) {
+          dateTimes.push({
+            text: slice,
+            unixTime: entity.unix_time,
+            ...(entity.date_time_format
+              ? { format: entity.date_time_format }
+              : {}),
+          });
+        }
+        break;
+      case "bot_command": {
+        const [head, ...rest] = slice.slice(1).split(/\s+/);
+        const command = (head ?? "").split("@")[0] ?? "";
+        if (command) {
+          commands.push({
+            command,
+            ...(rest.length ? { args: rest.join(" ") } : {}),
+          });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  let markdown: string | undefined;
+  if (entities.some((entity) => FORMAT_ENTITY_TYPES.has(entity.type))) {
+    const sorted = [...entities]
+      .filter((entity) => FORMAT_ENTITY_TYPES.has(entity.type))
+      .sort((a, b) => b.offset - a.offset || a.length - b.length);
+    let out = text;
+    for (const entity of sorted) {
+      const slice = out.substring(entity.offset, entity.offset + entity.length);
+      let wrapped = slice;
+      switch (entity.type) {
+        case "bold":
+          wrapped = `**${slice}**`;
+          break;
+        case "italic":
+          wrapped = `*${slice}*`;
+          break;
+        case "strikethrough":
+          wrapped = `~~${slice}~~`;
+          break;
+        case "code":
+          wrapped = `\`${slice}\``;
+          break;
+        case "pre":
+          wrapped = entity.language
+            ? `\`\`\`${entity.language}\n${slice}\n\`\`\``
+            : `\`\`\`\n${slice}\n\`\`\``;
+          break;
+        case "text_link":
+          wrapped = entity.url ? `[${slice}](${entity.url})` : slice;
+          break;
+        case "spoiler":
+          wrapped = `||${slice}||`;
+          break;
+        case "underline":
+          wrapped = `__${slice}__`;
+          break;
+        case "blockquote":
+        case "expandable_blockquote":
+          wrapped = slice
+            .split("\n")
+            .map((line) => `> ${line}`)
+            .join("\n");
+          break;
+        default:
+          break;
+      }
+      out =
+        out.substring(0, entity.offset) +
+        wrapped +
+        out.substring(entity.offset + entity.length);
+    }
+    if (out !== text) {
+      markdown = out;
+    }
+  }
+
+  return {
+    ...(cashtags.length ? { cashtags } : {}),
+    ...(commands.length ? { commands } : {}),
+    ...(customEmojis.length ? { customEmojis } : {}),
+    ...(dateTimes.length ? { dateTimes } : {}),
+    ...(hashtags.length ? { hashtags } : {}),
+    ...(links.length ? { links } : {}),
+    ...(markdown ? { markdown } : {}),
+    ...(mentions.length ? { mentions } : {}),
+    ...(phones.length ? { phones } : {}),
+  };
+}
+
+function forwardFromMessage(msg: TelegramMessage): MessageForward | undefined {
+  const origin = msg.forward_origin;
+  if (origin) {
+    return {
+      ...(origin.date != null ? { date: new Date(origin.date * 1000) } : {}),
+      ...(origin.chat ? { fromChatId: String(origin.chat.id) } : {}),
+      ...(origin.message_id != null
+        ? { fromMessageGuid: String(origin.message_id) }
+        : {}),
+      originType: origin.type,
+      ...(origin.sender_user
+        ? {
+            senderDisplayName:
+              origin.sender_user.first_name ?? origin.sender_user.username,
+            senderHandle: origin.sender_user.username,
+            senderId: String(origin.sender_user.id),
+          }
+        : {}),
+      ...(origin.sender_user_name && !origin.sender_user
+        ? { senderDisplayName: origin.sender_user_name }
+        : {}),
+    };
+  }
+  if (msg.forward_from || msg.forward_from_chat || msg.forward_date != null) {
+    return {
+      ...(msg.forward_date != null
+        ? { date: new Date(msg.forward_date * 1000) }
+        : {}),
+      ...(msg.forward_from_chat
+        ? { fromChatId: String(msg.forward_from_chat.id) }
+        : {}),
+      ...(msg.forward_from_message_id != null
+        ? { fromMessageGuid: String(msg.forward_from_message_id) }
+        : {}),
+      ...(msg.forward_from
+        ? {
+            senderDisplayName:
+              msg.forward_from.first_name ?? msg.forward_from.username,
+            senderHandle: msg.forward_from.username,
+            senderId: String(msg.forward_from.id),
+          }
+        : {}),
+    };
+  }
+  return;
+}
+
+function quoteFromMessage(msg: TelegramMessage): MessageQuote | undefined {
+  const quote = msg.quote;
+  if (!quote?.text) {
+    return;
+  }
+  const facets = facetsFromText(quote.text, quote.entities);
+  return {
+    text: quote.text,
+    ...(quote.position != null ? { position: quote.position } : {}),
+    ...(quote.is_manual ? { isManual: true } : {}),
+    ...(facets.markdown ? { markdown: facets.markdown } : {}),
+  };
+}
+
+function linkPreviewFromMessage(
+  msg: TelegramMessage
+): MessageLinkPreview | undefined {
+  const opts = msg.link_preview_options;
+  if (!opts) {
+    return;
+  }
+  return {
+    ...(opts.is_disabled ? { disabled: true } : {}),
+    ...(opts.url ? { url: opts.url } : {}),
+    ...(opts.prefer_large_media ? { preferLargeMedia: true } : {}),
+    ...(opts.prefer_small_media ? { preferSmallMedia: true } : {}),
+    ...(opts.show_above_text ? { showAboveText: true } : {}),
+  };
+}
+
+function externalReplyFromMessage(
+  msg: TelegramMessage
+): MessageExternalReply | undefined {
+  const external = msg.external_reply;
+  if (!external) {
+    return;
+  }
+  return {
+    ...(external.chat ? { chat: chatRef(external.chat) } : {}),
+    ...(external.message_id != null
+      ? { messageGuid: String(external.message_id) }
+      : {}),
+    ...(external.origin?.type ? { originType: external.origin.type } : {}),
+    ...(external.has_media_spoiler ? { hasMediaSpoiler: true } : {}),
+  };
+}
+
+function markupFromMessage(msg: TelegramMessage): ReplyMarkup | undefined {
+  const rows = msg.reply_markup?.inline_keyboard;
+  if (!rows?.length) {
+    return;
+  }
+  return {
+    type: "inline",
+    inlineKeyboard: rows.map((row) =>
+      row.map((button) => ({
+        text: button.text,
+        ...(button.callback_data
+          ? { callbackData: button.callback_data }
+          : {}),
+        ...(button.callback_game != null ? { callbackGame: true } : {}),
+        ...(button.copy_text?.text ? { copyText: button.copy_text.text } : {}),
+        ...(button.login_url
+          ? {
+              loginUrl: {
+                url: button.login_url.url,
+                ...(button.login_url.forward_text
+                  ? { forwardText: button.login_url.forward_text }
+                  : {}),
+                ...(button.login_url.bot_username
+                  ? { botUsername: button.login_url.bot_username }
+                  : {}),
+                ...(button.login_url.request_write_access
+                  ? { requestWriteAccess: true }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(button.pay ? { pay: true } : {}),
+        ...(button.url ? { url: button.url } : {}),
+        ...(button.web_app?.url ? { webApp: { url: button.web_app.url } } : {}),
+        ...(button.switch_inline_query != null
+          ? { switchInlineQuery: button.switch_inline_query }
+          : {}),
+        ...(button.switch_inline_query_current_chat != null
+          ? {
+              switchInlineQueryCurrentChat:
+                button.switch_inline_query_current_chat,
+            }
+          : {}),
+        ...(button.switch_inline_query_chosen_chat
+          ? {
+              switchInlineQueryChosenChat: {
+                ...(button.switch_inline_query_chosen_chat.query != null
+                  ? { query: button.switch_inline_query_chosen_chat.query }
+                  : {}),
+                ...(button.switch_inline_query_chosen_chat.allow_user_chats
+                  ? { allowUserChats: true }
+                  : {}),
+                ...(button.switch_inline_query_chosen_chat.allow_bot_chats
+                  ? { allowBotChats: true }
+                  : {}),
+                ...(button.switch_inline_query_chosen_chat.allow_group_chats
+                  ? { allowGroupChats: true }
+                  : {}),
+                ...(button.switch_inline_query_chosen_chat.allow_channel_chats
+                  ? { allowChannelChats: true }
+                  : {}),
+              },
+            }
+          : {}),
+      }))
+    ),
+  };
+}
+
+function giftEventFromTelegram(raw: unknown): GiftEventInfo {
+  const g = raw as {
+    gift?: { id?: string };
+    owned_gift_id?: string;
+    convert_star_count?: number;
+    prepaid_upgrade_star_count?: number;
+    is_upgrade_separate?: boolean;
+    can_be_upgraded?: boolean;
+    text?: string;
+    entities?: TelegramMessageEntity[];
+    is_private?: boolean;
+    unique_gift_number?: number;
+  };
+  return {
+    giftId: g.gift?.id ?? "",
+    ...(g.owned_gift_id ? { ownedGiftId: g.owned_gift_id } : {}),
+    ...(g.convert_star_count != null
+      ? { convertStarCount: g.convert_star_count }
+      : {}),
+    ...(g.prepaid_upgrade_star_count != null
+      ? { prepaidUpgradeStarCount: g.prepaid_upgrade_star_count }
+      : {}),
+    ...(g.is_upgrade_separate != null
+      ? { isUpgradeSeparate: g.is_upgrade_separate }
+      : {}),
+    ...(g.can_be_upgraded != null ? { canBeUpgraded: g.can_be_upgraded } : {}),
+    ...(g.text ? { text: g.text } : {}),
+    ...(g.entities ? { entities: entitiesFromTelegram(g.entities) } : {}),
+    ...(g.is_private != null ? { isPrivate: g.is_private } : {}),
+    ...(g.unique_gift_number != null
+      ? { uniqueGiftNumber: g.unique_gift_number }
+      : {}),
+  };
+}
+
+function pollOptionEventFromTelegram(raw: unknown): {
+  optionPersistentId: string;
+  optionText: string;
+  optionTextEntities?: MessageEntity[];
+} {
+  const o = raw as {
+    option_persistent_id?: string;
+    option_text?: string;
+    option_text_entities?: TelegramMessageEntity[];
+  };
+  return {
+    optionPersistentId: o.option_persistent_id ?? "",
+    optionText: o.option_text ?? "",
+    ...(o.option_text_entities
+      ? { optionTextEntities: entitiesFromTelegram(o.option_text_entities) }
+      : {}),
+  };
+}
+
+function systemEventFromMessage(
+  msg: TelegramMessage
+): MessageSystemEvent | undefined {
+  if (msg.new_chat_members?.length) {
+    return {
+      type: "members_added",
+      users: msg.new_chat_members
+        .map((user) => skylineUser(user))
+        .filter((user): user is User => Boolean(user)),
+    };
+  }
+  if (msg.left_chat_member) {
+    const user = skylineUser(msg.left_chat_member);
+    if (user) {
+      return { type: "member_left", user };
+    }
+  }
+  if (msg.chat_owner_left != null) {
+    const evt = msg.chat_owner_left as { new_owner?: TelegramUser };
+    const owner = evt.new_owner ? skylineUser(evt.new_owner) : undefined;
+    return { type: "owner_left", ...(owner ? { newOwner: owner } : {}) };
+  }
+  if (msg.chat_owner_changed != null) {
+    const evt = msg.chat_owner_changed as { new_owner?: TelegramUser };
+    const owner = evt.new_owner ? skylineUser(evt.new_owner) : undefined;
+    if (owner) {
+      return { type: "owner_changed", newOwner: owner };
+    }
+  }
+  if (msg.new_chat_title != null) {
+    return { type: "title_changed", title: msg.new_chat_title };
+  }
+  if (msg.new_chat_photo) {
+    return { type: "photo_changed" };
+  }
+  if (msg.delete_chat_photo) {
+    return { type: "photo_deleted" };
+  }
+  if (msg.group_chat_created) {
+    return { type: "group_created" };
+  }
+  if (msg.supergroup_chat_created) {
+    return { type: "supergroup_created" };
+  }
+  if (msg.channel_chat_created) {
+    return { type: "channel_created" };
+  }
+  if (msg.message_auto_delete_timer_changed != null) {
+    const evt = msg.message_auto_delete_timer_changed as {
+      message_auto_delete_time?: number;
+    };
+    return {
+      type: "auto_delete_timer_changed",
+      messageAutoDeleteTime: evt.message_auto_delete_time ?? 0,
+    };
+  }
+  if (msg.migrate_to_chat_id != null) {
+    return { type: "migrated_to", chatId: String(msg.migrate_to_chat_id) };
+  }
+  if (msg.migrate_from_chat_id != null) {
+    return { type: "migrated_from", chatId: String(msg.migrate_from_chat_id) };
+  }
+  if (msg.pinned_message) {
+    const pinned = msg.pinned_message as { message_id?: number };
+    return {
+      type: "message_pinned",
+      ...(pinned.message_id != null
+        ? { messageGuid: String(pinned.message_id) }
+        : {}),
+    };
+  }
+  if (msg.successful_payment) {
+    const payment = msg.successful_payment;
+    return {
+      type: "successful_payment",
+      currency: payment.currency,
+      invoicePayload: payment.invoice_payload,
+      totalAmount: payment.total_amount,
+      ...(payment.telegram_payment_charge_id
+        ? { telegramPaymentChargeId: payment.telegram_payment_charge_id }
+        : {}),
+      ...(payment.provider_payment_charge_id
+        ? { providerPaymentChargeId: payment.provider_payment_charge_id }
+        : {}),
+    };
+  }
+  if (msg.refunded_payment) {
+    const payment = msg.refunded_payment;
+    return {
+      type: "refunded_payment",
+      currency: payment.currency,
+      totalAmount: payment.total_amount,
+      ...(payment.invoice_payload
+        ? { invoicePayload: payment.invoice_payload }
+        : {}),
+      ...(payment.telegram_payment_charge_id
+        ? { telegramPaymentChargeId: payment.telegram_payment_charge_id }
+        : {}),
+    };
+  }
+  if (msg.users_shared) {
+    return {
+      type: "users_shared",
+      users: (msg.users_shared.users ?? [])
+        .map((user) => skylineUser(user))
+        .filter((user): user is User => Boolean(user)),
+      ...(msg.users_shared.request_id != null
+        ? { requestId: String(msg.users_shared.request_id) }
+        : {}),
+    };
+  }
+  if (msg.chat_shared) {
+    return {
+      type: "chat_shared",
+      chatId: String(msg.chat_shared.chat_id),
+      ...(msg.chat_shared.request_id != null
+        ? { requestId: String(msg.chat_shared.request_id) }
+        : {}),
+    };
+  }
+  if (msg.gift != null) {
+    return { type: "gift", ...giftEventFromTelegram(msg.gift) };
+  }
+  if (msg.unique_gift != null) {
+    const g = msg.unique_gift as {
+      gift?: { name?: string; base_name?: string };
+      origin?: string;
+      owned_gift_id?: string;
+      last_resale_currency?: string;
+      last_resale_amount?: number;
+      transfer_star_count?: number;
+      next_transfer_date?: number;
+    };
+    return {
+      type: "unique_gift",
+      origin: g.origin ?? "",
+      ...(g.gift?.name ?? g.gift?.base_name
+        ? { giftName: g.gift?.name ?? g.gift?.base_name }
+        : {}),
+      ...(g.owned_gift_id ? { ownedGiftId: g.owned_gift_id } : {}),
+      ...(g.last_resale_currency
+        ? { lastResaleCurrency: g.last_resale_currency }
+        : {}),
+      ...(g.last_resale_amount != null
+        ? { lastResaleAmount: g.last_resale_amount }
+        : {}),
+      ...(g.transfer_star_count != null
+        ? { transferStarCount: g.transfer_star_count }
+        : {}),
+      ...(g.next_transfer_date != null
+        ? { nextTransferDate: g.next_transfer_date }
+        : {}),
+    };
+  }
+  if (msg.gift_upgrade_sent != null) {
+    return {
+      type: "gift_upgrade_sent",
+      ...giftEventFromTelegram(msg.gift_upgrade_sent),
+    };
+  }
+  if (msg.connected_website) {
+    return { type: "connected_website", domain: msg.connected_website };
+  }
+  if (msg.write_access_allowed != null) {
+    const w = msg.write_access_allowed as {
+      from_request?: boolean;
+      web_app_name?: string;
+      from_attachment_menu?: boolean;
+    };
+    return {
+      type: "write_access_allowed",
+      ...(w.from_request != null ? { fromRequest: w.from_request } : {}),
+      ...(w.web_app_name ? { webAppName: w.web_app_name } : {}),
+      ...(w.from_attachment_menu != null
+        ? { fromAttachmentMenu: w.from_attachment_menu }
+        : {}),
+    };
+  }
+  if (msg.passport_data != null) {
+    const p = msg.passport_data as { data?: { type?: string }[] };
+    return {
+      type: "passport_data",
+      elementTypes: (p.data ?? [])
+        .map((el) => el.type)
+        .filter((t): t is string => Boolean(t)),
+    };
+  }
+  if (msg.proximity_alert_triggered != null) {
+    const a = msg.proximity_alert_triggered as {
+      traveler?: TelegramUser;
+      watcher?: TelegramUser;
+      distance?: number;
+    };
+    const traveler = a.traveler ? skylineUser(a.traveler) : undefined;
+    const watcher = a.watcher ? skylineUser(a.watcher) : undefined;
+    return {
+      type: "proximity_alert",
+      distance: a.distance ?? 0,
+      ...(traveler ? { traveler } : {}),
+      ...(watcher ? { watcher } : {}),
+    };
+  }
+  if (msg.boost_added != null) {
+    const boost = msg.boost_added as { boost_count?: number };
+    return {
+      type: "boost_added",
+      ...(boost.boost_count != null ? { boostCount: boost.boost_count } : {}),
+    };
+  }
+  if (msg.chat_background_set != null) {
+    const bg = msg.chat_background_set as { type?: { type?: string } };
+    return {
+      type: "chat_background_set",
+      ...(bg.type?.type ? { backgroundType: bg.type.type } : {}),
+    };
+  }
+  if (msg.checklist_tasks_done != null) {
+    const c = msg.checklist_tasks_done as {
+      marked_as_done_task_ids?: number[];
+      marked_as_not_done_task_ids?: number[];
+    };
+    return {
+      type: "checklist_tasks_done",
+      ...(c.marked_as_done_task_ids
+        ? { markedAsDoneTaskIds: c.marked_as_done_task_ids }
+        : {}),
+      ...(c.marked_as_not_done_task_ids
+        ? { markedAsNotDoneTaskIds: c.marked_as_not_done_task_ids }
+        : {}),
+    };
+  }
+  if (msg.checklist_tasks_added != null) {
+    const c = msg.checklist_tasks_added as {
+      tasks?: { id?: string | number; text?: string }[];
+    };
+    return {
+      type: "checklist_tasks_added",
+      tasks: (c.tasks ?? []).map((task) => ({
+        ...(task.id != null ? { id: String(task.id) } : {}),
+        ...(task.text ? { text: task.text } : {}),
+      })),
+    };
+  }
+  if (msg.community_chat_added != null) {
+    const c = msg.community_chat_added as {
+      community?: { id?: string | number; name?: string };
+    };
+    return {
+      type: "community_chat_added",
+      community: {
+        id: String(c.community?.id ?? ""),
+        name: c.community?.name ?? "",
+      },
+    };
+  }
+  if (msg.community_chat_removed != null) {
+    return { type: "community_chat_removed" };
+  }
+  if (msg.direct_message_price_changed != null) {
+    const d = msg.direct_message_price_changed as {
+      are_direct_messages_enabled?: boolean;
+      direct_message_star_count?: number;
+    };
+    return {
+      type: "direct_message_price_changed",
+      areDirectMessagesEnabled: d.are_direct_messages_enabled ?? false,
+      ...(d.direct_message_star_count != null
+        ? { directMessageStarCount: d.direct_message_star_count }
+        : {}),
+    };
+  }
+  if (msg.forum_topic_created) {
+    const topic = msg.forum_topic_created;
+    return {
+      type: "forum_topic_created",
+      ...(topic.name ? { name: topic.name } : {}),
+      ...(topic.icon_color != null ? { iconColor: topic.icon_color } : {}),
+      ...(topic.icon_custom_emoji_id
+        ? { iconCustomEmojiId: topic.icon_custom_emoji_id }
+        : {}),
+    };
+  }
+  if (msg.forum_topic_edited) {
+    const topic = msg.forum_topic_edited;
+    return {
+      type: "forum_topic_edited",
+      ...(topic.name ? { name: topic.name } : {}),
+      ...(topic.icon_custom_emoji_id
+        ? { iconCustomEmojiId: topic.icon_custom_emoji_id }
+        : {}),
+    };
+  }
+  if (msg.forum_topic_closed != null) {
+    return { type: "forum_topic_closed" };
+  }
+  if (msg.forum_topic_reopened != null) {
+    return { type: "forum_topic_reopened" };
+  }
+  if (msg.general_forum_topic_hidden != null) {
+    return { type: "general_forum_topic_hidden" };
+  }
+  if (msg.general_forum_topic_unhidden != null) {
+    return { type: "general_forum_topic_unhidden" };
+  }
+  if (msg.giveaway_created != null) {
+    const g = msg.giveaway_created as { prize_star_count?: number };
+    return {
+      type: "giveaway_created",
+      ...(g.prize_star_count != null
+        ? { prizeStarCount: g.prize_star_count }
+        : {}),
+    };
+  }
+  if (msg.giveaway_completed != null) {
+    const g = msg.giveaway_completed as {
+      winner_count?: number;
+      unclaimed_prize_count?: number;
+      is_star_giveaway?: boolean;
+    };
+    return {
+      type: "giveaway_completed",
+      winnerCount: g.winner_count ?? 0,
+      ...(g.unclaimed_prize_count != null
+        ? { unclaimedPrizeCount: g.unclaimed_prize_count }
+        : {}),
+      ...(g.is_star_giveaway != null
+        ? { isStarGiveaway: g.is_star_giveaway }
+        : {}),
+    };
+  }
+  if (msg.managed_bot_created != null) {
+    const m = msg.managed_bot_created as { bot?: TelegramUser };
+    const bot = m.bot ? skylineUser(m.bot) : undefined;
+    if (bot) {
+      return { type: "managed_bot_created", bot };
+    }
+  }
+  if (msg.paid_message_price_changed != null) {
+    const p = msg.paid_message_price_changed as {
+      paid_message_star_count?: number;
+    };
+    return {
+      type: "paid_message_price_changed",
+      paidMessageStarCount: p.paid_message_star_count ?? 0,
+    };
+  }
+  if (msg.poll_option_added != null) {
+    return {
+      type: "poll_option_added",
+      ...pollOptionEventFromTelegram(msg.poll_option_added),
+    };
+  }
+  if (msg.poll_option_deleted != null) {
+    return {
+      type: "poll_option_deleted",
+      ...pollOptionEventFromTelegram(msg.poll_option_deleted),
+    };
+  }
+  if (msg.suggested_post_approved != null) {
+    const s = msg.suggested_post_approved as {
+      price?: { currency?: string; amount?: number };
+      send_date?: number;
+    };
+    return {
+      type: "suggested_post_approved",
+      sendDate: s.send_date ?? 0,
+      ...(s.price
+        ? {
+            price: {
+              currency: s.price.currency ?? "",
+              amount: s.price.amount ?? 0,
+            },
+          }
+        : {}),
+    };
+  }
+  if (msg.suggested_post_approval_failed != null) {
+    const s = msg.suggested_post_approval_failed as {
+      price?: { currency?: string; amount?: number };
+    };
+    return {
+      type: "suggested_post_approval_failed",
+      price: {
+        currency: s.price?.currency ?? "",
+        amount: s.price?.amount ?? 0,
+      },
+    };
+  }
+  if (msg.suggested_post_declined != null) {
+    const s = msg.suggested_post_declined as { comment?: string };
+    return {
+      type: "suggested_post_declined",
+      ...(s.comment ? { comment: s.comment } : {}),
+    };
+  }
+  if (msg.suggested_post_paid != null) {
+    const s = msg.suggested_post_paid as {
+      currency?: string;
+      amount?: number;
+      star_amount?: { amount?: number; nanostar_amount?: number };
+    };
+    return {
+      type: "suggested_post_paid",
+      currency: s.currency ?? "",
+      ...(s.amount != null ? { amount: s.amount } : {}),
+      ...(s.star_amount
+        ? {
+            starAmount: {
+              amount: s.star_amount.amount ?? 0,
+              ...(s.star_amount.nanostar_amount != null
+                ? { nanostarAmount: s.star_amount.nanostar_amount }
+                : {}),
+            },
+          }
+        : {}),
+    };
+  }
+  if (msg.suggested_post_refunded != null) {
+    const s = msg.suggested_post_refunded as { reason?: string };
+    return {
+      type: "suggested_post_refunded",
+      reason: s.reason ?? "",
+    };
+  }
+  if (msg.video_chat_scheduled) {
+    return {
+      type: "video_chat_scheduled",
+      ...(msg.video_chat_scheduled.start_date != null
+        ? { startDate: msg.video_chat_scheduled.start_date }
+        : {}),
+    };
+  }
+  if (msg.video_chat_started != null) {
+    return { type: "video_chat_started" };
+  }
+  if (msg.video_chat_ended) {
+    return {
+      type: "video_chat_ended",
+      ...(msg.video_chat_ended.duration != null
+        ? { duration: msg.video_chat_ended.duration }
+        : {}),
+    };
+  }
+  if (msg.video_chat_participants_invited) {
+    return {
+      type: "video_chat_participants_invited",
+      users: (msg.video_chat_participants_invited.users ?? [])
+        .map((user) => skylineUser(user))
+        .filter((user): user is User => Boolean(user)),
+    };
+  }
+  if (msg.web_app_data) {
+    return {
+      type: "web_app_data",
+      data: msg.web_app_data.data,
+      ...(msg.web_app_data.button_text
+        ? { buttonText: msg.web_app_data.button_text }
+        : {}),
+    };
+  }
+  return;
+}
+
+/** Extra content kinds beyond the classic media mapper. */
+function extraContentFromMessage(msg: TelegramMessage): Content | undefined {
+  if (msg.rich_message != null) {
+    const rich = msg.rich_message as {
+      html?: string;
+      markdown?: string;
+      text?: string;
+    };
+    return {
+      type: "rich_message",
+      ...(rich.html ? { html: rich.html } : {}),
+      ...(rich.markdown ? { markdown: rich.markdown } : {}),
+      ...(rich.text ? { text: rich.text } : {}),
+    };
+  }
+  if (msg.checklist) {
+    const checklist = msg.checklist as {
+      title?: string;
+      tasks?: { id?: string | number; text?: string }[];
+      others_can_add_tasks?: boolean;
+      others_can_mark_tasks_as_done?: boolean;
+    };
+    return {
+      type: "checklist",
+      title: checklist.title,
+      items: (checklist.tasks ?? []).map((task) => ({
+        ...(task.id != null ? { id: String(task.id) } : {}),
+        text: task.text ?? "",
+      })),
+      ...(checklist.others_can_add_tasks != null
+        ? { othersCanAddTasks: checklist.others_can_add_tasks }
+        : {}),
+      ...(checklist.others_can_mark_tasks_as_done != null
+        ? { othersCanMarkTasksAsDone: checklist.others_can_mark_tasks_as_done }
+        : {}),
+    };
+  }
+  if (msg.paid_media) {
+    const paid = msg.paid_media as {
+      star_count?: number;
+      paid_media?: { type?: string }[];
+    };
+    return {
+      type: "paid_media",
+      starCount: paid.star_count ?? 0,
+      media: [],
+      payload: undefined,
+    };
+  }
+  if (msg.story) {
+    const story = msg.story as { chat?: TelegramChat; id?: number };
+    return {
+      type: "story",
+      storyId: String(story.id ?? ""),
+      ...(story.chat ? { chatId: String(story.chat.id) } : {}),
+    };
+  }
+  if (msg.giveaway_winners != null) {
+    return {
+      type: "giveaway_winners",
+      payload:
+        (asJsonValue(msg.giveaway_winners) as Record<
+          string,
+          string | number | boolean | null
+        >) ?? undefined,
+    };
+  }
+  if (msg.giveaway != null) {
+    return {
+      type: "giveaway",
+      payload:
+        (asJsonValue(msg.giveaway) as Record<
+          string,
+          string | number | boolean | null
+        >) ?? undefined,
+    };
+  }
+  return;
 }

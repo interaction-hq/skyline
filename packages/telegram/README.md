@@ -77,6 +77,37 @@ Default is long-polling (`getUpdates`). For a public HTTPS endpoint, pass
 `telegramWebhookFetch` from your process. Hosted webhook registration via
 project credentials is not wired yet — keep the BotFather token in app config.
 
+Inbound is Skyline-first for agents — every Bot API `Message` field is elevated
+to a named Message / Content / `systemEvent` field (no vendor entity arrays,
+no `message.telegram` bag):
+
+| Kind | Fields |
+| --- | --- |
+| Text facets | `markdown` · `mentions` · `links` · `commands` · `hashtags` · `cashtags` · `phones` · `customEmojis` · `dateTimes` |
+| Media content | `text` · `attachment` (+ sticker/animation/videoNote flags) · `voice` · `live_photo` · `poll` · `dice` · `contact` · `location`/`venue` · `invoice` · `game` · `checklist` · `paid_media` · `gift` · `rich_message` · `story` · `giveaway` |
+| Reply / forward | `replyTo` · `quote` · `externalReply` · `forward` · `linkPreview` · `markup` |
+| Identity / flags | `sender*` · `senderChat` · `viaHandle` · `mediaGroupId` · `threadId` · `businessConnectionId` · `effectId` · `hasMediaSpoiler` · `suggestedPostInfo` · `directMessagesTopic` · `guestBotCaller` · … |
+| Service events | `systemEvent.type` — members, payments, forum topics, video chats, gifts, giveaways, web_app_data, … |
+
+```ts
+for await (const [channel, message] of app.incoming) {
+  if (message.systemEvent) {
+    console.log(message.systemEvent.type);
+    continue;
+  }
+  const body = message.markdown ?? (
+    message.content.type === "text" ? message.content.text : ""
+  );
+  console.log(body, message.mentions, message.links, message.commands);
+}
+```
+
+Wire snapshot (debug / observability only):
+
+```ts
+telegram.config({ botToken, includeRaw: true }) // → message.raw
+```
+
 ## Naming
 
 Channel / Content / signals use Skyline camelCase (`languageCode`,

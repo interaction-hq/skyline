@@ -13,6 +13,8 @@ export interface StreamHandle {
 
 export interface LiveLine {
   grpc?: unknown;
+  /** When true, providers may attach a JSON-safe wire snapshot on `message.raw`. */
+  includeRaw?: boolean;
   platform: Platform;
   slack?: unknown;
   slackBotUserId?: string;

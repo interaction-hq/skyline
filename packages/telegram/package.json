@@ -1,6 +1,6 @@
 {
   "name": "@skyline-ts/telegram",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Telegram provider for skyline-ts.",
   "type": "module",
   "license": "MIT",
@@ -34,7 +34,7 @@
     "marked": "^18.0.5"
   },
   "peerDependencies": {
-    "@skyline-ts/core": "^0.5.1"
+    "@skyline-ts/core": "^0.6.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -1,6 +1,8 @@
 import type {
+  AttachmentInput,
   Content,
   KeyboardContent,
+  MessageEntity,
   SendOptions,
   StreamTextContent,
 } from "@skyline-ts/core/content";
@@ -15,6 +17,7 @@ import {
   applyCommonOpts,
   type SentMessage,
   type TelegramClient,
+  type TelegramPoll,
   keyboardToReplyMarkup,
   replyMarkupToTelegram,
 } from "./client.js";
@@ -514,10 +517,43 @@ function parseMessageId(id: string): number {
   return messageId;
 }
 
+function mapEntities(entities?: MessageEntity[]) {
+  return entities?.map((entity) => ({
+    custom_emoji_id: entity.customEmojiId,
+    language: entity.language,
+    length: entity.length,
+    offset: entity.offset,
+    type: entity.type,
+    url: entity.url,
+    user: entity.user ? { id: Number(entity.user.id) } : undefined,
+  }));
+}
+
+/** Map an attachment reference (url / file_id) to an `InputMedia` for polls. */
+function pollMediaFromInput(input?: AttachmentInput) {
+  if (!input?.url) {
+    return undefined;
+  }
+  const mime = input.mimeType ?? "";
+  const type = mime.startsWith("video/")
+    ? "video"
+    : mime.startsWith("audio/")
+      ? "audio"
+      : mime === "image/gif"
+        ? "animation"
+        : "photo";
+  return { media: input.url, type };
+}
+
 function optsFromSend(sendOpts?: SendOptions) {
   const markup = sendOpts?.replyMarkup;
   return {
+    allowPaidBroadcast: sendOpts?.allowPaidBroadcast,
+    allowSendingWithoutReply: sendOpts?.allowSendingWithoutReply,
+    businessConnectionId: sendOpts?.businessConnectionId,
+    callbackQueryId: sendOpts?.callbackQueryId,
     caption: sendOpts?.caption,
+    directMessagesTopicId: sendOpts?.directMessagesTopicId,
     entities: sendOpts?.entities?.map((entity) => ({
       custom_emoji_id: entity.customEmojiId,
       language: entity.language,
@@ -527,14 +563,47 @@ function optsFromSend(sendOpts?: SendOptions) {
       url: entity.url,
       user: entity.user ? { id: Number(entity.user.id) } : undefined,
     })),
+    messageEffectId: sendOpts?.messageEffectId,
     parseMode: sendOpts?.parseMode,
     protect: sendOpts?.protect,
+    quote: sendOpts?.quote
+      ? {
+          parseMode: sendOpts.quote.parseMode,
+          position: sendOpts.quote.position,
+          text: sendOpts.quote.text,
+          ...(sendOpts.quote.entities?.length
+            ? {
+                entities: sendOpts.quote.entities.map((entity) => ({
+                  custom_emoji_id: entity.customEmojiId,
+                  language: entity.language,
+                  length: entity.length,
+                  offset: entity.offset,
+                  type: entity.type,
+                  url: entity.url,
+                  user: entity.user ? { id: Number(entity.user.id) } : undefined,
+                })),
+              }
+            : {}),
+        }
+      : undefined,
+    receiverUserId: sendOpts?.receiverUserId,
     replyMarkup:
       markup && typeof markup === "object" && "type" in markup
         ? replyMarkupToTelegram(markup)
         : markup,
     replyTo: sendOpts?.replyTo,
     silent: sendOpts?.silent,
+    suggestedPost: sendOpts?.suggestedPost
+      ? {
+          price: sendOpts.suggestedPost.price
+            ? {
+                amount: sendOpts.suggestedPost.price.amount,
+                currency: sendOpts.suggestedPost.price.currency,
+              }
+            : undefined,
+          send_date: sendOpts.suggestedPost.sendDate,
+        }
+      : undefined,
     threadId: sendOpts?.threadId,
   };
 }
@@ -557,13 +626,56 @@ async function uploadMedia(
   bytes: Uint8Array,
   filename: string,
   mimeType: string | undefined,
-  sendOpts?: SendOptions
+  sendOpts?: SendOptions,
+  extra: Record<string, unknown> = {},
+  thumbnail?: { bytes: Uint8Array; mimeType?: string; name?: string }
 ): Promise<SentMessage> {
-  return client.upload<SentMessage>(
-    method,
-    withCommon(chatId, sendOpts),
-    { bytes, field, filename, mimeType }
+  const params = withCommon(chatId, sendOpts, extra);
+  if (!thumbnail) {
+    return client.upload<SentMessage>(method, params, {
+      bytes,
+      field,
+      filename,
+      mimeType,
+    });
+  }
+  const form = new FormData();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    form.append(
+      key,
+      typeof value === "string" || value instanceof Blob
+        ? value
+        : JSON.stringify(value)
+    );
+  }
+  form.append(
+    field,
+    new Blob([Uint8Array.from(bytes)], {
+      type: mimeType ?? "application/octet-stream",
+    }),
+    filename
   );
+  form.append(
+    "thumbnail",
+    new Blob([Uint8Array.from(thumbnail.bytes)], {
+      type: thumbnail.mimeType ?? "image/jpeg",
+    }),
+    thumbnail.name ?? "thumb.jpg"
+  );
+  return client.uploadForm<SentMessage>(method, form);
+}
+
+async function readThumbnail(
+  thumb: AttachmentInput | undefined
+): Promise<{ bytes: Uint8Array; mimeType?: string; name?: string } | undefined> {
+  if (!thumb) {
+    return undefined;
+  }
+  const bytes = await readMediaBytes(thumb);
+  return { bytes, mimeType: thumb.mimeType ?? "image/jpeg", name: thumb.name };
 }
 
 /**
@@ -616,6 +728,8 @@ export async function sendContent(
       const bytes = await readMediaBytes(content);
       const mime = content.mimeType ?? "application/octet-stream";
       const name = content.name ?? mimeToMediaName(mime, "file");
+      const caption = content.caption;
+      const thumbnail = await readThumbnail(content.thumbnail);
       if (content.isSticker || mime === "image/webp") {
         const res = await uploadMedia(
           client,
@@ -638,7 +752,12 @@ export async function sendContent(
           bytes,
           name,
           mime.startsWith("video/") ? mime : "video/mp4",
-          sendOpts
+          sendOpts,
+          {
+            duration: content.duration,
+            length: content.length,
+          },
+          thumbnail
         );
         return String(res.message_id);
       }
@@ -651,31 +770,96 @@ export async function sendContent(
           bytes,
           name,
           mime,
-          sendOpts
+          sendOpts,
+          {
+            caption,
+            duration: content.duration,
+            has_spoiler: content.hasSpoiler,
+            height: content.height,
+            show_caption_above_media: content.showCaptionAboveMedia,
+            width: content.width,
+          },
+          thumbnail
         );
         return String(res.message_id);
       }
-      let method = "sendDocument";
-      let field = "document";
       if (mime.startsWith("image/")) {
-        method = "sendPhoto";
-        field = "photo";
-      } else if (mime.startsWith("video/")) {
-        method = "sendVideo";
-        field = "video";
-      } else if (mime.startsWith("audio/")) {
-        method = "sendAudio";
-        field = "audio";
+        const res = await uploadMedia(
+          client,
+          "sendPhoto",
+          "photo",
+          chatId,
+          bytes,
+          name,
+          mime,
+          sendOpts,
+          {
+            caption,
+            has_spoiler: content.hasSpoiler,
+            show_caption_above_media: content.showCaptionAboveMedia,
+          }
+        );
+        return String(res.message_id);
+      }
+      if (mime.startsWith("video/")) {
+        const res = await uploadMedia(
+          client,
+          "sendVideo",
+          "video",
+          chatId,
+          bytes,
+          name,
+          mime,
+          sendOpts,
+          {
+            caption,
+            cover: content.cover?.url,
+            duration: content.duration,
+            has_spoiler: content.hasSpoiler,
+            height: content.height,
+            show_caption_above_media: content.showCaptionAboveMedia,
+            start_timestamp: content.startTimestamp,
+            supports_streaming: content.supportsStreaming,
+            width: content.width,
+          },
+          thumbnail
+        );
+        return String(res.message_id);
+      }
+      if (mime.startsWith("audio/")) {
+        const res = await uploadMedia(
+          client,
+          "sendAudio",
+          "audio",
+          chatId,
+          bytes,
+          name,
+          mime,
+          sendOpts,
+          {
+            caption,
+            duration: content.duration,
+            performer: content.performer,
+            title: content.title,
+          },
+          thumbnail
+        );
+        return String(res.message_id);
       }
       const res = await uploadMedia(
         client,
-        method,
-        field,
+        "sendDocument",
+        "document",
         chatId,
         bytes,
         name,
         mime,
-        sendOpts
+        sendOpts,
+        {
+          caption,
+          disable_content_type_detection: content.disableContentTypeDetection,
+        },
+        thumbnail
       );
       return String(res.message_id);
     }
@@ -689,7 +873,8 @@ export async function sendContent(
         bytes,
         content.name ?? "voice.ogg",
         content.mimeType ?? "audio/ogg",
-        sendOpts
+        sendOpts,
+        { duration: content.duration }
       );
       return String(res.message_id);
     }
@@ -729,26 +914,37 @@ export async function sendContent(
       return String(res.message_id);
     }
     case "poll": {
-      const res = await client.call<
-        SentMessage & {
-          poll?: {
-            id: string;
-            options: { text: string; voter_count: number }[];
-            question: string;
-          };
-        }
-      >(
+      const res = await client.call<SentMessage & { poll?: TelegramPoll }>(
         "sendPoll",
         withCommon(chatId, sendOpts, {
+          allow_adding_options: content.allowAddingOptions,
           allows_multiple_answers: content.allowsMultipleAnswers,
+          allows_revoting: content.allowsRevoting,
           close_date: content.closeDate,
-          correct_option_id: content.correctOptionId,
+          correct_option_ids:
+            content.correctOptionIds ??
+            (content.correctOptionId != null
+              ? [content.correctOptionId]
+              : undefined),
+          country_codes: content.countryCodes,
+          description: content.description,
+          description_entities: mapEntities(content.descriptionEntities),
+          description_parse_mode: content.descriptionParseMode,
           explanation: content.explanation,
+          explanation_entities: mapEntities(content.explanationEntities),
+          explanation_media: pollMediaFromInput(content.explanationMedia),
+          explanation_parse_mode: content.explanationParseMode,
+          hide_results_until_closes: content.hideResultsUntilCloses,
           is_anonymous: content.isAnonymous,
           is_closed: content.isClosed,
+          media: pollMediaFromInput(content.media),
+          members_only: content.membersOnly,
           open_period: content.openPeriod,
-          options: content.options,
+          options: content.options.map((text) => ({ text })),
           question: content.title,
+          question_entities: mapEntities(content.questionEntities),
+          question_parse_mode: content.questionParseMode,
+          shuffle_options: content.shuffleOptions,
           type: content.pollType,
         })
       );
@@ -782,6 +978,10 @@ export async function sendContent(
           "sendVenue",
           withCommon(chatId, sendOpts, {
             address: content.address,
+            foursquare_id: content.foursquareId,
+            foursquare_type: content.foursquareType,
+            google_place_id: content.googlePlaceId,
+            google_place_type: content.googlePlaceType,
             latitude: content.latitude,
             longitude: content.longitude,
             title: content.title,
@@ -815,6 +1015,7 @@ export async function sendContent(
         withCommon(chatId, sendOpts, {
           from_chat_id: content.fromChatId,
           message_id: parseMessageId(content.messageId),
+          video_start_timestamp: content.videoStartTimestamp,
         })
       );
       return String(res.message_id);
@@ -824,8 +1025,12 @@ export async function sendContent(
         "copyMessage",
         withCommon(chatId, sendOpts, {
           caption: content.caption,
+          caption_entities: mapEntities(content.captionEntities),
           from_chat_id: content.fromChatId,
           message_id: parseMessageId(content.messageId),
+          parse_mode: content.parseMode,
+          show_caption_above_media: content.showCaptionAboveMedia,
+          video_start_timestamp: content.videoStartTimestamp,
         })
       );
       return String(res.message_id);
@@ -836,6 +1041,7 @@ export async function sendContent(
         withCommon(chatId, sendOpts, {
           currency: content.currency,
           description: content.description,
+          is_flexible: content.isFlexible,
           max_tip_amount: content.maxTipAmount,
           need_email: content.needEmail,
           need_name: content.needName,
@@ -851,6 +1057,7 @@ export async function sendContent(
           provider_token: content.providerToken ?? "",
           send_email_to_provider: content.sendEmailToProvider,
           send_phone_number_to_provider: content.sendPhoneNumberToProvider,
+          start_parameter: content.startParameter,
           suggested_tip_amounts: content.suggestedTipAmounts,
           title: content.title,
         })
@@ -882,6 +1089,7 @@ export async function sendContent(
         withCommon(chatId, sendOpts, {
           from_chat_id: content.fromChatId,
           message_ids: content.messageIds.map(parseMessageId),
+          remove_caption: content.removeCaption,
         })
       );
       return undefined;
@@ -964,6 +1172,7 @@ export async function sendContent(
           gift_id: content.giftId,
           pay_for_upgrade: content.payForUpgrade,
           text: content.text,
+          text_entities: mapEntities(content.textEntities),
           text_parse_mode: content.textParseMode,
           user_id: content.userId != null ? Number(content.userId) : undefined,
         })
@@ -981,6 +1190,10 @@ export async function sendContent(
       );
       return res?.message_id != null ? String(res.message_id) : undefined;
     }
+    case "story":
+    case "giveaway":
+    case "giveaway_winners":
+      throw new Error(`Telegram outbound does not support content type ${content.type}`);
     case "live_photo": {
       const photoBytes = await readMediaBytes(content.photo);
       const videoBytes = await readMediaBytes(content.video);
@@ -1226,6 +1439,8 @@ export async function sendContent(
       for (const member of content.members) {
         await client.call("banChatMember", {
           chat_id: chatId,
+          revoke_messages: content.revokeMessages,
+          until_date: content.untilDate,
           user_id: Number(member),
         });
       }

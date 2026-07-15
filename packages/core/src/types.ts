@@ -4,6 +4,7 @@ import type {
   Content,
   ContentInput,
   InlineKeyboardButton,
+  LinkPreviewOptions,
   MemberInput,
   MessageEntity,
   Reaction,
@@ -153,13 +154,23 @@ export interface StarTransactionsOptions {
 }
 
 export interface BotIdentity {
+  addedToAttachmentMenu?: boolean;
+  allowsUsersToCreateTopics?: boolean;
   canConnectToBusiness?: boolean;
   canJoinGroups?: boolean;
+  canManageBots?: boolean;
   canReadAllGroupMessages?: boolean;
   firstName: string;
+  hasMainWebApp?: boolean;
+  hasTopicsEnabled?: boolean;
   id: string;
   isBot: boolean;
+  isPremium?: boolean;
+  languageCode?: string;
+  lastName?: string;
+  supportsGuestQueries?: boolean;
   supportsInlineQueries?: boolean;
+  supportsJoinRequestQueries?: boolean;
   username?: string;
 }
 
@@ -178,30 +189,84 @@ export interface StarAmount {
   nanostarAmount?: number;
 }
 
+export interface RevenueWithdrawalState {
+  date?: number;
+  type: "pending" | "succeeded" | "failed" | (string & {});
+  url?: string;
+}
+
+/** A counterparty in a Star transaction (user, chat, ad platform, …). */
+export interface TransactionPartnerInfo {
+  chatId?: string;
+  commissionPerMille?: number;
+  giftId?: string;
+  invoicePayload?: string;
+  paidMediaPayload?: string;
+  premiumSubscriptionDuration?: number;
+  requestCount?: number;
+  sponsorUserId?: string;
+  subscriptionPeriod?: number;
+  transactionType?: string;
+  type: string;
+  user?: User;
+  withdrawalState?: RevenueWithdrawalState;
+}
+
 export interface StarTransaction {
   amount: number;
   date: number;
   id: string;
   nanostarAmount?: number;
-  source?: string;
+  receiver?: TransactionPartnerInfo;
+  source?: TransactionPartnerInfo;
 }
 
 export interface StarTransactionsPage {
   transactions: StarTransaction[];
 }
 
+export interface GiftBackground {
+  centerColor: number;
+  edgeColor: number;
+  textColor: number;
+}
+
 export interface GiftInfo {
+  background?: GiftBackground;
+  hasColors?: boolean;
   id: string;
+  isPremium?: boolean;
+  personalRemainingCount?: number;
+  personalTotalCount?: number;
+  publisherChatId?: string;
+  remainingCount?: number;
   starCount?: number;
+  sticker?: StickerInfo;
   totalCount?: number;
+  uniqueGiftVariantCount?: number;
+  upgradeStarCount?: number;
 }
 
 export interface OwnedGift {
+  canBeTransferred?: boolean;
+  canBeUpgraded?: boolean;
+  convertStarCount?: number;
+  entities?: MessageEntity[];
   giftId: string;
+  isPrivate?: boolean;
+  isSaved?: boolean;
+  isUpgradeSeparate?: boolean;
+  nextTransferDate?: number;
   ownedGiftId?: string;
+  prepaidUpgradeStarCount?: number;
   sendDate?: number;
+  senderUserId?: string;
   starCount?: number;
+  text?: string;
+  transferStarCount?: number;
   type?: string;
+  uniqueGiftNumber?: number;
+  wasRefunded?: boolean;
 }
 
 export interface GiftsPage {
@@ -394,31 +459,43 @@ export interface BusinessConnectionIdOptions {
 
 export interface BusinessGiftsOptions {
   businessConnectionId: string;
-  excludeLimited?: boolean;
+  /** Drop gifts held on the blockchain (TON). */
+  excludeFromBlockchain?: boolean;
+  /** Drop limited-supply gifts that cannot be upgraded. */
+  excludeLimitedNonUpgradable?: boolean;
+  /** Drop limited-supply gifts that can be upgraded to unique. */
+  excludeLimitedUpgradable?: boolean;
   excludeSaved?: boolean;
   excludeUnique?: boolean;
   excludeUnlimited?: boolean;
+  excludeUnsaved?: boolean;
   limit?: number;
   offset?: string;
   sortByPrice?: boolean;
 }
 
 export interface ChatGiftsOptions {
-  excludeLimited?: boolean;
+  excludeFromBlockchain?: boolean;
+  excludeLimitedNonUpgradable?: boolean;
+  excludeLimitedUpgradable?: boolean;
   excludeSaved?: boolean;
   excludeUnique?: boolean;
   excludeUnlimited?: boolean;
+  excludeUnsaved?: boolean;
   limit?: number;
   offset?: string;
+  sortByPrice?: boolean;
 }
 
 export interface UserGiftsOptions {
-  excludeLimited?: boolean;
-  excludeSaved?: boolean;
+  excludeFromBlockchain?: boolean;
+  excludeLimitedNonUpgradable?: boolean;
+  excludeLimitedUpgradable?: boolean;
   excludeUnique?: boolean;
   excludeUnlimited?: boolean;
   limit?: number;
   offset?: string;
+  sortByPrice?: boolean;
 }
 
 export interface ConvertGiftInput {
@@ -449,6 +526,7 @@ export interface GiftPremiumInput {
   monthCount: number;
   starCount: number;
   text?: string;
+  textEntities?: MessageEntity[];
   textParseMode?: string;
   userId: string;
 }
@@ -476,28 +554,21 @@ export interface BusinessGiftSettingsInput {
   };
 }
 
+/** Access settings of a managed bot (Bot API `BotAccessSettings`). */
 export interface ManagedAccessSettings {
-  canManageBot?: boolean;
-  canReadMessages?: boolean;
-  canReply?: boolean;
-  canDeleteSentMessages?: boolean;
-  canDeleteAllMessages?: boolean;
-  canEditName?: boolean;
-  canEditBio?: boolean;
-  canEditProfilePhoto?: boolean;
-  canEditUsername?: boolean;
-  canViewGiftsAndStars?: boolean;
-  canSellGifts?: boolean;
-  canChangeGiftSettings?: boolean;
-  canManageStories?: boolean;
-  canPostStories?: boolean;
-  canEditStories?: boolean;
-  canDeleteStories?: boolean;
+  /** Users allowed to interact when access is restricted. */
+  addedUsers: User[];
+  /** Whether the managed bot is restricted to `addedUsers`. */
+  isAccessRestricted: boolean;
 }
 
 export interface SetManagedAccessInput {
-  accessSettings: ManagedAccessSettings;
-  businessConnectionId?: string;
+  /** Users allowed to interact while restricted. */
+  addedUserIds?: string[];
+  /** Restrict the managed bot to `addedUserIds`. */
+  isAccessRestricted: boolean;
+  /** Managed bot's user id. */
+  userId: string;
 }
 
 export interface VerifyChatOptions {
@@ -510,8 +581,10 @@ export interface VerifyUserOptions {
 }
 
 export interface JoinRequestWebAppInput {
-  chatId: string | number;
-  requestId?: string;
+  /** The `chat_join_request_query_id` from the Mini App. */
+  queryId: string;
+  /** Mini App URL to open for the join request. */
+  webAppUrl: string;
 }
 
 export interface ParseModeOptions {
@@ -520,6 +593,7 @@ export interface ParseModeOptions {
 }
 
 export interface EphemeralEditOptions extends ParseModeOptions {
+  linkPreview?: boolean | LinkPreviewOptions;
   replyMarkup?: ReplyMarkup;
 }
 
@@ -545,6 +619,8 @@ export interface RichMessageBody {
 }
 
 export interface SuggestedPostOptions {
+  /** Rejection reason shown to the author (declineSuggestedPost). */
+  comment?: string;
   sendDate?: number;
 }
 
@@ -698,15 +774,7 @@ export type InlineQueryResult =
   | InlineQueryResultGame
   | InlineQueryResultCached;
 
-export interface WebAppAnswerOptions {
-  cacheTime?: number;
-  isPersonal?: boolean;
-  nextOffset?: string;
-  results?: InlineQueryResult[];
-}
-
 export interface PreparedInlineInput {
-  allowPaidBroadcast?: boolean;
   allowUserChats?: boolean;
   allowBotChats?: boolean;
   allowGroupChats?: boolean;
@@ -744,7 +812,6 @@ export interface ChecklistEdit {
 
 export interface PersonalMessagesOptions {
   limit?: number;
-  offsetId?: number;
 }
 
 export interface PersonalChatMessage {
@@ -758,18 +825,159 @@ export interface PersonalMessagesPage {
 }
 
 export interface RemoveReactionOptions {
-  reactorUserId?: string;
+  /** Restrict removal to a reaction added on behalf of this chat. */
+  actorChatId?: string;
+  /** Restrict removal to a reaction added by this user. */
+  userId?: string;
 }
 
 export interface MemberTagOptions {
   customEmojiId?: string;
 }
 
+export interface ChatPhotoInfo {
+  bigFileId: string;
+  bigFileUniqueId: string;
+  smallFileId: string;
+  smallFileUniqueId: string;
+}
+
+export interface Birthdate {
+  day: number;
+  month: number;
+  year?: number;
+}
+
+export interface BusinessIntro {
+  message?: string;
+  sticker?: StickerInfo;
+  title?: string;
+}
+
+export interface BusinessOpeningHoursInterval {
+  closingMinute: number;
+  openingMinute: number;
+}
+
+export interface BusinessOpeningHours {
+  openingHours: BusinessOpeningHoursInterval[];
+  timeZoneName: string;
+}
+
+export interface GeoPoint {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BusinessLocation {
+  address: string;
+  location?: GeoPoint;
+}
+
+export interface ChatLocationInfo {
+  address: string;
+  location: GeoPoint;
+}
+
+export interface AcceptedGiftTypes {
+  limitedGifts: boolean;
+  premiumSubscription: boolean;
+  unlimitedGifts: boolean;
+  uniqueGifts: boolean;
+}
+
+export type ReactionTypeInfo =
+  | { customEmojiId: string; type: "custom_emoji" }
+  | { emoji: string; type: "emoji" }
+  | { type: "paid" };
+
+export interface UserRating {
+  currentLevelRating: number;
+  level: number;
+  nextLevelRating?: number;
+  rating: number;
+}
+
+export interface UniqueGiftColors {
+  darkThemeMainColor: number;
+  darkThemeOtherColors: number[];
+  lightThemeMainColor: number;
+  lightThemeOtherColors: number[];
+  modelCustomEmojiId: string;
+  symbolCustomEmojiId: string;
+}
+
+export interface Community {
+  id: string;
+  name: string;
+}
+
+export interface AudioInfo {
+  duration?: number;
+  fileId: string;
+  fileUniqueId?: string;
+  mimeType?: string;
+  performer?: string;
+  title?: string;
+}
+
+/** Telegram-specific chat fields; broadly-applicable ones live on `ChatInfo`. */
+export interface ChatInfoTelegram {
+  acceptedGiftTypes?: AcceptedGiftTypes;
+  accentColorId?: number;
+  activeUsernames?: string[];
+  availableReactions?: ReactionTypeInfo[];
+  backgroundCustomEmojiId?: string;
+  birthdate?: Birthdate;
+  businessIntro?: BusinessIntro;
+  businessLocation?: BusinessLocation;
+  businessOpeningHours?: BusinessOpeningHours;
+  canSendPaidMedia?: boolean;
+  community?: Community;
+  customEmojiStickerSetName?: string;
+  emojiStatusCustomEmojiId?: string;
+  emojiStatusExpirationDate?: number;
+  firstProfileAudio?: AudioInfo;
+  guardBot?: User;
+  hasPrivateForwards?: boolean;
+  hasRestrictedVoiceAndVideoMessages?: boolean;
+  isDirectMessages?: boolean;
+  maxReactionCount?: number;
+  paidMessageStarCount?: number;
+  parentChat?: ChatInfo;
+  personalChat?: ChatInfo;
+  profileAccentColorId?: number;
+  profileBackgroundCustomEmojiId?: string;
+  rating?: UserRating;
+  uniqueGiftColors?: UniqueGiftColors;
+  unrestrictBoostCount?: number;
+}
+
 export interface ChatInfo {
+  bio?: string;
+  canSetStickerSet?: boolean;
   description?: string;
+  firstName?: string;
+  hasAggressiveAntiSpamEnabled?: boolean;
+  hasHiddenMembers?: boolean;
+  hasProtectedContent?: boolean;
+  hasVisibleHistory?: boolean;
   id: string;
   inviteLink?: string;
   isForum?: boolean;
+  joinByRequest?: boolean;
+  joinToSendMessages?: boolean;
+  lastName?: string;
+  linkedChatId?: string;
+  location?: ChatLocationInfo;
+  messageAutoDeleteTime?: number;
+  permissions?: ChatPermissions;
+  photo?: ChatPhotoInfo;
+  pinnedMessage?: Message;
+  slowModeDelay?: number;
+  stickerSetName?: string;
+  /** Telegram-only chat detail. */
+  telegram?: ChatInfoTelegram;
   title?: string;
   type: string;
   username?: string;
@@ -831,7 +1039,231 @@ export interface User {
   /** Public handle / username when the platform has one (e.g. Telegram @name). */
   handle?: string;
   id: string;
+  /** IETF language tag when the platform exposes it (e.g. `en`). */
+  languageCode?: string;
 }
+
+/** Provenance when the inbound message is a forward/repost. */
+export interface MessageForward {
+  date?: Date;
+  fromChatId?: string;
+  fromMessageGuid?: string;
+  originType?: string;
+  senderDisplayName?: string;
+  senderHandle?: string;
+  senderId?: string;
+}
+
+/** A URL (or email) referenced in inbound text/caption. */
+export interface MessageLink {
+  text: string;
+  url: string;
+}
+
+/** A bot command invoked in inbound text (e.g. `/start payload`). */
+export interface MessageCommand {
+  args?: string;
+  command: string;
+}
+
+/** Chat identity (group/channel/DM) without vendor nesting. */
+export interface ChatRef {
+  handle?: string;
+  id: string;
+  kind?: "private" | "group" | "supergroup" | "channel" | (string & {});
+  title?: string;
+}
+
+/** Quoted slice when replying to part of a message. */
+export interface MessageQuote {
+  isManual?: boolean;
+  markdown?: string;
+  position?: number;
+  text: string;
+}
+
+/** Link-preview options / state on an inbound text message. */
+export interface MessageLinkPreview {
+  disabled?: boolean;
+  preferLargeMedia?: boolean;
+  preferSmallMedia?: boolean;
+  showAboveText?: boolean;
+  url?: string;
+}
+
+/** Reply that points at a message in another chat/topic. */
+export interface MessageExternalReply {
+  chat?: ChatRef;
+  hasMediaSpoiler?: boolean;
+  messageGuid?: string;
+  originType?: string;
+}
+
+/** Custom emoji span resolved from inbound text/caption. */
+export interface MessageCustomEmoji {
+  id: string;
+  text: string;
+}
+
+/** Date/time span resolved from inbound text/caption. */
+export interface MessageDateTime {
+  format?: string;
+  text: string;
+  unixTime: number;
+}
+
+/**
+ * Platform system / service events carried on a Message (members added, payments,
+ * forum topics, video chats, …). Discriminated on `type` — agents switch on this
+ * instead of reading vendor field names.
+ */
+export interface GiftEventInfo {
+  canBeUpgraded?: boolean;
+  convertStarCount?: number;
+  entities?: MessageEntity[];
+  giftId: string;
+  isPrivate?: boolean;
+  isUpgradeSeparate?: boolean;
+  ownedGiftId?: string;
+  prepaidUpgradeStarCount?: number;
+  text?: string;
+  uniqueGiftNumber?: number;
+}
+
+export type MessageSystemEvent =
+  | { type: "members_added"; users: User[] }
+  | { type: "member_left"; user: User }
+  | { type: "owner_left"; newOwner?: User }
+  | { type: "owner_changed"; newOwner: User }
+  | { type: "title_changed"; title: string }
+  | { type: "photo_changed" }
+  | { type: "photo_deleted" }
+  | { type: "group_created" }
+  | { type: "supergroup_created" }
+  | { type: "channel_created" }
+  | { type: "auto_delete_timer_changed"; messageAutoDeleteTime: number }
+  | { type: "migrated_to"; chatId: string }
+  | { type: "migrated_from"; chatId: string }
+  | { type: "message_pinned"; messageGuid?: string }
+  | {
+      type: "successful_payment";
+      currency: string;
+      invoicePayload: string;
+      providerPaymentChargeId?: string;
+      telegramPaymentChargeId?: string;
+      totalAmount: number;
+    }
+  | {
+      type: "refunded_payment";
+      currency: string;
+      invoicePayload?: string;
+      telegramPaymentChargeId?: string;
+      totalAmount: number;
+    }
+  | { type: "users_shared"; users: User[]; requestId?: string }
+  | { type: "chat_shared"; chatId: string; requestId?: string }
+  | ({ type: "gift" } & GiftEventInfo)
+  | ({ type: "gift_upgrade_sent" } & GiftEventInfo)
+  | {
+      type: "unique_gift";
+      giftName?: string;
+      origin: string;
+      ownedGiftId?: string;
+      lastResaleCurrency?: string;
+      lastResaleAmount?: number;
+      transferStarCount?: number;
+      nextTransferDate?: number;
+    }
+  | { type: "connected_website"; domain: string }
+  | {
+      type: "write_access_allowed";
+      fromRequest?: boolean;
+      webAppName?: string;
+      fromAttachmentMenu?: boolean;
+    }
+  | { type: "passport_data"; elementTypes: string[] }
+  | {
+      type: "proximity_alert";
+      traveler?: User;
+      watcher?: User;
+      distance: number;
+    }
+  | { type: "boost_added"; boostCount?: number }
+  | { type: "chat_background_set"; backgroundType?: string }
+  | {
+      type: "checklist_tasks_done";
+      markedAsDoneTaskIds?: number[];
+      markedAsNotDoneTaskIds?: number[];
+    }
+  | {
+      type: "checklist_tasks_added";
+      tasks: { id?: string; text?: string }[];
+    }
+  | { type: "community_chat_added"; community: Community }
+  | { type: "community_chat_removed" }
+  | {
+      type: "direct_message_price_changed";
+      areDirectMessagesEnabled: boolean;
+      directMessageStarCount?: number;
+    }
+  | {
+      type: "forum_topic_created";
+      name?: string;
+      iconColor?: number;
+      iconCustomEmojiId?: string;
+    }
+  | {
+      type: "forum_topic_edited";
+      name?: string;
+      iconCustomEmojiId?: string;
+    }
+  | { type: "forum_topic_closed" }
+  | { type: "forum_topic_reopened" }
+  | { type: "general_forum_topic_hidden" }
+  | { type: "general_forum_topic_unhidden" }
+  | { type: "giveaway_created"; prizeStarCount?: number }
+  | {
+      type: "giveaway_completed";
+      winnerCount: number;
+      unclaimedPrizeCount?: number;
+      isStarGiveaway?: boolean;
+    }
+  | { type: "managed_bot_created"; bot: User }
+  | { type: "paid_message_price_changed"; paidMessageStarCount: number }
+  | {
+      type: "poll_option_added";
+      optionPersistentId: string;
+      optionText: string;
+      optionTextEntities?: MessageEntity[];
+    }
+  | {
+      type: "poll_option_deleted";
+      optionPersistentId: string;
+      optionText: string;
+      optionTextEntities?: MessageEntity[];
+    }
+  | {
+      type: "suggested_post_approved";
+      price?: { currency: string; amount: number };
+      sendDate: number;
+    }
+  | {
+      type: "suggested_post_approval_failed";
+      price: { currency: string; amount: number };
+    }
+  | { type: "suggested_post_declined"; comment?: string }
+  | {
+      type: "suggested_post_paid";
+      currency: string;
+      amount?: number;
+      starAmount?: StarAmount;
+    }
+  | { type: "suggested_post_refunded"; reason: string }
+  | { type: "video_chat_scheduled"; startDate?: number }
+  | { type: "video_chat_started" }
+  | { type: "video_chat_ended"; duration?: number }
+  | { type: "video_chat_participants_invited"; users?: User[] }
+  | { type: "web_app_data"; buttonText?: string; data: string };
 
 export interface StoryRef {
   chatId?: string;
@@ -905,27 +1337,121 @@ export interface MessageAttachment {
   transferName?: string;
 }
 
+/** Direct-messages topic when the chat is a channel DM thread. */
+export interface DirectMessagesTopic {
+  topicId: number | string;
+  name?: string;
+}
+
+/** Suggested-post parameters on a channel DM message. */
+export interface SuggestedPostInfo {
+  state?: string;
+  price?: { currency?: string; amount?: number };
+  sendDate?: number;
+}
+
 export interface Message {
   attachments?: MessageAttachment[];
+  authorSignature?: string;
+  businessConnectionId?: string;
+  /** Cashtags in text/caption (e.g. `$TICKER`), without `$`. */
+  cashtags?: string[];
   channel: Channel;
+  /** Bot commands in text (e.g. `/start hello` → `{ command: "start", args: "hello" }`). */
+  commands?: MessageCommand[];
   content: MessageContent;
+  customEmojis?: MessageCustomEmoji[];
+  dateTimes?: MessageDateTime[];
+  /** Channel direct-messages topic this message belongs to. */
+  directMessagesTopic?: DirectMessagesTopic;
   direction: "inbound" | "outbound";
   edit(content: ContentInput): Promise<void>;
+  editTimestamp?: Date;
+  effectId?: string;
+  ephemeralMessageId?: string;
+  externalReply?: MessageExternalReply;
+  /** Present when this message is a forward/repost. */
+  forward?: MessageForward;
   group?: GroupContext;
+  /**
+   * For guest-bot replies: who/which chat triggered the guest bot.
+   * Prefer typed fields over reading vendor wire shapes.
+   */
+  guestBotCaller?: { chat?: ChatRef; user?: User };
+  guestQueryId?: string;
   guid?: string;
+  hasMediaSpoiler?: boolean;
+  hasProtectedContent?: boolean;
+  /** Hashtags in text/caption, without `#`. */
+  hashtags?: string[];
+  isAutomaticForward?: boolean;
   isFromMe: boolean;
+  isFromOffline?: boolean;
+  isPaidPost?: boolean;
+  isTopicMessage?: boolean;
+  linkPreview?: MessageLinkPreview;
+  /** URLs / text-links / emails extracted from text/caption. */
+  links?: MessageLink[];
+  /**
+   * Text/caption with formatting as Markdown when the platform had rich
+   * spans (bold/italic/code/links). Prefer this over inventing vendor entity arrays.
+   */
+  markdown?: string;
+  /** Inline/reply keyboard attached to the inbound message. */
+  markup?: ReplyMarkup;
+  /** Album / media-group id when several attachments were sent together. */
+  mediaGroupId?: string;
+  /** @mentions / text-mentions resolved to Skyline users where possible. */
+  mentions?: User[];
+  paidStarCount?: number;
+  /** Phone numbers extracted from text/caption. */
+  phones?: string[];
   platform: Platform;
-  react(reaction: Reaction, opts?: { remove?: boolean }): Promise<void>;
+  quote?: MessageQuote;
+  /**
+   * Opt-in wire snapshot of the platform update/message (JSON-safe).
+   * Off by default so the hot path stays small for agents; enable per provider
+   * (e.g. `telegram.config({ includeRaw: true })`) for debug/observability.
+   */
+  raw?: JsonValue;
+  react(
+    reaction: Reaction,
+    opts?: { big?: boolean; remove?: boolean }
+  ): Promise<void>;
   read(): Promise<void>;
+  receiver?: User;
   reply(content: ContentInput, opts?: SendOptions): Promise<Message | undefined>;
-  replyTo?: { messageGuid: string; partIndex?: number };
+  replyTo?: {
+    checklistTaskId?: number;
+    messageGuid: string;
+    partIndex?: number;
+    pollOptionId?: string;
+    senderHandle?: string;
+    senderId?: string;
+    storyId?: string;
+    text?: string;
+  };
   sender: User;
+  senderBoostCount?: number;
+  senderBusinessBot?: User;
+  /** When the message was sent on behalf of a chat (anonymous admin / channel). */
+  senderChat?: ChatRef;
+  senderTag?: string;
+  /** Carrier / wire service label (e.g. iMessage). Not a chat system event. */
   service?: string;
+  showCaptionAboveMedia?: boolean;
   slack?: SlackMessageMeta;
+  /** Suggested-post info when this is a channel DM suggested post. */
+  suggestedPostInfo?: SuggestedPostInfo;
+  /** Chat system/service event (members, payments, topics, video chats, …). */
+  systemEvent?: MessageSystemEvent;
   /** Forum / topic thread id when the platform has one (flat field, not nested). */
   threadId?: string | number;
   timestamp: Date;
   unsend(): Promise<void>;
+  /** Handle of a bot this message was sent via, when the platform exposes it. */
+  viaHandle?: string;
+  viaUser?: User;
 }
 
 export interface ReactionSignal {
@@ -1168,21 +1694,39 @@ export type ChatAction =
   | "upload_video_note"
   | (string & {});
 
+export interface ChatInviteLink {
+  createsJoinRequest: boolean;
+  creator: User;
+  expireDate?: number;
+  inviteLink: string;
+  isPrimary: boolean;
+  isRevoked: boolean;
+  memberLimit?: number;
+  name?: string;
+  pendingJoinRequestCount?: number;
+  subscriptionPeriod?: number;
+  subscriptionPrice?: number;
+}
+
 export interface InviteOps {
-  create(opts?: InviteCreateOptions): Promise<string>;
-  createSubscription(opts: InviteSubscriptionCreateOptions): Promise<string>;
-  edit(inviteLink: string, opts?: InviteEditOptions): Promise<string>;
+  create(opts?: InviteCreateOptions): Promise<ChatInviteLink>;
+  createSubscription(
+    opts: InviteSubscriptionCreateOptions
+  ): Promise<ChatInviteLink>;
+  edit(inviteLink: string, opts?: InviteEditOptions): Promise<ChatInviteLink>;
   editSubscription(
     inviteLink: string,
     opts?: InviteSubscriptionEditOptions
-  ): Promise<string>;
+  ): Promise<ChatInviteLink>;
+  /** Primary invite link for the chat (replaces any previous primary link). */
   export(): Promise<string>;
-  revoke(inviteLink: string): Promise<void>;
+  revoke(inviteLink: string): Promise<ChatInviteLink>;
 }
 
 export interface InvoiceLinkInput {
   currency: string;
   description: string;
+  isFlexible?: boolean;
   maxTipAmount?: number;
   needEmail?: boolean;
   needName?: boolean;
@@ -1325,10 +1869,8 @@ export interface BusinessOps {
   ): Promise<void>;
   giftPremium(input: GiftPremiumInput): Promise<void>;
   gifts(opts: BusinessGiftsOptions): Promise<GiftsPage>;
-  managedAccessSettings(
-    opts?: BusinessConnectionIdOptions
-  ): Promise<ManagedAccessSettings>;
-  managedToken(): Promise<{ token: string }>;
+  managedAccessSettings(userId: string): Promise<ManagedAccessSettings>;
+  managedToken(userId: string): Promise<{ token: string }>;
   readMessage(
     messageId: string,
     opts: BusinessConnectionIdOptions
@@ -1336,9 +1878,7 @@ export interface BusinessOps {
   removeChatVerification(opts?: VerifyChatOptions): Promise<void>;
   removeProfilePhoto(opts: BusinessConnectionIdOptions): Promise<void>;
   removeUserVerification(userId: string): Promise<void>;
-  replaceManagedToken(
-    opts?: BusinessConnectionIdOptions
-  ): Promise<{ token: string }>;
+  replaceManagedToken(userId: string): Promise<{ token: string }>;
   setBio(bio: string, opts: BusinessConnectionIdOptions): Promise<void>;
   setGiftSettings(input: BusinessGiftSettingsInput): Promise<void>;
   setManagedAccessSettings(input: SetManagedAccessInput): Promise<void>;
@@ -1358,11 +1898,13 @@ export interface BusinessOps {
 }
 
 export interface WebAppOps {
-  answerGuest(queryId: string, opts?: WebAppAnswerOptions): Promise<void>;
-  answerJoinRequest(
+  /** Answer a Mini App guest query with an inline result. */
+  answerGuest(
     queryId: string,
-    opts?: WebAppAnswerOptions
-  ): Promise<void>;
+    result: InlineQueryResult
+  ): Promise<{ inlineMessageId: string }>;
+  /** Answer a Mini App chat-join-request query with a result token. */
+  answerJoinRequest(queryId: string, result: string): Promise<void>;
   savePreparedInline(input: PreparedInlineInput): Promise<PreparedInlineResult>;
   savePreparedKeyboard(
     input: PreparedKeyboardInput
@@ -1371,24 +1913,27 @@ export interface WebAppOps {
 }
 
 export interface EphemeralOps {
-  delete(messageGuid: string): Promise<void>;
+  delete(receiverUserId: string, ephemeralMessageId: string): Promise<void>;
   editCaption(
-    messageGuid: string,
+    receiverUserId: string,
+    ephemeralMessageId: string,
     caption: string,
     opts?: EphemeralEditOptions
   ): Promise<void>;
   editMarkup(
-    messageGuid: string,
-    markup: ReplyMarkup,
-    opts?: EphemeralMediaOptions
+    receiverUserId: string,
+    ephemeralMessageId: string,
+    markup: ReplyMarkup
   ): Promise<void>;
   editMedia(
-    messageGuid: string,
+    receiverUserId: string,
+    ephemeralMessageId: string,
     media: EphemeralMediaInput,
     opts?: EphemeralMediaOptions
   ): Promise<void>;
   editText(
-    messageGuid: string,
+    receiverUserId: string,
+    ephemeralMessageId: string,
     text: string,
     opts?: EphemeralEditOptions
   ): Promise<void>;
@@ -1438,7 +1983,11 @@ export interface Channel {
   background(input: VisualAssetInput): Promise<void>;
   banSender(senderChatId: string): Promise<void>;
   readonly business: BusinessOps;
-  clearReactions(messageGuid: string): Promise<void>;
+  /** Remove recent reactions across the chat added by a user or acting chat. */
+  clearReactions(opts?: {
+    actorChatId?: string;
+    userId?: string;
+  }): Promise<void>;
   /** Bot command menu (set/get/clear). No-ops / unsupported on non-bot platforms. */
   readonly commands: CommandOps;
   contact(): Promise<Contact | null>;
@@ -1478,7 +2027,7 @@ export interface Channel {
   react(
     messageGuid: string,
     reaction: Reaction,
-    opts?: { remove?: boolean }
+    opts?: { big?: boolean; remove?: boolean }
   ): Promise<void>;
   read(): Promise<void>;
   readReceipt(): Promise<void>;
@@ -1486,7 +2035,10 @@ export interface Channel {
     chargeId: string;
     userId: string;
   }): Promise<void>;
-  remove(users: MemberInput): Promise<void>;
+  remove(
+    users: MemberInput,
+    opts?: { revokeMessages?: boolean; untilDate?: number }
+  ): Promise<void>;
   removeReaction(
     messageGuid: string,
     opts?: RemoveReactionOptions
@@ -1537,7 +2089,7 @@ export interface Channel {
    * string = richer action where the platform supports it (e.g. upload_photo).
    */
   typing(onOrAction?: boolean | ChatAction): Promise<void>;
-  unban(userId: string): Promise<void>;
+  unban(userId: string, opts?: { onlyIfBanned?: boolean }): Promise<void>;
   unbanSender(senderChatId: string): Promise<void>;
   unpin(messageGuid?: string): Promise<void>;
   unsend(messageGuid: string): Promise<void>;
@@ -1566,13 +2118,104 @@ export interface Contact {
   phones: string[];
 }
 
+export type ChatMemberStatus =
+  | "creator"
+  | "administrator"
+  | "member"
+  | "restricted"
+  | "left"
+  | "kicked";
+
+export interface ChatMemberOwner {
+  customTitle?: string;
+  isAnonymous: boolean;
+  status: "creator";
+  user: User;
+}
+
+export interface ChatMemberAdministrator {
+  canBeEdited: boolean;
+  canChangeInfo: boolean;
+  canDeleteMessages: boolean;
+  canDeleteStories: boolean;
+  canEditMessages?: boolean;
+  canEditStories: boolean;
+  canInviteUsers: boolean;
+  canManageChat: boolean;
+  canManageDirectMessages?: boolean;
+  canManageTags?: boolean;
+  canManageTopics?: boolean;
+  canManageVideoChats: boolean;
+  canPinMessages?: boolean;
+  canPostMessages?: boolean;
+  canPostStories: boolean;
+  canPromoteMembers: boolean;
+  canRestrictMembers: boolean;
+  customTitle?: string;
+  isAnonymous: boolean;
+  status: "administrator";
+  user: User;
+}
+
+export interface ChatMemberRegular {
+  status: "member";
+  tag?: string;
+  untilDate?: number;
+  user: User;
+}
+
+export interface ChatMemberRestricted {
+  canAddWebPagePreviews: boolean;
+  canChangeInfo: boolean;
+  canEditTag: boolean;
+  canInviteUsers: boolean;
+  canManageTopics: boolean;
+  canPinMessages: boolean;
+  canReactToMessages: boolean;
+  canSendAudios: boolean;
+  canSendDocuments: boolean;
+  canSendMessages: boolean;
+  canSendOtherMessages: boolean;
+  canSendPhotos: boolean;
+  canSendPolls: boolean;
+  canSendVideoNotes: boolean;
+  canSendVideos: boolean;
+  canSendVoiceNotes: boolean;
+  isMember: boolean;
+  status: "restricted";
+  tag?: string;
+  untilDate: number;
+  user: User;
+}
+
+export interface ChatMemberLeft {
+  status: "left";
+  user: User;
+}
+
+export interface ChatMemberBanned {
+  status: "kicked";
+  untilDate: number;
+  user: User;
+}
+
+export type ChatMember =
+  | ChatMemberAdministrator
+  | ChatMemberBanned
+  | ChatMemberLeft
+  | ChatMemberOwner
+  | ChatMemberRegular
+  | ChatMemberRestricted;
+
 export interface GroupOps {
   add(handle: string): Promise<void>;
   /** Chat administrators (bots often only see this roster). */
-  admins(): Promise<User[]>;
+  admins(opts?: { returnBots?: boolean }): Promise<User[]>;
   getIcon(): Promise<Uint8Array | null>;
   getName(): Promise<string | null>;
   leave(): Promise<void>;
+  /** Full membership record (status + rights) for one member. */
+  member(handle: string): Promise<ChatMember | null>;
   memberCount(): Promise<number>;
   participants(): Promise<User[]>;
   remove(handle: string): Promise<void>;
@@ -1590,11 +2233,62 @@ export interface PollOps {
   vote(pollMessageGuid: string, optionIdentifier: string): Promise<void>;
 }
 
+export interface PollMediaInfo {
+  fileId?: string;
+  fileUniqueId?: string;
+  kind:
+    | "animation"
+    | "audio"
+    | "document"
+    | "link"
+    | "live_photo"
+    | "location"
+    | "photo"
+    | "sticker"
+    | "venue"
+    | "video";
+  link?: string;
+  location?: GeoPoint;
+  title?: string;
+}
+
+export interface PollInfoOption {
+  creatorHandle?: string;
+  id?: string;
+  media?: PollMediaInfo;
+  text: string;
+  voterCount?: number;
+}
+
+export interface PollInfoTelegram {
+  countryCodes?: string[];
+  descriptionEntities?: MessageEntity[];
+  explanationEntities?: MessageEntity[];
+  explanationMedia?: PollMediaInfo;
+  media?: PollMediaInfo;
+  membersOnly?: boolean;
+  questionEntities?: MessageEntity[];
+}
+
 export interface PollInfo {
+  allowsMultipleAnswers?: boolean;
+  allowsRevoting?: boolean;
   chatId: string;
-  options: { creatorHandle?: string; id?: string; text: string }[];
+  closeDate?: number;
+  correctOptionIds?: number[];
+  description?: string;
+  explanation?: string;
+  id?: string;
+  isAnonymous?: boolean;
+  isClosed?: boolean;
+  openPeriod?: number;
+  options: PollInfoOption[];
   pollMessageGuid: string;
+  /** Telegram-only poll detail. */
+  telegram?: PollInfoTelegram;
   title: string;
+  totalVoterCount?: number;
+  type?: "quiz" | "regular";
   votes: { optionId: string; participant?: string }[];
 }
 
@@ -1648,6 +2342,14 @@ export interface ResolvedLine {
   telegram?: {
     baseUrl?: string;
     botToken: string;
+    /** Attach JSON-safe wire payloads on inbound `message.raw` (off by default). */
+    includeRaw?: boolean;
+    /** Public-key certificate (PEM) for a self-signed webhook endpoint. */
+    webhookCertificate?: string;
+    /** Fixed IP the webhook connects from (bypasses DNS resolution). */
+    webhookIpAddress?: string;
+    /** Max simultaneous HTTPS connections for webhook delivery (1–100). */
+    webhookMaxConnections?: number;
     /** When set, the binder registers a Bot API webhook and skips long-polling. */
     webhookSecret?: string;
     webhookUrl?: string;

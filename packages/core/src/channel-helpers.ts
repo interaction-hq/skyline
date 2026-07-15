@@ -303,9 +303,10 @@ export function unsupportedChatExtras(
 /** Stubs for GroupOps extras not available on a platform. */
 export function unsupportedGroupExtras(
   unsupported: (verb: string) => never
-): Pick<Channel["group"], "admins" | "memberCount"> {
+): Pick<Channel["group"], "admins" | "member" | "memberCount"> {
   return {
     admins: async () => unsupported("group.admins"),
+    member: async () => unsupported("group.member"),
     memberCount: async () => unsupported("group.memberCount"),
   };
 }
@@ -335,8 +336,11 @@ export function contentSugar(
     leave: async () => {
       await send(leaveChannel());
     },
-    remove: async (users: MemberInput) => {
-      await send(removeMember(users));
+    remove: async (
+      users: MemberInput,
+      opts?: { revokeMessages?: boolean; untilDate?: number }
+    ) => {
+      await send(removeMember(users, opts));
     },
     rename: async (displayName: string) => {
       await send(rename(displayName));

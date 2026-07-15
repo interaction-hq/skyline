@@ -6,6 +6,17 @@ export const DEFAULT_BASE_URL = "https://api.telegram.org";
 export interface TelegramDedicatedInput {
   baseUrl?: string;
   botToken: string;
+  /**
+   * When true, inbound `message.raw` carries a JSON-safe wire snapshot.
+   * Default off — parsed Skyline fields stay the fast agent path.
+   */
+  includeRaw?: boolean;
+  /** Public-key certificate (PEM) for a self-signed webhook endpoint. */
+  webhookCertificate?: string;
+  /** Fixed IP the webhook connects from (bypasses DNS resolution). */
+  webhookIpAddress?: string;
+  /** Max simultaneous HTTPS connections for webhook delivery (1–100). */
+  webhookMaxConnections?: number;
   /** When set, registers a Bot API webhook and skips long-polling. */
   webhookSecret?: string;
   webhookUrl?: string;
@@ -36,8 +47,12 @@ export const telegram = {
     return {
       baseUrl: opts.baseUrl ?? DEFAULT_BASE_URL,
       botToken: opts.botToken,
+      includeRaw: opts.includeRaw,
       mode: "dedicated",
       platform: "telegram",
+      webhookCertificate: opts.webhookCertificate,
+      webhookIpAddress: opts.webhookIpAddress,
+      webhookMaxConnections: opts.webhookMaxConnections,
       webhookSecret: opts.webhookSecret,
       webhookUrl: opts.webhookUrl,
     };
@@ -58,6 +73,10 @@ export function telegramDedicatedLines(
       telegram: {
         baseUrl: config.baseUrl ?? DEFAULT_BASE_URL,
         botToken: config.botToken,
+        includeRaw: config.includeRaw,
+        webhookCertificate: config.webhookCertificate,
+        webhookIpAddress: config.webhookIpAddress,
+        webhookMaxConnections: config.webhookMaxConnections,
         webhookSecret: config.webhookSecret,
         webhookUrl: config.webhookUrl,
       },

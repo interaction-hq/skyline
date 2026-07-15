@@ -100,7 +100,40 @@ export interface AttachmentInput {
   url?: string;
 }
 
-export interface AttachmentContent extends AttachmentInput {
+/**
+ * Optional media metadata carried alongside an attachment. Platforms map what
+ * they support; extras are ignored where the platform has no equivalent.
+ */
+export interface MediaMeta {
+  /** Video/animation cover image shown before playback. */
+  cover?: AttachmentInput;
+  /** Skip server-side content-type sniffing (document sends). */
+  disableContentTypeDetection?: boolean;
+  /** Duration in seconds (audio / video / voice / video note / animation). */
+  duration?: number;
+  /** Cover the media with a spoiler animation. */
+  hasSpoiler?: boolean;
+  /** Media height in pixels (video / animation). */
+  height?: number;
+  /** Square side length in pixels (video note). */
+  length?: number;
+  /** Performer name (audio). */
+  performer?: string;
+  /** Render the caption above the media instead of below. */
+  showCaptionAboveMedia?: boolean;
+  /** Video start offset in seconds. */
+  startTimestamp?: number;
+  /** Whether the uploaded video is suitable for streaming. */
+  supportsStreaming?: boolean;
+  /** Thumbnail (JPEG < 200 kB) for video / audio / document / animation / video note. */
+  thumbnail?: AttachmentInput;
+  /** Track title (audio). */
+  title?: string;
+  /** Media width in pixels (video / animation). */
+  width?: number;
+}
+
+export interface AttachmentContent extends AttachmentInput, MediaMeta {
   caption?: string;
   type: "attachment";
 }
@@ -112,6 +145,8 @@ export interface MarkdownContent {
 
 export interface VoiceContent {
   data?: Uint8Array;
+  /** Voice message duration in seconds. */
+  duration?: number;
   mimeType?: string;
   name?: string;
   path?: string;
@@ -134,16 +169,47 @@ export interface RichlinkContent {
 }
 
 export interface PollContent {
+  /** Let voters add their own options (regular polls). */
+  allowAddingOptions?: boolean;
   allowsMultipleAnswers?: boolean;
+  /** Let voters retract / change their vote. */
+  allowsRevoting?: boolean;
   closeDate?: number;
+  /** Correct answer index (quiz, single answer). */
   correctOptionId?: number;
+  /** Correct answer indices (quiz, multiple answers). */
+  correctOptionIds?: number[];
+  /** ISO 3166-1 alpha-2 codes restricting who can vote. */
+  countryCodes?: string[];
+  /** Longer poll description shown under the question. */
+  description?: string;
+  descriptionEntities?: MessageEntity[];
+  /** Parse mode for `description`. */
+  descriptionParseMode?: "HTML" | "MarkdownV2";
   explanation?: string;
+  explanationEntities?: MessageEntity[];
+  /** Media shown with the quiz explanation. */
+  explanationMedia?: AttachmentInput;
+  /** Parse mode for `explanation`. */
+  explanationParseMode?: "HTML" | "MarkdownV2";
+  /** Keep results hidden from voters until the poll closes. */
+  hideResultsUntilCloses?: boolean;
   isAnonymous?: boolean;
   isClosed?: boolean;
+  /** Media shown with the poll question. */
+  media?: AttachmentInput;
+  /** Restrict voting to chat members. */
+  membersOnly?: boolean;
   openPeriod?: number;
   options: string[];
   /** `quiz` enables correctOptionId / explanation. */
   pollType?: "regular" | "quiz";
+  /** Entities for the poll question (formatted questions). */
+  questionEntities?: MessageEntity[];
+  /** Parse mode for the poll question. */
+  questionParseMode?: "HTML" | "MarkdownV2";
+  /** Randomize option order per voter. */
+  shuffleOptions?: boolean;
   title: string;
   type: "poll";
 }
@@ -235,7 +301,27 @@ export function resolveEffect(effect: Effect | undefined): string | undefined {
 
 export interface InlineKeyboardButton {
   callbackData?: string;
+  /** Opens a callback game (Bot API `callback_game`). */
+  callbackGame?: boolean;
+  /** Copies `copyText` to the clipboard (Bot API `copy_text`). */
+  copyText?: string;
+  /** Login URL button (Bot API `login_url`). */
+  loginUrl?: {
+    url: string;
+    forwardText?: string;
+    botUsername?: string;
+    requestWriteAccess?: boolean;
+  };
+  /** Pay button (Bot API `pay`). */
+  pay?: boolean;
   switchInlineQuery?: string;
+  switchInlineQueryChosenChat?: {
+    query?: string;
+    allowUserChats?: boolean;
+    allowBotChats?: boolean;
+    allowGroupChats?: boolean;
+    allowChannelChats?: boolean;
+  };
   switchInlineQueryCurrentChat?: string;
   text: string;
   url?: string;
@@ -257,22 +343,76 @@ export type ReplyMarkup =
   | { type: "remove"; selective?: boolean }
   | { type: "force_reply"; placeholder?: string; selective?: boolean };
 
+/** Full link-preview control for a text send (platforms map what they support). */
+export interface LinkPreviewOptions {
+  disabled?: boolean;
+  preferLargeMedia?: boolean;
+  preferSmallMedia?: boolean;
+  showAboveText?: boolean;
+  url?: string;
+}
+
+/** Quote a slice of the replied-to message when replying. */
+export interface ReplyQuote {
+  entities?: MessageEntity[];
+  parseMode?: "HTML" | "MarkdownV2";
+  position?: number;
+  text: string;
+}
+
+/** Terms for a message posted as a suggested channel post. */
+export interface SuggestedPostParameters {
+  /** Proposed price the channel pays to publish. */
+  price?: {
+    /** `"XTR"` for Stars, `"TON"` for toncoin. */
+    currency: string;
+    /** Amount in the smallest currency unit (nanotoncoins / Star count). */
+    amount: number;
+  };
+  /** Unix time the post should be published (within 30 days). */
+  sendDate?: number;
+}
+
 export interface SendOptions {
+  /** Send even when the bot has too little balance for a paid broadcast. */
+  allowPaidBroadcast?: boolean;
+  /** Post even if the replied-to message is missing. */
+  allowSendingWithoutReply?: boolean;
+  /** Route the send through a business connection the bot manages. */
+  businessConnectionId?: string;
+  /** Send this message as a direct answer to a pending callback query. */
+  callbackQueryId?: string;
   caption?: string;
+  /** Channel direct-messages topic to post into. */
+  directMessagesTopicId?: number | string;
   effect?: Effect;
   entities?: MessageEntity[];
-  linkPreview?: boolean;
+  /** `true`/`false` toggles preview; object form controls size / position / url. */
+  linkPreview?: boolean | LinkPreviewOptions;
+  /** Platform-native message effect id (distinct from iMessage `effect`). */
+  messageEffectId?: string;
   parseMode?: "HTML" | "MarkdownV2";
   protect?: boolean;
+  /** Quote part of the replied-to message (requires `replyTo`). */
+  quote?: ReplyQuote;
+  /** Deliver to a specific user inside a channel's direct-messages topic. */
+  receiverUserId?: number | string;
   replyMarkup?: ReplyMarkup;
   replyTo?: string;
   richLink?: boolean;
   scan?: boolean;
   silent?: boolean;
   subject?: string;
+  /** Publish as a suggested channel post with these terms. */
+  suggestedPost?: SuggestedPostParameters;
   threadId?: number | string;
 }
 
+/**
+ * Send-time rich span for platforms that accept entity arrays.
+ * Inbound never surfaces this — agents get `message.mentions` / `links` /
+ * `commands` / `markdown` instead.
+ */
 export interface MessageEntity {
   customEmojiId?: string;
   language?: string;

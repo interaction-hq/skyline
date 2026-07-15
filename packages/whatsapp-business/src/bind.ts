@@ -215,6 +215,9 @@ function createBinder(host: SkylineHost) {
       case "paid_media":
       case "gift":
       case "rich_message":
+      case "story":
+      case "giveaway":
+      case "giveaway_winners":
       case "live_photo":
       case "media_album":
         host.unsupported("whatsapp_business", `sending ${content.type} content`);
