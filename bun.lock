@@ -15,7 +15,10 @@
     },
     "packages/core": {
       "name": "@skyline-ts/core",
-      "version": "0.2.0",
+      "version": "0.4.1",
+      "dependencies": {
+        "marked": "^18.0.5",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "@types/node": "^22.0.0",
@@ -24,7 +27,10 @@
     },
     "packages/imessage": {
       "name": "@skyline-ts/imessage",
-      "version": "0.2.0",
+      "version": "0.4.1",
+      "dependencies": {
+        "marked": "^18.0.5",
+      },
       "devDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
@@ -34,24 +40,25 @@
       "peerDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
-        "@skyline-ts/core": "^0.2.0",
+        "@skyline-ts/core": "^0.4.1",
       },
     },
     "packages/skyline-ts": {
       "name": "skyline-ts",
-      "version": "0.2.0",
+      "version": "0.4.1",
       "dependencies": {
-        "@skyline-ts/core": "0.2.0",
-        "@skyline-ts/imessage": "0.2.0",
-        "@skyline-ts/slack": "0.2.0",
-        "@skyline-ts/terminal": "0.2.0",
-        "@skyline-ts/whatsapp": "0.2.0",
-        "@skyline-ts/whatsapp-business": "0.2.0",
+        "@skyline-ts/core": "0.4.1",
+        "@skyline-ts/imessage": "0.4.1",
+        "@skyline-ts/slack": "0.4.1",
+        "@skyline-ts/telegram": "0.4.1",
+        "@skyline-ts/terminal": "0.4.1",
+        "@skyline-ts/whatsapp": "0.4.1",
+        "@skyline-ts/whatsapp-business": "0.4.1",
       },
     },
     "packages/slack": {
       "name": "@skyline-ts/slack",
-      "version": "0.2.0",
+      "version": "0.4.1",
       "devDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
@@ -61,24 +68,39 @@
       "peerDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
-        "@skyline-ts/core": "^0.2.0",
+        "@skyline-ts/core": "^0.4.1",
       },
     },
-    "packages/terminal": {
-      "name": "@skyline-ts/terminal",
-      "version": "0.2.0",
+    "packages/telegram": {
+      "name": "@skyline-ts/telegram",
+      "version": "0.4.1",
+      "dependencies": {
+        "marked": "^18.0.5",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "@types/node": "^22.0.0",
         "typescript": "^5.8.3",
       },
       "peerDependencies": {
-        "@skyline-ts/core": "^0.2.0",
+        "@skyline-ts/core": "^0.4.1",
+      },
+    },
+    "packages/terminal": {
+      "name": "@skyline-ts/terminal",
+      "version": "0.4.1",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "^22.0.0",
+        "typescript": "^5.8.3",
+      },
+      "peerDependencies": {
+        "@skyline-ts/core": "^0.4.1",
       },
     },
     "packages/whatsapp": {
       "name": "@skyline-ts/whatsapp",
-      "version": "0.2.0",
+      "version": "0.4.1",
       "devDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
@@ -88,18 +110,18 @@
       "peerDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
-        "@skyline-ts/core": "^0.2.0",
+        "@skyline-ts/core": "^0.4.1",
       },
     },
     "packages/whatsapp-business": {
       "name": "@skyline-ts/whatsapp-business",
-      "version": "0.2.0",
+      "version": "0.4.1",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.8.3",
       },
       "peerDependencies": {
-        "@skyline-ts/core": "^0.2.0",
+        "@skyline-ts/core": "^0.4.1",
       },
     },
   },
@@ -179,6 +201,8 @@
     "@skyline-ts/imessage": ["@skyline-ts/imessage@workspace:packages/imessage"],
 
     "@skyline-ts/slack": ["@skyline-ts/slack@workspace:packages/slack"],
+
+    "@skyline-ts/telegram": ["@skyline-ts/telegram@workspace:packages/telegram"],
 
     "@skyline-ts/terminal": ["@skyline-ts/terminal@workspace:packages/terminal"],
 
@@ -325,6 +349,8 @@
     "long": ["long@5.3.2", "", {}, "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="],
 
     "lru-cache": ["lru-cache@11.5.2", "", {}, "sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g=="],
+
+    "marked": ["marked@18.0.6", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-MrV5puXBfuiy6wl6DLaq3BtIJQAJToAd5zt/ZKhRfGRAuFPALE7/4Y7jnxRQoEgK/pBgurGqLyAuRgZ2xOjr6w=="],
 
     "minimatch": ["minimatch@10.2.5", "", { "dependencies": { "brace-expansion": "^5.0.5" } }, "sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg=="],
 

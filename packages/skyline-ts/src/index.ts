@@ -2,6 +2,7 @@ export * from "@skyline-ts/core";
 export {
   imessage,
   slack,
+  telegram,
   terminal,
   whatsapp,
   whatsappBusiness,
@@ -12,6 +13,10 @@ export type {
   SlackCloudConfig,
   SlackConfig,
   SlackDedicatedConfig,
+  TelegramCloudConfig,
+  TelegramConfig,
+  TelegramDedicatedConfig,
+  TelegramDedicatedInput,
   TerminalConfig,
   WhatsappBusinessCloudConfig,
   WhatsappBusinessConfig,

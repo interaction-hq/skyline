@@ -18,6 +18,7 @@ export interface LiveLine {
   slackBotUserId?: string;
   slackTeamId?: string;
   streams: StreamHandle[];
+  telegram?: unknown;
   terminal?: unknown;
   wa?: unknown;
   wb?: unknown;
@@ -66,6 +67,16 @@ export interface SkylineHost {
   unsupported(platform: Platform, verb: string): never;
 }
 
+export class UnsupportedError extends Error {
+  constructor(
+    readonly platform: Platform,
+    readonly verb: string
+  ) {
+    super(`${verb} is not supported on ${platform}`);
+    this.name = "UnsupportedError";
+  }
+}
+
 export function unsupported(platform: Platform, verb: string): never {
-  throw new Error(`${verb} is not supported on ${platform}`);
+  throw new UnsupportedError(platform, verb);
 }

@@ -57,6 +57,13 @@ export function slackGrpcTarget(endpoint?: string): string {
 }
 
 export interface SlackGrpcHandlers {
+  onMention?: (event: {
+    channelId: string;
+    isFromMe: boolean;
+    messageId: string;
+    text: string;
+    userId: string;
+  }) => void;
   onReaction?: (event: {
     channelId: string;
     emoji: string;
@@ -248,7 +255,7 @@ export class SlackGrpcClient {
 
   uploadFile(
     channelId: string,
-    file: { data: Uint8Array; name: string },
+    file: { data: Uint8Array; mimeType?: string; name: string },
     opts?: { replyTo?: string }
   ): Promise<{ channelId?: string; messageId?: string }> {
     return new Promise((resolve, reject) => {
@@ -257,7 +264,7 @@ export class SlackGrpcClient {
           channel: channelId,
           content: file.data,
           filename: file.name,
-          mimetype: "application/octet-stream",
+          mimetype: file.mimeType ?? "application/octet-stream",
           threadTs: opts?.replyTo,
         },
         this.meta,
@@ -279,10 +286,45 @@ export class SlackGrpcClient {
     });
   }
 
+  downloadFile(fileId: string): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      const stream = this.files.getContent({ file_id: fileId }, this.meta);
+      const chunks: Uint8Array[] = [];
+      stream.on("data", (frame) => {
+        const f = frame as { chunk?: Uint8Array | Buffer; header?: unknown };
+        if (f.chunk) {
+          chunks.push(
+            f.chunk instanceof Uint8Array
+              ? f.chunk
+              : new Uint8Array(f.chunk)
+          );
+        }
+      });
+      stream.on("error", reject);
+      stream.on("end", () => {
+        const total = chunks.reduce((n, c) => n + c.length, 0);
+        const out = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          out.set(chunk, offset);
+          offset += chunk.length;
+        }
+        resolve(out);
+      });
+    });
+  }
+
   subscribe(handlers: SlackGrpcHandlers): { cancel: () => void } {
     const stream = this.client.subscribeEvents({}, this.meta);
     stream.on("data", (frame) => {
       const f = frame as {
+        mention?: {
+          channel: string;
+          isFromMe?: boolean;
+          text: string;
+          ts: string;
+          user: string;
+        };
         message?: {
           channel: string;
           files?: {
@@ -311,17 +353,28 @@ export class SlackGrpcClient {
         const m = f.message;
         handlers.onText?.({
           channelId: m.channel,
-          files: m.files?.map((f) => ({
-            id: f.id,
-            mimetype: f.mimetype,
-            name: f.name,
-            size: f.size,
+          files: m.files?.map((file) => ({
+            id: file.id,
+            mimetype: file.mimetype,
+            name: file.name,
+            size: file.size,
           })),
           isFromMe: Boolean(m.isFromMe),
           messageId: m.ts,
           subtype: m.subtype,
           text: m.text,
           threadTs: m.threadTs,
+          userId: m.user,
+        });
+        return;
+      }
+      if (f.mention) {
+        const m = f.mention;
+        handlers.onMention?.({
+          channelId: m.channel,
+          isFromMe: Boolean(m.isFromMe),
+          messageId: m.ts,
+          text: m.text,
           userId: m.user,
         });
         return;

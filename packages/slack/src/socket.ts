@@ -7,6 +7,12 @@ export interface SlackInboundHandlers {
     text: string;
     userId: string;
   }) => void;
+  onMention?: (event: {
+    channelId: string;
+    messageId: string;
+    text: string;
+    userId: string;
+  }) => void;
   onReaction?: (event: {
     channelId: string;
     emoji: string;
@@ -143,10 +149,13 @@ export function connectSlackSocket(
       if (event.subtype && event.subtype !== "bot_message") {
         return;
       }
-      const text = event.text ?? event.message?.text;
+      const text = event.text ?? event.message?.text ?? "";
       const ts = event.ts ?? event.message?.ts;
       const files = event.files ?? event.message?.files;
-      if (!(text && event.channel && ts)) {
+      if (!(event.channel && ts)) {
+        return;
+      }
+      if (!(text || files?.length)) {
         return;
       }
       opts.handlers.onText?.({
@@ -168,6 +177,20 @@ export function connectSlackSocket(
         text,
         threadTs: event.thread_ts,
         userId: event.user ?? event.bot_id ?? "unknown",
+      });
+      return;
+    }
+
+    if (event.type === "app_mention") {
+      const ts = event.ts;
+      if (!(event.channel && ts && event.user)) {
+        return;
+      }
+      opts.handlers.onMention?.({
+        channelId: event.channel,
+        messageId: ts,
+        text: event.text ?? "",
+        userId: event.user,
       });
       return;
     }

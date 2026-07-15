@@ -24,6 +24,10 @@ import {
   bindOutboundMessage,
   contentSugar,
   messageFromSend,
+  readMediaBytes,
+  sendWithFallbacks,
+  UnsupportedError,
+  unsupportedChatExtras,
   withResponding,
 } from "@skyline-ts/core/host";
 import {
@@ -41,6 +45,7 @@ import {
   type ImessageConfig,
   type ImessageDedicatedConfig,
 } from "./config.js";
+import { markdownToIMessageText } from "./markdown.js";
 
 function wireOpts(sendOpts?: SendOptions): SendWireOptions {
   return {
@@ -76,23 +81,20 @@ async function uploadAttachmentGuid(
     data?: Uint8Array | ArrayBuffer;
     name?: string;
     path?: string;
+    url?: string;
   }
 ): Promise<string> {
-  if (file.data) {
-    const bytes =
-      file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data);
-    const up = await grpc.uploadAttachment(bytes, file.name ?? "attachment");
-    return up.attachment_guid;
-  }
-  if (file.path) {
-    const bytes = readAssetBytes(file.path);
-    const up = await grpc.uploadAttachment(
-      bytes,
-      file.name ?? file.path.split("/").pop() ?? "attachment"
-    );
-    return up.attachment_guid;
-  }
-  throw new Error("attachment requires data or path");
+  const bytes = await readMediaBytes({
+    data: file.data,
+    path: file.path,
+    url: file.url,
+  });
+  const name =
+    file.name ??
+    file.path?.split("/").pop() ??
+    (file.url ? "attachment" : "attachment");
+  const up = await grpc.uploadAttachment(bytes, name);
+  return up.attachment_guid;
 }
 
 function contactToText(contact: ContactContent): string {
@@ -126,8 +128,9 @@ async function sendStreamText(
   sendOpts?: SendOptions
 ): Promise<string> {
   if (content.format === "markdown") {
-    throw new Error(
-      "stream_text with markdown is not supported on iMessage; use markdown() with the full body"
+    throw new UnsupportedError(
+      "imessage",
+      "sending stream_text content with markdown"
     );
   }
   let sentGuid: string | undefined;
@@ -298,12 +301,15 @@ function createBinder(host: SkylineHost, projectId: string) {
         break;
       }
       case "markdown": {
-        const res = await grpc.send(
-          chatGuid,
-          content.body,
-          id,
-          wireOpts(sendOpts)
-        );
+        const rendered = markdownToIMessageText(content.body);
+        const res = await grpc.send(chatGuid, rendered.text, id, {
+          ...wireOpts(sendOpts),
+          formatting: rendered.formatting.map((f) => ({
+            length: f.length,
+            start: f.start,
+            type: f.type,
+          })),
+        });
         guid = res.guid;
         break;
       }
@@ -316,9 +322,6 @@ function createBinder(host: SkylineHost, projectId: string) {
         break;
       }
       case "attachment": {
-        if (content.url) {
-          host.unsupported("imessage", "sending attachment from url");
-        }
         const attachmentGuid = await uploadAttachmentGuid(grpc, content);
         const res = await grpc.sendAttachment(
           chatGuid,
@@ -336,9 +339,6 @@ function createBinder(host: SkylineHost, projectId: string) {
         break;
       }
       case "voice": {
-        if (content.url) {
-          host.unsupported("imessage", "sending voice from url");
-        }
         const attachmentGuid = await uploadAttachmentGuid(grpc, content);
         const res = await grpc.sendAttachment(
           chatGuid,
@@ -392,9 +392,6 @@ function createBinder(host: SkylineHost, projectId: string) {
           switch (item.type) {
             case "attachment":
             case "voice": {
-              if (item.url) {
-                host.unsupported("imessage", `group item ${item.type} from url`);
-              }
               guids.push(await uploadAttachmentGuid(grpc, item));
               break;
             }
@@ -402,7 +399,7 @@ function createBinder(host: SkylineHost, projectId: string) {
               textParts.push(item.text);
               break;
             case "markdown":
-              textParts.push(item.body);
+              textParts.push(markdownToIMessageText(item.body).text);
               break;
             case "richlink":
               textParts.push(item.url);
@@ -548,6 +545,22 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "wa_template":
       case "wa_interactive":
       case "wa_location":
+      
+      case "keyboard":
+      case "location":
+      case "dice":
+      case "forward":
+      case "forward_many":
+      case "copy":
+      case "copy_many":
+      case "invoice":
+      case "game":
+      case "checklist":
+      case "paid_media":
+      case "gift":
+      case "rich_message":
+      case "live_photo":
+      case "media_album":
       case "wa_contacts":
       case "custom":
         host.unsupported("imessage", `sending ${content.type} content`);
@@ -591,10 +604,15 @@ function createBinder(host: SkylineHost, projectId: string) {
     const grpcFor = () => imFor(to);
     let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(channel, to, content, sendOpts);
+      sendWithFallbacks(
+        (resolved) => sendContent(channel, to, resolved, sendOpts),
+        content,
+        "imessage"
+      );
     const sugar = contentSugar(send);
     channel = {
       ...sugar,
+      ...unsupportedChatExtras((verb) => host.unsupported("imessage", verb)),
       background: async (input) => {
         const grpc = grpcFor();
         const data = await resolveVisualAsset(input);
@@ -620,8 +638,13 @@ function createBinder(host: SkylineHost, projectId: string) {
           phones: card.phones ?? [],
         };
       },
-      edit: (messageGuid, newText) =>
-        grpcFor().editMessage(chatGuid, messageGuid, newText),
+      edit: (messageGuid, update) => {
+        const text = typeof update === "string" ? update : update.text;
+        if (text == null) {
+          host.unsupported("imessage", "edit without text");
+        }
+        return grpcFor().editMessage(chatGuid, messageGuid, text);
+      },
       focusStatus: async () => {
         try {
           return await grpcFor().getFocusStatus(to);
@@ -665,9 +688,17 @@ function createBinder(host: SkylineHost, projectId: string) {
       },
       group: {
         add: (handle) => sugar.add(handle),
+        admins: async () => {
+          const rows = await grpcFor().getParticipants(chatGuid);
+          return rows.map((p) => ({ id: p.address }));
+        },
         getIcon: () => grpcFor().getIcon(chatGuid),
         getName: () => grpcFor().getChatDisplayName(chatGuid),
         leave: () => sugar.leave(),
+        memberCount: async () => {
+          const rows = await grpcFor().getParticipants(chatGuid);
+          return rows.length;
+        },
         participants: async () => {
           const rows = await grpcFor().getParticipants(chatGuid);
           return rows.map((p) => ({ id: p.address }));
@@ -713,6 +744,7 @@ function createBinder(host: SkylineHost, projectId: string) {
         addOption: (pollMessageGuid, optionText) =>
           grpcFor().addPollOption(chatGuid, pollMessageGuid, optionText),
         get: (pollMessageGuid) => grpcFor().getPoll(pollMessageGuid),
+        stop: async () => host.unsupported("imessage", "poll.stop"),
         unvote: (pollMessageGuid) =>
           grpcFor().unvotePoll(chatGuid, pollMessageGuid),
         vote: (pollMessageGuid, optionIdentifier) =>
@@ -733,10 +765,12 @@ function createBinder(host: SkylineHost, projectId: string) {
       sendFile: async (file: AttachmentSend, sendOpts) => {
         const grpc = grpcFor();
         const id = host.newId();
-        let attachmentGuid: string | undefined;
-        if (file.data || file.path) {
-          attachmentGuid = await uploadAttachmentGuid(grpc, file);
-        }
+        const attachmentGuid = await uploadAttachmentGuid(grpc, {
+          data: file.data,
+          name: file.name,
+          path: file.path,
+          url: file.url,
+        });
         const res = await grpc.sendAttachment(
           chatGuid,
           id,
@@ -754,6 +788,7 @@ function createBinder(host: SkylineHost, projectId: string) {
             type: "attachment",
             name: file.name,
             path: file.path,
+            url: file.url,
             data: file.data
               ? file.data instanceof Uint8Array
                 ? file.data
@@ -772,7 +807,14 @@ function createBinder(host: SkylineHost, projectId: string) {
         const grpc = grpcFor();
         const id = host.newId();
         const guids = await Promise.all(
-          files.map((file) => uploadAttachmentGuid(grpc, file))
+          files.map((file) =>
+            uploadAttachmentGuid(grpc, {
+              data: file.data,
+              name: file.name,
+              path: file.path,
+              url: file.url,
+            })
+          )
         );
         const res = await grpc.sendMultipart(
           chatGuid,
@@ -803,8 +845,10 @@ function createBinder(host: SkylineHost, projectId: string) {
         });
       },
       shareContactCard: () => grpcFor().shareContactInfo(chatGuid),
+      pin: async () => host.unsupported("imessage", "pin"),
       shareLocation: (locOpts) => grpcFor().shareLocation(chatGuid, locOpts),
       stopLocation: () => grpcFor().stopLocation(chatGuid),
+      unpin: async () => host.unsupported("imessage", "unpin"),
       to,
       typing: async (on = true) => {
         const grpc = grpcFor();

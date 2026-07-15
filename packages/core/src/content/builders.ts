@@ -1,4 +1,6 @@
 import type { Flow, PaymentProvider } from "../miniapp/experience.js";
+import type { InteractiveContent } from "./interactive.js";
+import type { MediaAlbumContent } from "./media-album.js";
 
 export type { Flow };
 
@@ -88,6 +90,10 @@ export interface AttachmentInput {
   data?: Uint8Array;
   isAudioMessage?: boolean;
   isSticker?: boolean;
+  /** GIF / MPEG-4 animation (Telegram `sendAnimation` and similar). */
+  isAnimation?: boolean;
+  /** Round video note (Telegram `sendVideoNote` and similar). */
+  isVideoNote?: boolean;
   mimeType?: string;
   name?: string;
   path?: string;
@@ -95,6 +101,7 @@ export interface AttachmentInput {
 }
 
 export interface AttachmentContent extends AttachmentInput {
+  caption?: string;
   type: "attachment";
 }
 
@@ -127,7 +134,16 @@ export interface RichlinkContent {
 }
 
 export interface PollContent {
+  allowsMultipleAnswers?: boolean;
+  closeDate?: number;
+  correctOptionId?: number;
+  explanation?: string;
+  isAnonymous?: boolean;
+  isClosed?: boolean;
+  openPeriod?: number;
   options: string[];
+  /** `quiz` enables correctOptionId / explanation. */
+  pollType?: "regular" | "quiz";
   title: string;
   type: "poll";
 }
@@ -180,7 +196,9 @@ export type PayloadContent =
   | StreamTextContent
   | CustomContent
   | GroupContent
-  | WaContent;
+  | WaContent
+  | InteractiveContent
+  | MediaAlbumContent;
 
 export type Tapback =
   | "love"
@@ -215,20 +233,64 @@ export function resolveEffect(effect: Effect | undefined): string | undefined {
   return (EFFECTS as Record<string, string>)[effect] ?? effect;
 }
 
+export interface InlineKeyboardButton {
+  callbackData?: string;
+  switchInlineQuery?: string;
+  switchInlineQueryCurrentChat?: string;
+  text: string;
+  url?: string;
+  webApp?: { url: string };
+}
+
+export type ReplyMarkup =
+  | {
+      inlineKeyboard: InlineKeyboardButton[][];
+      type: "inline";
+    }
+  | {
+      keyboard: { text: string }[][];
+      oneTime?: boolean;
+      placeholder?: string;
+      resize?: boolean;
+      type: "reply";
+    }
+  | { type: "remove"; selective?: boolean }
+  | { type: "force_reply"; placeholder?: string; selective?: boolean };
+
 export interface SendOptions {
+  caption?: string;
   effect?: Effect;
+  entities?: MessageEntity[];
+  linkPreview?: boolean;
+  parseMode?: "HTML" | "MarkdownV2";
+  protect?: boolean;
+  replyMarkup?: ReplyMarkup;
   replyTo?: string;
   richLink?: boolean;
   scan?: boolean;
+  silent?: boolean;
   subject?: string;
+  threadId?: number | string;
+}
+
+export interface MessageEntity {
+  customEmojiId?: string;
+  language?: string;
+  length: number;
+  offset: number;
+  type: string;
+  url?: string;
+  user?: { id: string };
 }
 
 export interface AttachmentSend {
   audio?: boolean;
   data?: Uint8Array | ArrayBuffer;
+  mimeType?: string;
   name?: string;
   path?: string;
   sticker?: boolean;
+  url?: string;
 }
 
 export function text(body: string): TextMessage {
@@ -237,6 +299,18 @@ export function text(body: string): TextMessage {
 
 export function attachment(input: AttachmentInput): AttachmentContent {
   return { type: "attachment", ...input };
+}
+
+export function sticker(input: AttachmentInput): AttachmentContent {
+  return { type: "attachment", isSticker: true, ...input };
+}
+
+export function animation(input: AttachmentInput): AttachmentContent {
+  return { type: "attachment", isAnimation: true, ...input };
+}
+
+export function videoNote(input: AttachmentInput): AttachmentContent {
+  return { type: "attachment", isVideoNote: true, ...input };
 }
 
 export function markdown(body: string): MarkdownContent {
@@ -257,8 +331,16 @@ export function richlink(url: string): RichlinkContent {
   return { type: "richlink", url };
 }
 
-export function poll(title: string, options: string[]): PollContent {
-  return { options, title, type: "poll" };
+export function poll(
+  title: string,
+  options: string[],
+  opts?: {
+    allowsMultipleAnswers?: boolean;
+    isAnonymous?: boolean;
+    openPeriod?: number;
+  }
+): PollContent {
+  return { options, title, type: "poll", ...opts };
 }
 
 export function digitalTouch(
@@ -311,7 +393,7 @@ async function* iterateStreamSource(
   yield* source as AsyncIterable<string>;
 }
 
-/** iMessage has no markdown streaming — use `markdown()` with the full body. */
+/** Platforms without live streaming drain to one text/markdown send. */
 export function streamText(
   source: StreamTextSource,
   opts?: { format?: "plain" | "markdown" }

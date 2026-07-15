@@ -21,8 +21,11 @@ export type {
   MarkdownContent,
   PayloadContent,
   PaymentRequest,
+  InlineKeyboardButton,
+  MessageEntity,
   PollContent,
   Reaction,
+  ReplyMarkup,
   RichlinkContent,
   SendOptions,
   StreamTextContent,
@@ -37,6 +40,7 @@ export type {
   WaTemplateContent,
 } from "./builders.js";
 export {
+  animation,
   app,
   attachment,
   contactCard,
@@ -48,6 +52,8 @@ export {
   group,
   isGroupContent,
   isWaContent,
+  sticker,
+  videoNote,
   markdown,
   payment,
   poll,
@@ -58,6 +64,44 @@ export {
   voice,
   wa,
 } from "./builders.js";
+export type {
+  ChecklistContent,
+  CopyContent,
+  CopyManyContent,
+  DiceContent,
+  ForwardContent,
+  ForwardManyContent,
+  GameContent,
+  GiftContent,
+  InteractiveContent,
+  InvoiceContent,
+  KeyboardButton,
+  KeyboardContent,
+  LivePhotoContent,
+  LocationContent,
+  PaidMediaContent,
+  RichMessageContent,
+} from "./interactive.js";
+export {
+  checklist,
+  copy,
+  copyMany,
+  dice,
+  forward,
+  forwardMany,
+  game,
+  gift,
+  invoice,
+  isInteractiveContent,
+  keyboard,
+  livePhoto,
+  location,
+  paidMedia,
+  richMessage,
+  venue,
+} from "./interactive.js";
+export type { MediaAlbumContent } from "./media-album.js";
+export { mediaAlbum } from "./media-album.js";
 export type { Edit } from "./edit.js";
 export { edit } from "./edit.js";
 export type {

@@ -14,9 +14,11 @@ export type {
   SkylineHost,
   StreamHandle,
 } from "./host-types.js";
-export { unsupported } from "./host-types.js";
+export { UnsupportedError, unsupported } from "./host-types.js";
 export {
   contentSugar,
+  unsupportedChatExtras,
+  unsupportedGroupExtras,
   unsupportedPollOps,
   withResponding,
 } from "./channel-helpers.js";
@@ -28,3 +30,10 @@ export {
   messageFromSend,
   stubAttachmentDownload,
 } from "./message.js";
+export {
+  fetchUrlBytes,
+  mimeToMediaName,
+  readMediaBytes,
+} from "./io.js";
+export { markdownToPlainText, renderInlineTokens } from "./markdown.js";
+export { drainStreamText, sendWithFallbacks } from "./send-fallback.js";

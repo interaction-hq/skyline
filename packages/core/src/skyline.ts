@@ -162,6 +162,8 @@ async function loadBinder(platform: string): Promise<BinderModule> {
         return (await import("@skyline-ts/whatsapp-business")) as BinderModule;
       case "terminal":
         return (await import("@skyline-ts/terminal")) as BinderModule;
+      case "telegram":
+        return (await import("@skyline-ts/telegram")) as BinderModule;
       default:
         throw new Error(`unknown platform: ${platform}`);
     }

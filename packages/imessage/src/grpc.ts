@@ -18,8 +18,16 @@ function toBase64Url(input: string): string {
     .replace(/[=]+$/, "");
 }
 
+export interface TextFormatWire {
+  effect_name?: string;
+  length: number;
+  start: number;
+  type: string;
+}
+
 export interface SendWireOptions {
   effectId?: string;
+  formatting?: TextFormatWire[];
   replyTo?: string;
   richLink?: boolean;
   scan?: boolean;
@@ -349,6 +357,9 @@ export class ImessageGrpcClient {
     }
     if (opts.subject) {
       request.subject = opts.subject;
+    }
+    if (opts.formatting?.length) {
+      request.formatting = opts.formatting;
     }
     return this.invokeSend(request, clientMessageId);
   }

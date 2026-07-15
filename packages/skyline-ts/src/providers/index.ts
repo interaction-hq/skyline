@@ -13,6 +13,16 @@ export type {
   SlackDedicatedInput,
   SlackTeamMetadata,
 } from "@skyline-ts/slack";
+export {
+  telegram,
+  telegramWebhookFetch,
+} from "@skyline-ts/telegram";
+export type {
+  TelegramCloudConfig,
+  TelegramConfig,
+  TelegramDedicatedConfig,
+  TelegramDedicatedInput,
+} from "@skyline-ts/telegram";
 export { terminal } from "@skyline-ts/terminal";
 export type { TerminalConfig } from "@skyline-ts/terminal";
 export { whatsapp } from "@skyline-ts/whatsapp";

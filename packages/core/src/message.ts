@@ -78,6 +78,7 @@ export function bindOutboundMessage(
     senderId?: string;
     service?: string;
     slack?: Message["slack"];
+    threadId?: Message["threadId"];
     timestamp?: Date;
   }
 ): Message {
@@ -91,6 +92,7 @@ export function bindOutboundMessage(
     sender: { id: opts.senderId ?? channel.to },
     service: opts.service,
     slack: opts.slack,
+    threadId: opts.threadId,
     timestamp: opts.timestamp ?? new Date(),
   });
 }
@@ -104,6 +106,7 @@ export function messageFromSend(
     senderId?: string;
     service?: string;
     slack?: Message["slack"];
+    threadId?: Message["threadId"];
     timestamp?: Date;
   }
 ): Message | undefined {
@@ -117,6 +120,7 @@ export function messageFromSend(
     senderId: extras?.senderId,
     service: extras?.service,
     slack: extras?.slack,
+    threadId: extras?.threadId,
     timestamp: extras?.timestamp,
   });
 }

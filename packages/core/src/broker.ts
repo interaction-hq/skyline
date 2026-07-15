@@ -32,6 +32,17 @@ interface TokenResponse {
           teamName: string;
         };
       };
+      telegram?: {
+        baseUrl?: string;
+        botToken: string;
+        webhookSecret?: string;
+        webhookUrl?: string;
+      };
+      discord?: {
+        applicationId?: string;
+        botToken: string;
+        guildId?: string;
+      };
     }[];
   };
   error?: {
@@ -92,9 +103,11 @@ export class Broker {
     const lines: ResolvedLine[] = endpoints.map((e) => ({
       address: e.address,
       business: e.business,
+      discord: e.discord,
       phone: e.phone ?? "",
       slack: e.slack,
-      token,
+      telegram: e.telegram,
+      token: e.telegram?.botToken || e.discord?.botToken || token,
     }));
     return { lines, token, ttl };
   }

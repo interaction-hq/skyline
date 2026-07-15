@@ -32,3 +32,10 @@ declare module "@skyline-ts/terminal" {
     config: import("./types").ProviderConfig
   ): void;
 }
+
+declare module "@skyline-ts/telegram" {
+  export function bind(
+    host: import("./host").SkylineHost,
+    config: import("./types").ProviderConfig
+  ): void;
+}

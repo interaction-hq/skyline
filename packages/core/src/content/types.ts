@@ -17,6 +17,8 @@ import type {
   WaContent,
 } from "./builders.js";
 import type { Edit } from "./edit.js";
+import type { InteractiveContent } from "./interactive.js";
+import type { MediaAlbumContent } from "./media-album.js";
 import type { AddMember, LeaveChannel, RemoveMember } from "./membership.js";
 import type { ReactionContent } from "./reaction.js";
 import type { Read } from "./read.js";
@@ -40,6 +42,8 @@ export type BaseContent =
   | CustomContent
   | GroupContent
   | WaContent
+  | InteractiveContent
+  | MediaAlbumContent
   | ReactionContent
   | Typing
   | Rename

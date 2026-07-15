@@ -1,19 +1,23 @@
 import type {
-  AttachmentContent,
   AttachmentSend,
+  Content,
   ContentInput,
   Reaction,
   SendOptions,
 } from "@skyline-ts/core/content";
-import { resolveContent } from "@skyline-ts/core/content";
 import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
+  attachmentWithDownload,
   bindMessage,
   bindOutboundMessage,
   contentSugar,
   messageFromSend,
-  stubAttachmentDownload,
+  mimeToMediaName,
+  readMediaBytes,
+  sendWithFallbacks,
+  unsupportedChatExtras,
+  unsupportedGroupExtras,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
@@ -30,33 +34,11 @@ import {
 } from "./config.js";
 
 async function readAttachmentBytes(file: AttachmentSend): Promise<Uint8Array> {
-  if (file.data) {
-    return file.data instanceof Uint8Array
-      ? file.data
-      : new Uint8Array(file.data);
-  }
-  if (file.path) {
-    const buf = await Bun.file(file.path).arrayBuffer();
-    return new Uint8Array(buf);
-  }
-  throw new Error("sendFile requires file.data or file.path");
-}
-
-async function readAttachmentContent(
-  content: AttachmentContent
-): Promise<Uint8Array> {
-  if (content.data) {
-    return content.data;
-  }
-  if (content.path) {
-    const buf = await Bun.file(content.path).arrayBuffer();
-    return new Uint8Array(buf);
-  }
-  if (content.url) {
-    const res = await fetch(content.url);
-    return new Uint8Array(await res.arrayBuffer());
-  }
-  throw new Error("attachment needs data, path, or url");
+  return readMediaBytes({
+    data: file.data,
+    path: file.path,
+    url: file.url,
+  });
 }
 
 function createBinder(host: SkylineHost) {
@@ -98,14 +80,13 @@ function createBinder(host: SkylineHost) {
     });
   };
 
-  const sendContent = async (
+  const sendResolved = async (
     channel: Channel,
     to: string,
     teamId: string | undefined,
-    input: ContentInput,
+    content: Content,
     sendOpts?: SendOptions
   ): Promise<Message | undefined> => {
-    const content = await resolveContent(input);
     let guid: string | undefined;
     switch (content.type) {
       case "text":
@@ -118,15 +99,52 @@ function createBinder(host: SkylineHost) {
         break;
       }
       case "attachment": {
-        const bytes = await readAttachmentContent(content);
+        const bytes = await readMediaBytes(content);
         const res = await slackFor(teamId).uploadFile(
           to,
           {
             data: bytes,
+            mimeType: content.mimeType,
             name: content.name ?? "attachment",
           },
           { replyTo: sendOpts?.replyTo }
         );
+        guid = res.messageId;
+        break;
+      }
+      case "voice": {
+        const bytes = await readMediaBytes(content);
+        const res = await slackFor(teamId).uploadFile(
+          to,
+          {
+            data: bytes,
+            mimeType: content.mimeType,
+            name:
+              content.name ??
+              mimeToMediaName(content.mimeType, "voice"),
+          },
+          { replyTo: sendOpts?.replyTo }
+        );
+        guid = res.messageId;
+        break;
+      }
+      case "app": {
+        const body = [content.caption, content.url].filter(Boolean).join("\n");
+        const res = await slackFor(teamId).sendText(to, body || content.url, {
+          replyTo: sendOpts?.replyTo,
+        });
+        guid = res.messageId;
+        break;
+      }
+      case "flow": {
+        const body =
+          content.caption ??
+          content.summary ??
+          content.appId ??
+          "[Flow]";
+        const res = await slackFor(teamId).sendText(to, body, {
+          replyTo: sendOpts?.replyTo,
+        });
         guid = res.messageId;
         break;
       }
@@ -138,7 +156,7 @@ function createBinder(host: SkylineHost) {
             if (item.type !== "attachment") {
               host.unsupported("slack", "sending group content with mixed types");
             }
-            last = await sendContent(channel, to, teamId, item, sendOpts);
+            last = await sendResolved(channel, to, teamId, item, sendOpts);
           }
           return last;
         }
@@ -150,7 +168,7 @@ function createBinder(host: SkylineHost) {
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(channel, to, teamId, content.content, {
+        return sendResolved(channel, to, teamId, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
@@ -197,11 +215,8 @@ function createBinder(host: SkylineHost) {
       case "addMember":
       case "removeMember":
       case "leaveChannel":
-      case "app":
       case "custom":
-      case "flow":
       case "stream_text":
-      case "voice":
       case "contact":
       case "richlink":
       case "poll":
@@ -210,6 +225,22 @@ function createBinder(host: SkylineHost) {
       case "wa_template":
       case "wa_interactive":
       case "wa_location":
+      
+      case "keyboard":
+      case "location":
+      case "dice":
+      case "forward":
+      case "forward_many":
+      case "copy":
+      case "copy_many":
+      case "invoice":
+      case "game":
+      case "checklist":
+      case "paid_media":
+      case "gift":
+      case "rich_message":
+      case "live_photo":
+      case "media_album":
       case "wa_contacts":
         host.unsupported("slack", `sending ${content.type} content`);
         break;
@@ -225,6 +256,25 @@ function createBinder(host: SkylineHost) {
       senderId: to,
     });
   };
+
+  const fileDownload = (
+    teamId: string | undefined,
+    fileId: string
+  ): {
+    read: () => Promise<Uint8Array>;
+    stream: () => Promise<ReadableStream<Uint8Array>>;
+  } => ({
+    read: () => slackFor(teamId).downloadFile(fileId),
+    stream: async () => {
+      const bytes = await slackFor(teamId).downloadFile(fileId);
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes);
+          controller.close();
+        },
+      });
+    },
+  });
 
   const inboundSlackMessage = (
     channel: Channel,
@@ -249,12 +299,15 @@ function createBinder(host: SkylineHost) {
       ...(event.files?.length
         ? {
             attachments: event.files.map((f) =>
-              stubAttachmentDownload({
-                guid: f.id,
-                mimeType: f.mimetype,
-                name: f.name,
-                size: f.size,
-              })
+              attachmentWithDownload(
+                {
+                  guid: f.id,
+                  mimeType: f.mimetype,
+                  name: f.name,
+                  size: f.size,
+                },
+                fileDownload(teamId, f.id)
+              )
             ),
           }
         : {}),
@@ -275,20 +328,45 @@ function createBinder(host: SkylineHost) {
   const makeChannel = (to: string, teamId?: string): Channel => {
     let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(channel, to, teamId, content, sendOpts);
+      sendWithFallbacks(
+        (resolved) => sendResolved(channel, to, teamId, resolved, sendOpts),
+        content,
+        "slack"
+      );
     const sugar = contentSugar(send);
     channel = {
     ...sugar,
+    ...unsupportedChatExtras((verb) => host.unsupported("slack", verb)),
     background: async () => host.unsupported("slack", "background"),
     contact: async () => null,
-    edit: async (messageGuid, newText) => {
-      await slackFor(teamId).editText(to, messageGuid, newText);
+    edit: async (messageGuid, update) => {
+      const text = typeof update === "string" ? update : update.text;
+      if (text == null) {
+        host.unsupported("slack", "edit without text");
+      }
+      await slackFor(teamId).editText(to, messageGuid, text);
     },
     focusStatus: async () => null,
-    getAttachment: async () => null,
+    getAttachment: async (guid) => {
+      const bytes = await slackFor(teamId).downloadFile(guid);
+      return attachmentWithDownload(
+        { guid },
+        {
+          read: async () => bytes,
+          stream: async () =>
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(bytes);
+                controller.close();
+              },
+            }),
+        }
+      );
+    },
     getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
+      ...unsupportedGroupExtras((verb) => host.unsupported("slack", verb)),
       add: (handle) => sugar.add(handle),
       getIcon: async () => null,
       getName: async () => null,
@@ -330,8 +408,10 @@ function createBinder(host: SkylineHost) {
       return last;
     },
     shareContactCard: async () => host.unsupported("slack", "shareContactCard"),
+    pin: async () => host.unsupported("slack", "pin"),
     shareLocation: async () => host.unsupported("slack", "shareLocation"),
     stopLocation: async () => host.unsupported("slack", "stopLocation"),
+    unpin: async () => host.unsupported("slack", "unpin"),
     to,
     typing: async () => {},
     unsend: async (messageGuid) => {
@@ -355,6 +435,30 @@ function createBinder(host: SkylineHost) {
       Boolean(line.slack.accessToken) ||
       Boolean(line.address && !line.slack.botToken?.startsWith("xoxb-"));
 
+    const pushInbound = (
+      channelId: string,
+      event: {
+        files?: {
+          id: string;
+          mimetype?: string;
+          name?: string;
+          size?: number;
+        }[];
+        isFromMe: boolean;
+        messageId: string;
+        subtype?: string;
+        text: string;
+        threadTs?: string;
+        userId: string;
+      }
+    ) => {
+      const channel = makeChannel(channelId, teamId);
+      host.queue.push([
+        channel,
+        inboundSlackMessage(channel, event, teamId),
+      ]);
+    };
+
     if (useGrpc && accessToken) {
       const client = new SlackGrpcClient(
         slackGrpcTarget(line.slack.endpoint || line.address),
@@ -362,6 +466,14 @@ function createBinder(host: SkylineHost) {
         accessToken
       );
       const sub = client.subscribe({
+        onMention(event) {
+          pushInbound(event.channelId, {
+            isFromMe: event.isFromMe,
+            messageId: event.messageId,
+            text: event.text,
+            userId: event.userId,
+          });
+        },
         onReaction(event) {
           const channel = makeChannel(event.channelId, teamId);
           host.emit(
@@ -378,23 +490,15 @@ function createBinder(host: SkylineHost) {
           );
         },
         onText(event) {
-          const channel = makeChannel(event.channelId, teamId);
-          host.queue.push([
-            channel,
-            inboundSlackMessage(
-              channel,
-              {
-                files: event.files,
-                isFromMe: event.isFromMe,
-                messageId: event.messageId,
-                subtype: event.subtype,
-                text: event.text,
-                threadTs: event.threadTs,
-                userId: event.userId,
-              },
-              teamId
-            ),
-          ]);
+          pushInbound(event.channelId, {
+            files: event.files,
+            isFromMe: event.isFromMe,
+            messageId: event.messageId,
+            subtype: event.subtype,
+            text: event.text,
+            threadTs: event.threadTs,
+            userId: event.userId,
+          });
         },
       });
       streams.push(sub);
@@ -438,6 +542,17 @@ function createBinder(host: SkylineHost) {
               channel
             );
           },
+          onMention(event) {
+            const isFromMe = Boolean(
+              botUserId && event.userId === botUserId
+            );
+            pushInbound(event.channelId, {
+              isFromMe,
+              messageId: event.messageId,
+              text: event.text,
+              userId: event.userId,
+            });
+          },
           onReaction(event) {
             const channel = makeChannel(event.channelId, teamId);
             host.emit(
@@ -457,23 +572,15 @@ function createBinder(host: SkylineHost) {
             const isFromMe =
               Boolean(botUserId && event.userId === botUserId) ||
               Boolean(event.isBot);
-            const channel = makeChannel(event.channelId, teamId);
-            host.queue.push([
-              channel,
-              inboundSlackMessage(
-                channel,
-                {
-                  files: event.files,
-                  isFromMe,
-                  messageId: event.messageId,
-                  subtype: event.subtype,
-                  text: event.text,
-                  threadTs: event.threadTs,
-                  userId: event.userId,
-                },
-                teamId
-              ),
-            ]);
+            pushInbound(event.channelId, {
+              files: event.files,
+              isFromMe,
+              messageId: event.messageId,
+              subtype: event.subtype,
+              text: event.text,
+              threadTs: event.threadTs,
+              userId: event.userId,
+            });
           },
         },
       });

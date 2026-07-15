@@ -13,7 +13,11 @@ import {
   bindOutboundMessage,
   contentSugar,
   messageFromSend,
+  readMediaBytes,
+  sendWithFallbacks,
   stubAttachmentDownload,
+  unsupportedChatExtras,
+  unsupportedGroupExtras,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
@@ -29,20 +33,7 @@ async function readBytes(input: {
   path?: string;
   url?: string;
 }): Promise<Uint8Array> {
-  if (input.data) {
-    return input.data instanceof Uint8Array
-      ? input.data
-      : new Uint8Array(input.data);
-  }
-  if (input.path) {
-    const buf = await Bun.file(input.path).arrayBuffer();
-    return new Uint8Array(buf);
-  }
-  if (input.url) {
-    const res = await fetch(input.url);
-    return new Uint8Array(await res.arrayBuffer());
-  }
-  throw new Error("attachment needs data, path, or url");
+  return readMediaBytes(input);
 }
 
 function isImageMime(mimeType?: string): boolean {
@@ -273,6 +264,22 @@ function createBinder(host: SkylineHost, projectId: string) {
       case "wa_template":
       case "wa_interactive":
       case "wa_location":
+      
+      case "keyboard":
+      case "location":
+      case "dice":
+      case "forward":
+      case "forward_many":
+      case "copy":
+      case "copy_many":
+      case "invoice":
+      case "game":
+      case "checklist":
+      case "paid_media":
+      case "gift":
+      case "rich_message":
+      case "live_photo":
+      case "media_album":
       case "wa_contacts":
         host.unsupported("whatsapp", `sending ${content.type} content`);
         break;
@@ -292,10 +299,15 @@ function createBinder(host: SkylineHost, projectId: string) {
   const makeChannel = (to: string): Channel => {
     let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(channel, to, content, sendOpts);
+      sendWithFallbacks(
+        (resolved) => sendContent(channel, to, resolved, sendOpts),
+        content,
+        "whatsapp"
+      );
     const sugar = contentSugar(send);
     channel = {
     ...sugar,
+    ...unsupportedChatExtras((verb) => host.unsupported("whatsapp", verb)),
     background: async () => host.unsupported("whatsapp", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp", "edit"),
@@ -304,6 +316,7 @@ function createBinder(host: SkylineHost, projectId: string) {
     getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
+      ...unsupportedGroupExtras((verb) => host.unsupported("whatsapp", verb)),
       add: (handle) => sugar.add(handle),
       getIcon: async () => null,
       getName: async () => null,
@@ -412,8 +425,10 @@ function createBinder(host: SkylineHost, projectId: string) {
       });
     },
     shareContactCard: async () => host.unsupported("whatsapp", "shareContactCard"),
+    pin: async () => host.unsupported("whatsapp", "pin"),
     shareLocation: async () => host.unsupported("whatsapp", "shareLocation"),
     stopLocation: async () => host.unsupported("whatsapp", "stopLocation"),
+    unpin: async () => host.unsupported("whatsapp", "unpin"),
     to,
     typing: async () => host.unsupported("whatsapp", "typing"),
     unsend: () => host.unsupported("whatsapp", "unsend"),

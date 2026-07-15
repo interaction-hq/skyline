@@ -1,6 +1,6 @@
 {
   "name": "skyline-ts",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Bring agents to any interface — unified messaging SDK for TypeScript. Batteries-included: the runtime plus every official provider.",
   "type": "module",
   "license": "MIT",
@@ -62,12 +62,13 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "@skyline-ts/core": "0.4.0",
-    "@skyline-ts/imessage": "0.4.0",
-    "@skyline-ts/slack": "0.4.0",
-    "@skyline-ts/terminal": "0.4.0",
-    "@skyline-ts/whatsapp": "0.4.0",
-    "@skyline-ts/whatsapp-business": "0.4.0"
+    "@skyline-ts/core": "0.5.0",
+    "@skyline-ts/imessage": "0.4.2",
+    "@skyline-ts/slack": "0.4.2",
+    "@skyline-ts/telegram": "0.5.0",
+    "@skyline-ts/terminal": "0.4.2",
+    "@skyline-ts/whatsapp": "0.4.2",
+    "@skyline-ts/whatsapp-business": "0.4.2"
   },
   "engines": {
     "node": ">=18"
@@ -83,6 +84,7 @@
     "imessage",
     "whatsapp",
     "slack",
+    "telegram",
     "typescript"
   ]
 }

@@ -3,8 +3,8 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "build": "bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' build && bun run --filter skyline-ts build",
-    "typecheck": "bun run --filter @skyline-ts/core typecheck && bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' typecheck && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' build && bun run --filter skyline-ts typecheck",
+    "build": "bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' --filter '@skyline-ts/telegram' build && bun run --filter skyline-ts build",
+    "typecheck": "bun run --filter @skyline-ts/core typecheck && bun run --filter @skyline-ts/core build && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' --filter '@skyline-ts/telegram' typecheck && bun run --filter '@skyline-ts/imessage' --filter '@skyline-ts/slack' --filter '@skyline-ts/whatsapp' --filter '@skyline-ts/whatsapp-business' --filter '@skyline-ts/terminal' --filter '@skyline-ts/telegram' build && bun run --filter skyline-ts typecheck",
     "lint": "ultracite check",
     "format": "ultracite fix",
     "example:terminal": "bun run examples/terminal-agent.ts",

@@ -1,11 +1,21 @@
-import type { ContentInput, SendOptions } from "@skyline-ts/core/content";
-import { resolveContent } from "@skyline-ts/core/content";
+import type {
+  AttachmentSend,
+  Content,
+  ContentInput,
+  SendOptions,
+} from "@skyline-ts/core/content";
 import type { Channel, Message, Platform } from "@skyline-ts/core";
 import type { SkylineHost } from "@skyline-ts/core/host";
 import {
+  attachmentWithDownload,
   bindMessage,
   contentSugar,
   messageFromSend,
+  mimeToMediaName,
+  readMediaBytes,
+  sendWithFallbacks,
+  unsupportedChatExtras,
+  unsupportedGroupExtras,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
@@ -13,36 +23,64 @@ import { terminal, type TerminalConfig } from "./config.js";
 import { startTerminalSession, type TerminalSession } from "./session.js";
 
 function createBinder(host: SkylineHost) {
-  const sendContent = async (
+  const attachmentStore = new Map<string, Uint8Array>();
+
+  const sendResolved = async (
     channel: Channel,
     session: TerminalSession,
-    content: ContentInput,
+    content: Content,
     sendOpts?: SendOptions
   ): Promise<Message | undefined> => {
-    const parsed = await resolveContent(content);
     let guid: string | undefined;
-    switch (parsed.type) {
+    switch (content.type) {
       case "text":
       case "markdown": {
-        const body = parsed.type === "markdown" ? parsed.body : parsed.text;
+        const body = content.type === "markdown" ? content.body : content.text;
         const prefix = sendOpts?.replyTo ? "↳ agent: " : "agent: ";
         session.write(`${prefix}${body}`);
         guid = `term-${Date.now()}`;
         break;
       }
+      case "attachment": {
+        const bytes = await readMediaBytes(content);
+        guid = `term-file-${Date.now()}`;
+        attachmentStore.set(guid, bytes);
+        const name =
+          content.name ?? mimeToMediaName(content.mimeType, "file");
+        session.write(
+          `agent: [file] ${name} (${content.mimeType ?? "application/octet-stream"}, ${bytes.length}b)`
+        );
+        break;
+      }
+      case "voice": {
+        const bytes = await readMediaBytes(content);
+        guid = `term-voice-${Date.now()}`;
+        attachmentStore.set(guid, bytes);
+        const name =
+          content.name ?? mimeToMediaName(content.mimeType, "voice");
+        session.write(
+          `agent: [voice] ${name} (${content.mimeType ?? "audio/mpeg"}, ${bytes.length}b)`
+        );
+        break;
+      }
+      case "custom": {
+        session.write(`agent: [custom] ${JSON.stringify(content.raw)}`);
+        guid = `term-custom-${Date.now()}`;
+        break;
+      }
       case "reply": {
-        const targetGuid = parsed.target.guid;
+        const targetGuid = content.target.guid;
         if (!targetGuid) {
           throw new Error("reply: target message has no guid");
         }
-        return sendContent(channel, session, parsed.content, {
+        return sendResolved(channel, session, content.content, {
           ...sendOpts,
           replyTo: targetGuid,
         });
       }
       case "edit": {
-        const targetGuid = parsed.target.guid ?? "unknown";
-        const inner = parsed.content;
+        const targetGuid = content.target.guid ?? "unknown";
+        const inner = content.content;
         const body =
           inner.type === "text"
             ? inner.text
@@ -53,28 +91,28 @@ function createBinder(host: SkylineHost) {
         break;
       }
       case "unsend": {
-        session.write(`agent unsent ${parsed.target.guid ?? "unknown"}`);
+        session.write(`agent unsent ${content.target.guid ?? "unknown"}`);
         break;
       }
       case "reaction": {
         session.write(
-          `agent reacted ${parsed.emoji} on ${parsed.target.guid ?? "unknown"}`
+          `agent reacted ${content.emoji} on ${content.target.guid ?? "unknown"}`
         );
         break;
       }
       case "rename":
-        session.write(`agent renamed chat to ${parsed.displayName}`);
+        session.write(`agent renamed chat to ${content.displayName}`);
         break;
       case "avatar":
         session.write(
-          `agent ${parsed.action.kind === "clear" ? "cleared" : "set"} avatar`
+          `agent ${content.action.kind === "clear" ? "cleared" : "set"} avatar`
         );
         break;
       case "addMember":
-        session.write(`agent added ${parsed.members.join(", ")}`);
+        session.write(`agent added ${content.members.join(", ")}`);
         break;
       case "removeMember":
-        session.write(`agent removed ${parsed.members.join(", ")}`);
+        session.write(`agent removed ${content.members.join(", ")}`);
         break;
       case "leaveChannel":
         session.write("agent left channel");
@@ -83,11 +121,8 @@ function createBinder(host: SkylineHost) {
       case "typing":
         break;
       case "app":
-      case "custom":
       case "flow":
       case "stream_text":
-      case "attachment":
-      case "voice":
       case "contact":
       case "richlink":
       case "poll":
@@ -97,15 +132,31 @@ function createBinder(host: SkylineHost) {
       case "wa_template":
       case "wa_interactive":
       case "wa_location":
+      
+      case "keyboard":
+      case "location":
+      case "dice":
+      case "forward":
+      case "forward_many":
+      case "copy":
+      case "copy_many":
+      case "invoice":
+      case "game":
+      case "checklist":
+      case "paid_media":
+      case "gift":
+      case "rich_message":
+      case "live_photo":
+      case "media_album":
       case "wa_contacts":
-        host.unsupported("terminal", `sending ${parsed.type} content`);
+        host.unsupported("terminal", `sending ${content.type} content`);
         break;
       default: {
-        const _exhaustive: never = parsed;
+        const _exhaustive: never = content;
         throw new Error(`unsupported content: ${JSON.stringify(_exhaustive)}`);
       }
     }
-    return messageFromSend(channel, parsed, guid, {
+    return messageFromSend(channel, content, guid, {
       replyTo: sendOpts?.replyTo
         ? { messageGuid: sendOpts.replyTo }
         : undefined,
@@ -113,17 +164,167 @@ function createBinder(host: SkylineHost) {
     });
   };
 
+  const parseInboundLine = async (
+    channel: Channel,
+    line: string
+  ): Promise<void> => {
+    const reactMatch = line.match(/^\/react\s+(-)?\s*(\S+)\s+(.+)$/);
+    if (reactMatch) {
+      const removed = Boolean(reactMatch[1]);
+      const messageGuid = reactMatch[2]!;
+      const reaction = reactMatch[3]!.trim();
+      host.emit(
+        "reaction",
+        {
+          messageGuid,
+          platform: "terminal",
+          reaction,
+          removed,
+          sender: { displayName: "You", id: "you" },
+          timestamp: new Date(),
+        },
+        channel
+      );
+      return;
+    }
+
+    const attachMatch = line.match(/^\/attach\s+(.+)$/);
+    if (attachMatch) {
+      const spec = attachMatch[1]!.trim();
+      let bytes: Uint8Array;
+      let mimeType = "application/octet-stream";
+      let name = "attachment";
+      const dataUrl = spec.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUrl) {
+        mimeType = dataUrl[1]!;
+        bytes = Uint8Array.from(Buffer.from(dataUrl[2]!, "base64"));
+        name = mimeToMediaName(mimeType, "file");
+      } else {
+        bytes = await readMediaBytes({ path: spec });
+        name = spec.split("/").pop() ?? "attachment";
+      }
+      const guid = `term-in-file-${Date.now()}`;
+      attachmentStore.set(guid, bytes);
+      host.queue.push([
+        channel,
+        bindMessage(channel, {
+          attachments: [
+            attachmentWithDownload(
+              { guid, mimeType, name, size: bytes.length },
+              {
+                read: async () => bytes,
+                stream: async () =>
+                  new ReadableStream({
+                    start(controller) {
+                      controller.enqueue(bytes);
+                      controller.close();
+                    },
+                  }),
+              }
+            ),
+          ],
+          content: { text: `[attachment] ${name}`, type: "text" },
+          guid,
+          isFromMe: false,
+          platform: "terminal",
+          sender: { displayName: "You", id: "you" },
+          timestamp: new Date(),
+        }),
+      ]);
+      return;
+    }
+
+    const voiceMatch = line.match(/^\/voice\s+(.+)$/);
+    if (voiceMatch) {
+      const path = voiceMatch[1]!.trim();
+      const bytes = await readMediaBytes({ path });
+      const guid = `term-in-voice-${Date.now()}`;
+      attachmentStore.set(guid, bytes);
+      host.queue.push([
+        channel,
+        bindMessage(channel, {
+          content: {
+            mimeType: "audio/mpeg",
+            name: path.split("/").pop() ?? "voice",
+            path,
+            type: "voice",
+          },
+          guid,
+          isFromMe: false,
+          platform: "terminal",
+          sender: { displayName: "You", id: "you" },
+          timestamp: new Date(),
+        }),
+      ]);
+      return;
+    }
+
+    const customMatch = line.match(/^\/custom\s+(.+)$/);
+    if (customMatch) {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(customMatch[1]!);
+      } catch {
+        raw = customMatch[1];
+      }
+      host.queue.push([
+        channel,
+        bindMessage(channel, {
+          content: { raw, type: "custom" },
+          guid: `term-in-custom-${Date.now()}`,
+          isFromMe: false,
+          platform: "terminal",
+          sender: { displayName: "You", id: "you" },
+          timestamp: new Date(),
+        }),
+      ]);
+      return;
+    }
+
+    host.queue.push([
+      channel,
+      bindMessage(channel, {
+        content: { text: line, type: "text" },
+        guid: `term-in-${Date.now()}`,
+        isFromMe: false,
+        platform: "terminal",
+        sender: { displayName: "You", id: "you" },
+        timestamp: new Date(),
+      }),
+    ]);
+  };
+
   const channelExtras = {
+    ...unsupportedChatExtras((verb) => host.unsupported("terminal", verb)),
     background: async () => host.unsupported("terminal", "background"),
     focusStatus: async () => null,
-    getAttachment: async () => null,
+    getAttachment: async (guid: string) => {
+      const bytes = attachmentStore.get(guid);
+      if (!bytes) {
+        return null;
+      }
+      return attachmentWithDownload(
+        { guid, size: bytes.length },
+        {
+          read: async () => bytes,
+          stream: async () =>
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(bytes);
+                controller.close();
+              },
+            }),
+        }
+      );
+    },
     getDisplayName: async () => null,
     getMessage: async () => null,
     listMessages: async () => [],
-    sendFiles: async () => host.unsupported("terminal", "sendFiles"),
     shareContactCard: async () => host.unsupported("terminal", "shareContactCard"),
+    pin: async () => host.unsupported("terminal", "pin"),
     shareLocation: async () => host.unsupported("terminal", "shareLocation"),
     stopLocation: async () => host.unsupported("terminal", "stopLocation"),
+    unpin: async () => host.unsupported("terminal", "unpin"),
   };
 
   const makeChannel = (to: string): Channel => {
@@ -135,17 +336,24 @@ function createBinder(host: SkylineHost) {
 
     let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendContent(channel, session, content, sendOpts);
+      sendWithFallbacks(
+        (resolved) => sendResolved(channel, session, resolved, sendOpts),
+        content,
+        "terminal"
+      );
     const sugar = contentSugar(send);
 
     channel = {
       ...sugar,
       contact: async () => null,
-      edit: async (messageGuid, newText) => {
-        session.write(`agent edited ${messageGuid}: ${newText}`);
+      edit: async (messageGuid, update) => {
+        const text =
+          typeof update === "string" ? update : (update.text ?? JSON.stringify(update));
+        session.write(`agent edited ${messageGuid}: ${text}`);
       },
       ...channelExtras,
       group: {
+        ...unsupportedGroupExtras((verb) => host.unsupported("terminal", verb)),
         add: (handle) => sugar.add(handle),
         getIcon: async () => null,
         getName: async () => null,
@@ -171,7 +379,29 @@ function createBinder(host: SkylineHost) {
       reply: (messageGuid, content, sendOpts) =>
         send(content, { ...sendOpts, replyTo: messageGuid }),
       send,
-      sendFile: async () => host.unsupported("terminal", "sendFile"),
+      sendFile: async (file: AttachmentSend, sendOpts) =>
+        send(
+          {
+            data:
+              file.data instanceof ArrayBuffer
+                ? new Uint8Array(file.data)
+                : file.data,
+            name: file.name,
+            path: file.path,
+            type: "attachment",
+            url: file.url,
+            isAudioMessage: file.audio,
+            isSticker: file.sticker,
+          },
+          sendOpts
+        ),
+      sendFiles: async (files, sendOpts) => {
+        let last: Message | undefined;
+        for (const file of files) {
+          last = await channel.sendFile(file, sendOpts);
+        }
+        return last;
+      },
       to,
       typing: async (on = true) => {
         if (on) {
@@ -194,18 +424,25 @@ function createBinder(host: SkylineHost) {
       if (!session) {
         throw new Error("terminal session not ready");
       }
-      return sendContent(channel, session, content, sendOpts);
+      return sendWithFallbacks(
+        (resolved) => sendResolved(channel, session!, resolved, sendOpts),
+        content,
+        "terminal"
+      );
     };
     const sugar = contentSugar(send);
 
     channel = {
       ...sugar,
       contact: async () => null,
-      edit: async (messageGuid, newText) => {
-        session?.write(`agent edited ${messageGuid}: ${newText}`);
+      edit: async (messageGuid, update) => {
+        const text =
+          typeof update === "string" ? update : (update.text ?? JSON.stringify(update));
+        session?.write(`agent edited ${messageGuid}: ${text}`);
       },
       ...channelExtras,
       group: {
+        ...unsupportedGroupExtras((verb) => host.unsupported("terminal", verb)),
         add: (handle) => sugar.add(handle),
         getIcon: async () => null,
         getName: async () => null,
@@ -231,7 +468,29 @@ function createBinder(host: SkylineHost) {
       reply: (messageGuid, content, sendOpts) =>
         send(content, { ...sendOpts, replyTo: messageGuid }),
       send,
-      sendFile: async () => host.unsupported("terminal", "sendFile"),
+      sendFile: async (file: AttachmentSend, sendOpts) =>
+        send(
+          {
+            data:
+              file.data instanceof ArrayBuffer
+                ? new Uint8Array(file.data)
+                : file.data,
+            name: file.name,
+            path: file.path,
+            type: "attachment",
+            url: file.url,
+            isAudioMessage: file.audio,
+            isSticker: file.sticker,
+          },
+          sendOpts
+        ),
+      sendFiles: async (files, sendOpts) => {
+        let last: Message | undefined;
+        for (const file of files) {
+          last = await channel.sendFile(file, sendOpts);
+        }
+        return last;
+      },
       to,
       typing: async (on = true) => {
         if (on) {
@@ -245,17 +504,7 @@ function createBinder(host: SkylineHost) {
 
     session = startTerminalSession({
       onLine: (line) => {
-        host.queue.push([
-          channel,
-          bindMessage(channel, {
-            content: { text: line, type: "text" },
-            guid: `term-in-${Date.now()}`,
-            isFromMe: false,
-            platform: "terminal",
-            sender: { displayName: "You", id: "you" },
-            timestamp: new Date(),
-          }),
-        ]);
+        void parseInboundLine(channel, line);
       },
       prompt: config.prompt ?? "you> ",
     });

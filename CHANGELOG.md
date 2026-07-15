@@ -4,7 +4,56 @@ All notable changes to `skyline-ts` are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-07-15
+
+### Added
+- **Telegram as a first-class Skyline platform** (unified nomenclature only): Content (`keyboard` / `location` / `dice` / `forward` / `copy` / `invoice` / `game` / `mediaAlbum`, sticker/video-note/animation flags), Channel (`pin` / `unpin` / `shareLocation` / `stopLocation` / `typing(action)` / `edit` patch / invite / topic / moderation / join + payment answers / `poll.stop` / `unsendMany`), signals (`callback` / `inline` / `joinRequest` / `shipping` / `preCheckout` / `platform` catch-all).
+- Telegram depth: typed `InlineQueryResult` / `ReplyMarkup` / `MessageEntity` / `ShippingOption` / `ChecklistEdit`; inbound poll/dice/game/contact/invoice Content; structured signals (`poll`, `boost`, `business`, `purchase`, `reactionCount`, `managed`, `subscription`); typed returns (`StoryRef`, `GameHighScore[]`, `StickerSet` / `StickerInfo[]`, `BusinessConnectionInfo`); poll cache for `channel.poll.get`.
+- Content: `sticker` / `animation` / `videoNote` / `checklist` / `paidMedia` / `gift` / `richMessage` / `livePhoto` / `venue` / `forwardMany` / `copyMany`; builders use named fields only (no `extras` bags); poll quiz fields.
+- Channel: `info`, `commands.*`, `profile.*` (identity, stars, user photos/boosts, passport, `close`/`logOut`), `game.*`, `stickers.*`, `stories.*`, `business.*`, `webApp.*`, `ephemeral.*` (`sendDraft` / `sendRichDraft` + CRUD), `posts.*`, `invite.createSubscription` / `editSubscription`, `topic.iconStickers`, `invoiceLink`, `getMember`, `getPersonalMessages`, `answerWebApp`, `banSender`/`unbanSender`, `setAdminTitle`, `setMemberTag`, `setPermissions`, `refundPayment`, `removeReaction`, `clearReactions`; `group.admins` / `memberCount`; full `topic.*`.
+- Signals: `boost`, `business`, `purchase`, `reactionCount`, `managed`, `subscription`.
+- Webhook inbound: `telegram.config({ webhookUrl, webhookSecret })` + `telegramWebhookFetch`.
+- Escape hatch: `custom({ method, params })` only. Flat message fields (`sender.handle`, `threadId`, `group.kind`).
+- Skyline-typed Channel ops in `types.ts` (camelCase in; snake_case mapped in `@skyline-ts/telegram`).
+- Other platforms share the same Channel nestings; Telegram-only ops throw `unsupported`.
+- `sendFiles` (2–10) → media album; inline chosen results (`chosenResultId`).
+
+### Changed
+- `@skyline-ts/telegram` `src/` consolidated to `index` / `config` / `bind` / `client` / `send` / `inbound`. Method catalog lives in `maintainer/api-dx.ts` (not a public export).
+- Telegram requires `telegram.config({ botToken })` + direct Bot API HTTP (project creds for cloud extras only).
+
+### Removed
+- Product `channel.telegram.*` and `telegramBotProfile()` — use unified APIs + `custom`.
+- Signal `app.on("telegram")` — use `app.on("platform")`.
+- Separate `editCaption` / `editMarkup` / `editMedia` / `chatAction` — folded into `edit` / `typing`.
+- `message.telegram` bag — flat fields instead.
+- Public exports `TELEGRAM_API_DX`, `createTelegramBotApi`, `TELEGRAM_BOT_METHODS`.
+
+## [0.4.4] - 2026-07-15
+
+### Fixed
+- `skyline-ts` depends on `@skyline-ts/telegram@0.4.2` by version again (npm package doc caught up).
+
+## [0.4.3] - 2026-07-15
+
+### Fixed
+- Temporary tarball dependency on `@skyline-ts/telegram` while npm indexed the new scoped package.
+
+## [0.4.2] - 2026-07-15
+
+### Fixed
+- Republished `@skyline-ts/telegram` / `skyline-ts` after npm registry package-doc lag on first publish of the new package.
+
+## [0.4.1] - 2026-07-15
+
+### Added
+- Core `sendWithFallbacks` / `drainStreamText` — platforms that reject `stream_text` or `markdown` drain/downgrade instead of failing hard.
+- Core `readMediaBytes` / `fetchUrlBytes` / `mimeToMediaName` (via `@skyline-ts/core/host`) — path reads use `node:fs/promises` (Node + Bun).
+- `@skyline-ts/core/authoring` — provider authoring helpers (no longer aliases `./miniapp`).
+- `@skyline-ts/telegram` — Bot API provider (long-poll inbound, text/markdown/media/voice/reactions).
+- Slack: outbound voice upload, `app()`/`flow` URL/caption fallback, `app_mention` inbound, real attachment download (REST + gRPC).
+- iMessage: attachment/voice from URL, native markdown formatting ranges, markdown `stream_text` drains to formatted send.
+- Terminal: outbound attachment/voice/custom, inbound `/attach` `/voice` `/custom` `/react`, in-memory `getAttachment`.
 
 ## [0.4.0] - 2026-07-14
 
@@ -21,7 +70,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 ## [0.3.5] - 2026-07-14
 
 ### Changed
-- Wire protos ship inside `dist/proto` only — no top-level `proto/` on npm (Spectrum does not ship `.proto` either).
+- Wire protos ship inside `dist/proto` only — no top-level `proto/` on npm.
 - Provider packages export `.` only — removed public `./grpc` and `./rest` subpaths.
 - Host/binder helpers (`bindMessage`, `contentSugar`, `ResolvedLine`, …) live on `@skyline-ts/core/host`, not the main barrel.
 - Dropped public `dedicatedLines` / `*DedicatedLines` helpers from provider barrels.

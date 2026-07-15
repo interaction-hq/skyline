@@ -39,8 +39,16 @@ import { imessage } from "@skyline-ts/imessage";
 | --- | --- |
 | iMessage | [`@skyline-ts/imessage`](https://www.npmjs.com/package/@skyline-ts/imessage) |
 | Slack | [`@skyline-ts/slack`](https://www.npmjs.com/package/@skyline-ts/slack) |
+| Telegram | [`@skyline-ts/telegram`](https://www.npmjs.com/package/@skyline-ts/telegram) |
 | WhatsApp Business | [`@skyline-ts/whatsapp-business`](https://www.npmjs.com/package/@skyline-ts/whatsapp-business) |
 | WhatsApp | [`@skyline-ts/whatsapp`](https://www.npmjs.com/package/@skyline-ts/whatsapp) |
 | Terminal | [`@skyline-ts/terminal`](https://www.npmjs.com/package/@skyline-ts/terminal) |
+
+### Content fallbacks
+
+`channel.send(streamText(...))` works on every provider: platforms without live
+streaming drain the stream and send one final `text` / `markdown` message.
+Slack has no interactive apps — `app({ url })` sends the URL (and optional
+caption) as text so Slack can unfurl it.
 
 See the [documentation](https://docs.interactions.co.in/skyline/introduction) for the full guide.

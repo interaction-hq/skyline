@@ -186,5 +186,44 @@ export class SlackClient {
     }).then(() => undefined);
   }
 
+  async downloadFile(fileId: string): Promise<Uint8Array> {
+    const infoRes = await fetch(
+      `${this.base}/files.info?file=${encodeURIComponent(fileId)}`,
+      {
+        headers: { authorization: `Bearer ${this.token}` },
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+    const info = (await infoRes.json().catch(() => null)) as {
+      error?: string;
+      file?: { url_private_download?: string; url_private?: string };
+      ok?: boolean;
+    } | null;
+    if (!(infoRes.ok && info?.ok)) {
+      throw new SlackError(
+        info?.ok ?? false,
+        info?.error,
+        info?.error ?? `Slack files.info failed (HTTP ${infoRes.status})`,
+        info
+      );
+    }
+    const url = info.file?.url_private_download ?? info.file?.url_private;
+    if (!url) {
+      throw new SlackError(false, "no_file", "Slack file has no download url");
+    }
+    const res = await fetch(url, {
+      headers: { authorization: `Bearer ${this.token}` },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) {
+      throw new SlackError(
+        false,
+        undefined,
+        `Slack file download failed (HTTP ${res.status})`
+      );
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
   close(): void {}
 }

@@ -10,6 +10,9 @@ import type { ResolvedLine, SkylineHost } from "@skyline-ts/core/host";
 import {
   contentSugar,
   messageFromSend,
+  sendWithFallbacks,
+  unsupportedChatExtras,
+  unsupportedGroupExtras,
   unsupportedPollOps,
   withResponding,
 } from "@skyline-ts/core/host";
@@ -199,6 +202,21 @@ function createBinder(host: SkylineHost) {
       case "poll":
       case "digital_touch":
       case "group":
+      case "keyboard":
+      case "location":
+      case "dice":
+      case "forward":
+      case "forward_many":
+      case "copy":
+      case "copy_many":
+      case "invoice":
+      case "game":
+      case "checklist":
+      case "paid_media":
+      case "gift":
+      case "rich_message":
+      case "live_photo":
+      case "media_album":
         host.unsupported("whatsapp_business", `sending ${content.type} content`);
         break;
       default: {
@@ -217,10 +235,17 @@ function createBinder(host: SkylineHost) {
   const makeChannel = (to: string): Channel => {
     let channel!: Channel;
     const send = (content: ContentInput, sendOpts?: SendOptions) =>
-      sendWaBusiness(channel, to, content, sendOpts);
+      sendWithFallbacks(
+        (resolved) => sendWaBusiness(channel, to, resolved, sendOpts),
+        content,
+        "whatsapp_business"
+      );
     const sugar = contentSugar(send);
     channel = {
     ...sugar,
+    ...unsupportedChatExtras((verb) =>
+      host.unsupported("whatsapp_business", verb)
+    ),
     background: async () => host.unsupported("whatsapp_business", "background"),
     contact: async () => null,
     edit: () => host.unsupported("whatsapp_business", "edit"),
@@ -229,6 +254,7 @@ function createBinder(host: SkylineHost) {
     getDisplayName: async () => null,
     getMessage: async () => null,
     group: {
+      ...unsupportedGroupExtras((verb) => host.unsupported("whatsapp_business", verb)),
       add: (handle) => sugar.add(handle),
       getIcon: async () => null,
       getName: async () => null,
@@ -273,6 +299,7 @@ function createBinder(host: SkylineHost) {
       void sendOpts;
     },
     sendFiles: async () => host.unsupported("whatsapp_business", "sendFiles"),
+    pin: async () => host.unsupported("whatsapp_business", "pin"),
     shareContactCard: async () =>
       host.unsupported("whatsapp_business", "shareContactCard"),
     shareLocation: async () =>
@@ -281,6 +308,7 @@ function createBinder(host: SkylineHost) {
       host.unsupported("whatsapp_business", "stopLocation"),
     to,
     typing: async () => {},
+    unpin: async () => host.unsupported("whatsapp_business", "unpin"),
     unsend: () => host.unsupported("whatsapp_business", "unsend"),
     };
     return channel;
