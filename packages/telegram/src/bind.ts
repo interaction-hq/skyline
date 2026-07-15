@@ -97,11 +97,12 @@ export function telegramWebhookFetch(
 }
 
 function createBinder(host: SkylineHost) {
-  const clientFor = (to: string): TelegramClient => {
-    const line = host.lineFor(to);
+  const clientFor = (_to: string): TelegramClient => {
+    // Lines are keyed by bot id; chat targets (@user / chat_id) are not live keys.
+    const line = host.lineForPlatform("telegram");
     const client = line.telegram as TelegramClient | undefined;
     if (!client) {
-      throw new Error(`telegram client not ready for ${to}`);
+      throw new Error("telegram client not ready");
     }
     return client;
   };

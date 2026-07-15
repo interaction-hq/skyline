@@ -15,9 +15,12 @@ export interface KeyboardButton {
 export interface KeyboardContent {
   buttons: KeyboardButton[][];
   oneTime?: boolean;
+  /** Input-field placeholder when `replyKeyboard` is set. */
   placeholder?: string;
   replyKeyboard?: boolean;
   resize?: boolean;
+  /** Visible message body above the keyboard (required by Telegram for inline keyboards). */
+  text?: string;
   type: "keyboard";
 }
 

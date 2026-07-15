@@ -4,6 +4,13 @@ All notable changes to `skyline-ts` are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-07-15
+
+### Fixed
+- Telegram channels resolve the bot line by platform (chat `@user` / chat_id are not live keys).
+- `keyboard` content sends `text` as the message body (Telegram rejects empty / ZWSP-only bodies).
+- Long-poll drains pending updates on start so stale callbacks are not replayed.
+
 ## [0.5.0] - 2026-07-15
 
 ### Added

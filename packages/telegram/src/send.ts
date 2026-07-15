@@ -769,14 +769,11 @@ export async function sendContent(
     }
     case "keyboard": {
       const markup = keyboardToReplyMarkup(content as KeyboardContent);
-      const res = await client.sendMessage(
-        chatId,
-        content.placeholder ?? "\u200b",
-        {
-          ...optsFromSend(sendOpts),
-          replyMarkup: markup,
-        }
-      );
+      const body = content.text?.trim() || "Choose an option";
+      const res = await client.sendMessage(chatId, body, {
+        ...optsFromSend(sendOpts),
+        replyMarkup: markup,
+      });
       return String(res.message_id);
     }
     case "location": {

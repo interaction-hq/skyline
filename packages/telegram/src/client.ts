@@ -731,6 +731,19 @@ export function startTelegramPolling(
   let offset = 0;
 
   const loop = async () => {
+    try {
+      // Drain backlog so a new process does not replay stale callbacks/messages.
+      for (;;) {
+        const pending = await client.getUpdates({ offset, timeout: 0 });
+        if (!pending.length) {
+          break;
+        }
+        offset = pending[pending.length - 1]!.update_id + 1;
+      }
+    } catch {
+      /* start polling anyway */
+    }
+
     while (!cancelled) {
       try {
         const updates = await client.getUpdates({ offset, timeout: 25 });
