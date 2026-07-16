@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-17
+
 ### Added
 - `channel.updateLocation(messageGuid, { latitude, longitude, livePeriod?, horizontalAccuracy?, heading?, proximityAlertRadius? })` — move an in-flight live location (`editMessageLiveLocation`). Other providers throw `unsupported`.
 - `Message.albumMessageGuids` — for albums (`sendMediaGroup`), the guids of every item sent together (in order; `guid` is the first), plus `Message.mediaGroupId` on the outbound message. Lets callers edit/delete individual album items instead of only the first.
@@ -14,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ### Changed
 - **`stickers.uploadFile` input is now a file, not a string** (breaking): `uploadFile({ data | path | url, mimeType?, name?, stickerFormat, userId })`. The previous `{ sticker: string }` shape could never upload bytes.
+- Package `repository` metadata now points to `github.com/interaction-hq/skyline`.
 
 ### Fixed
 - **`stickers.uploadFile` now actually uploads** — it was sending JSON (`"inputFile is not specified"`); it now does a real multipart upload. Verified live end-to-end alongside the full set lifecycle (create → add → reorder → setEmojiList → setKeywords → replace → setTitle → setThumbnail → deleteFromSet → deleteSet).
@@ -241,7 +244,8 @@ bun add @skyline-ts/core @skyline-ts/imessage
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interaction-hq/skyline/compare/v0.3.2...main
+[Unreleased]: https://github.com/interaction-hq/skyline/compare/v0.7.0...main
+[0.7.0]: https://github.com/interaction-hq/skyline/compare/v0.6.0...v0.7.0
 [0.3.2]: https://github.com/interaction-hq/skyline/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/interaction-hq/skyline/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/interaction-hq/skyline/compare/v0.2.0...v0.3.0
