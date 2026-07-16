@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+### Added
+- **New provider `@skyline-ts/discord`** — Discord via the Gateway (WebSocket, self-managed heartbeat / resume / jittered backoff) for inbound and the REST API for outbound, mapped onto the unified Channel / Content / signal surface. Configure with `discord.config({ botToken })` or cloud `projectId` / `projectSecret`. Send text / markdown / attachments / voice / albums, reply, edit, delete, react, pin, typing, list/get messages, rename channels, and remove/ban guild members; inbound messages, reactions, edits, deletes, and typing arrive as unified `app.incoming` + `app.on(...)`. Discord-only fields under `message.discord`.
+
 ## [0.7.0] - 2026-07-17
 
 ### Added

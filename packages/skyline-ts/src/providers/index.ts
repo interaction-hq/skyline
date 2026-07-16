@@ -13,6 +13,12 @@ export type {
   SlackDedicatedInput,
   SlackTeamMetadata,
 } from "@skyline-ts/slack";
+export { discord } from "@skyline-ts/discord";
+export type {
+  DiscordConfig,
+  DiscordDedicatedConfig,
+  DiscordDedicatedInput,
+} from "@skyline-ts/discord";
 export {
   telegram,
   telegramWebhookFetch,

@@ -1019,6 +1019,7 @@ export interface PassportElementError {
 export type Platform =
   | "imessage"
   | "slack"
+  | "discord"
   | "whatsapp"
   | "whatsapp_business"
   | "terminal"
@@ -1353,6 +1354,20 @@ export interface SlackMessageMeta {
   ts?: string;
 }
 
+export interface DiscordMessageMeta {
+  channelId: string;
+  /** Guild (server) id; absent for DMs. */
+  guildId?: string;
+  /** Author is a bot/webhook account. */
+  isBot?: boolean;
+  /** Message type code (0 = default, 19 = reply, …). */
+  messageType?: number;
+  /** Thread id when the message lives in a thread. */
+  threadId?: string;
+  /** Webhook id when sent via a webhook. */
+  webhookId?: string;
+}
+
 export interface CommandOps {
   clear(opts?: CommandScopeOptions): Promise<void>;
   get(opts?: CommandScopeOptions): Promise<{ command: string; description: string }[]>;
@@ -1506,6 +1521,7 @@ export interface Message {
   /** Carrier / wire service label (e.g. iMessage). Not a chat system event. */
   service?: string;
   showCaptionAboveMedia?: boolean;
+  discord?: DiscordMessageMeta;
   slack?: SlackMessageMeta;
   /** Suggested-post info when this is a channel DM suggested post. */
   suggestedPostInfo?: SuggestedPostInfo;
@@ -2432,6 +2448,14 @@ export interface ResolvedLine {
     phoneNumberId: string;
     accessToken: string;
     apiVersion?: string;
+  };
+  discord?: {
+    applicationId?: string;
+    baseUrl?: string;
+    botToken: string;
+    guildId?: string;
+    /** Gateway intents bitfield; the provider picks a sensible default. */
+    intents?: number;
   };
   phone: string;
   slack?: {

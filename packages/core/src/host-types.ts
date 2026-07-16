@@ -12,6 +12,7 @@ export interface StreamHandle {
 }
 
 export interface LiveLine {
+  discord?: unknown;
   grpc?: unknown;
   /** When true, providers may attach a JSON-safe wire snapshot on `message.raw`. */
   includeRaw?: boolean;

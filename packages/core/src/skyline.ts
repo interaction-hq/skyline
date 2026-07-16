@@ -156,6 +156,8 @@ async function loadBinder(platform: string): Promise<BinderModule> {
         return (await import("@skyline-ts/imessage")) as BinderModule;
       case "slack":
         return (await import("@skyline-ts/slack")) as BinderModule;
+      case "discord":
+        return (await import("@skyline-ts/discord")) as BinderModule;
       case "whatsapp":
         return (await import("@skyline-ts/whatsapp")) as BinderModule;
       case "whatsapp_business":
