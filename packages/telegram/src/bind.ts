@@ -27,6 +27,7 @@ import type {
   StickerInfo,
   StickerOps,
   StickerSet,
+  StoryContent,
   StoryOps,
   StoryRef,
   TransactionPartnerInfo,
@@ -613,13 +614,17 @@ function createBinder(host: SkylineHost) {
     sendOpts?: SendOptions
   ): Promise<Message | undefined> => {
     const client = clientFor(to);
-    const guid = await sendContent(client, to, content, sendOpts, (verb) =>
+    const result = await sendContent(client, to, content, sendOpts, (verb) =>
       host.unsupported("telegram", verb)
     );
-    if (!guid) {
+    if (!result) {
       return;
     }
+    const guid = typeof result === "string" ? result : result.guid;
     return messageFromSend(channel, content, guid, {
+      albumMessageGuids:
+        typeof result === "string" ? undefined : result.albumGuids,
+      mediaGroupId: typeof result === "string" ? undefined : result.mediaGroupId,
       replyTo: sendOpts?.replyTo
         ? { messageGuid: sendOpts.replyTo }
         : undefined,
@@ -775,8 +780,9 @@ function createBinder(host: SkylineHost) {
           sender_chat_id: Number(senderChatId),
         });
       },
-      business: createTelegramBusinessOps((method, params) =>
-        client().call(method, params)
+      business: createTelegramBusinessOps(
+        (method, params) => client().call(method, params),
+        to
       ),
       clearReactions: async (opts) => {
         await client().call("deleteAllMessageReactions", {
@@ -824,7 +830,15 @@ function createBinder(host: SkylineHost) {
       ),
       focusStatus: async () => null,
       game: {
-        highScores: async (messageGuid, opts) => {
+        highScores: async (userId, opts) => {
+          const target = opts?.inlineMessageId
+            ? { inline_message_id: opts.inlineMessageId }
+            : {
+                chat_id: to,
+                ...(opts?.messageGuid
+                  ? { message_id: Number(opts.messageGuid) }
+                  : {}),
+              };
           const rows = await client().call<
             {
               position: number;
@@ -832,9 +846,8 @@ function createBinder(host: SkylineHost) {
               user: { first_name?: string; id: number; username?: string };
             }[]
           >("getGameHighScores", {
-            chat_id: to,
-            message_id: Number(messageGuid),
-            ...asTelegramParams(opts ?? {}),
+            user_id: Number(userId),
+            ...target,
           });
           return rows.map(
             (row): GameHighScore => ({
@@ -1059,20 +1072,19 @@ function createBinder(host: SkylineHost) {
             await client().call("removeMyProfilePhoto");
             return;
           }
-          if (
-            input &&
-            typeof input === "object" &&
-            "type" in input &&
-            typeof (input as { type?: unknown }).type === "string"
-          ) {
-            await client().call("setMyProfilePhoto", {
-              photo: asTelegramParams(input),
-            });
-            return;
-          }
-          host.unsupported(
-            "telegram",
-            'profile.avatar — pass { type: "static"|"animated", ... } or "clear"'
+          const bytes = await readMediaBytes({
+            data: input.data,
+            path: input.path,
+          });
+          await client().upload(
+            "setMyProfilePhoto",
+            { photo: { photo: "attach://photo", type: "static" } },
+            {
+              bytes,
+              field: "photo",
+              filename: "avatar.jpg",
+              mimeType: input.mimeType ?? "image/jpeg",
+            }
           );
         },
         close: async () => {
@@ -1378,6 +1390,7 @@ function createBinder(host: SkylineHost) {
           isBig: reactOpts?.big,
         });
       },
+      messageStatus: async () => null,
       read: async () => {},
       readReceipt: async () => {},
       refundPayment: async (opts) => {
@@ -1494,10 +1507,12 @@ function createBinder(host: SkylineHost) {
         ),
       stickers: createTelegramStickerOps(
         (method, params) => client().call(method, params),
-        to
+        to,
+        (method, params, file) => client().upload(method, params, file)
       ),
       stories: createTelegramStoryOps(
         (method, params) => client().call(method, params),
+        (method, params, file) => client().upload(method, params, file),
         to
       ),
       shareLocation: async (opts) => {
@@ -1518,11 +1533,26 @@ function createBinder(host: SkylineHost) {
       },
       stopLocation: async (messageGuid) => {
         if (!messageGuid) {
-          host.unsupported("telegram", "stopLocation requires messageGuid");
+          host.unsupported(
+            "telegram",
+            "stopLocation without a messageGuid (pass the live-location message's guid)"
+          );
         }
         await client().call("stopMessageLiveLocation", {
           chat_id: to,
           message_id: Number(messageGuid),
+        });
+      },
+      updateLocation: async (messageGuid, opts) => {
+        await client().call("editMessageLiveLocation", {
+          chat_id: to,
+          heading: opts.heading,
+          horizontal_accuracy: opts.horizontalAccuracy,
+          latitude: opts.latitude,
+          live_period: opts.livePeriod,
+          longitude: opts.longitude,
+          message_id: Number(messageGuid),
+          proximity_alert_radius: opts.proximityAlertRadius,
         });
       },
       to,
@@ -1558,6 +1588,12 @@ function createBinder(host: SkylineHost) {
             chat_id: to,
             message_thread_id: Number(threadId),
             ...asTelegramParams(opts ?? {}),
+          });
+        },
+        editGeneral: async (name) => {
+          await client().call("editGeneralForumTopic", {
+            chat_id: to,
+            name,
           });
         },
         hideGeneral: async () => {
@@ -1782,20 +1818,71 @@ function giftsPageFromTelegram(result: {
 type Call = TelegramClient["call"];
 
 type TelegramSticker = {
+  custom_emoji_id?: string;
   emoji?: string;
   file_id: string;
+  file_size?: number;
+  file_unique_id?: string;
+  height?: number;
   is_animated?: boolean;
   is_video?: boolean;
+  mask_position?: {
+    point: "forehead" | "eyes" | "mouth" | "chin";
+    scale: number;
+    x_shift: number;
+    y_shift: number;
+  };
+  needs_repainting?: boolean;
+  premium_animation?: { file_id: string; file_unique_id?: string };
   set_name?: string;
+  thumbnail?: {
+    file_id: string;
+    file_size?: number;
+    file_unique_id?: string;
+    height?: number;
+    width?: number;
+  };
+  type?: "regular" | "mask" | "custom_emoji";
+  width?: number;
 };
 
 function stickerInfo(sticker: TelegramSticker): StickerInfo {
   return {
+    customEmojiId: sticker.custom_emoji_id,
     emoji: sticker.emoji,
     fileId: sticker.file_id,
+    fileSize: sticker.file_size,
+    fileUniqueId: sticker.file_unique_id,
+    height: sticker.height,
     isAnimated: sticker.is_animated,
     isVideo: sticker.is_video,
+    maskPosition: sticker.mask_position
+      ? {
+          point: sticker.mask_position.point,
+          scale: sticker.mask_position.scale,
+          xShift: sticker.mask_position.x_shift,
+          yShift: sticker.mask_position.y_shift,
+        }
+      : undefined,
+    needsRepainting: sticker.needs_repainting,
+    premiumAnimation: sticker.premium_animation
+      ? {
+          fileId: sticker.premium_animation.file_id,
+          fileUniqueId: sticker.premium_animation.file_unique_id,
+        }
+      : undefined,
     setName: sticker.set_name,
+    thumbnail: sticker.thumbnail
+      ? {
+          fileId: sticker.thumbnail.file_id,
+          fileSize: sticker.thumbnail.file_size,
+          fileUniqueId: sticker.thumbnail.file_unique_id,
+          height: sticker.thumbnail.height,
+          width: sticker.thumbnail.width,
+        }
+      : undefined,
+    type: sticker.type,
+    width: sticker.width,
   };
 }
 
@@ -1813,7 +1900,8 @@ function storyRef(result: {
 
 export function createTelegramStickerOps(
   call: Call,
-  chatId: string
+  chatId: string,
+  upload: TelegramClient["upload"]
 ): StickerOps {
   return {
     addToSet: async (input) => {
@@ -1897,17 +1985,72 @@ export function createTelegramStickerOps(
       await call("setStickerSetTitle", { name, title });
     },
     uploadFile: async (input) => {
-      const file = await call<{ file_id: string }>(
+      const bytes = await readMediaBytes({
+        data: input.data,
+        path: input.path,
+        url: input.url,
+      });
+      const file = await upload<{ file_id: string }>(
         "uploadStickerFile",
-        asTelegramParams(input)
+        { sticker_format: input.stickerFormat, user_id: input.userId },
+        {
+          bytes,
+          field: "sticker",
+          filename: input.name ?? "sticker.webp",
+          mimeType: input.mimeType ?? "image/webp",
+        }
       );
       return { fileId: file.file_id };
     },
   };
 }
 
+async function storyContentToUpload(content: StoryContent): Promise<{
+  file: { bytes: Uint8Array; field: string; filename: string; mimeType?: string };
+  json: Record<string, unknown>;
+}> {
+  const field = "story_media";
+  if (content.type === "photo") {
+    const bytes = await readMediaBytes({
+      data: content.photo.data,
+      path: content.photo.path,
+      url: content.photo.url,
+    });
+    return {
+      file: {
+        bytes,
+        field,
+        filename: "story.jpg",
+        mimeType: content.photo.mimeType ?? "image/jpeg",
+      },
+      json: { photo: `attach://${field}`, type: "photo" },
+    };
+  }
+  const bytes = await readMediaBytes({
+    data: content.video.data,
+    path: content.video.path,
+    url: content.video.url,
+  });
+  return {
+    file: {
+      bytes,
+      field,
+      filename: "story.mp4",
+      mimeType: content.video.mimeType ?? "video/mp4",
+    },
+    json: {
+      cover_frame_timestamp: content.coverFrameTimestamp,
+      duration: content.duration,
+      is_animation: content.isAnimation,
+      type: "video",
+      video: `attach://${field}`,
+    },
+  };
+}
+
 export function createTelegramStoryOps(
   call: Call,
+  upload: TelegramClient["upload"],
   chatId: string
 ): StoryOps {
   return {
@@ -1919,19 +2062,38 @@ export function createTelegramStoryOps(
       });
     },
     edit: async (storyId, input) => {
-      await call("editStory", {
-        chat_id: chatId,
-        story_id: Number(storyId),
-        ...asTelegramParams(input),
-      });
-    },
-    post: async (input) =>
-      storyRef(
-        await call("postStory", {
+      const { content, ...rest } = input;
+      if (!content) {
+        await call("editStory", {
           chat_id: chatId,
-          ...asTelegramParams(input),
-        })
-      ),
+          story_id: Number(storyId),
+          ...asTelegramParams(rest),
+        });
+        return;
+      }
+      const { file, json } = await storyContentToUpload(content);
+      await upload(
+        "editStory",
+        {
+          chat_id: chatId,
+          content: json,
+          story_id: Number(storyId),
+          ...asTelegramParams(rest),
+        },
+        file
+      );
+    },
+    post: async (input) => {
+      const { content, ...rest } = input;
+      const { file, json } = await storyContentToUpload(content);
+      return storyRef(
+        await upload<{ chat?: { id: number }; id?: number; story_id?: number }>(
+          "postStory",
+          { chat_id: chatId, content: json, ...asTelegramParams(rest) },
+          file
+        )
+      );
+    },
     repost: async (input) =>
       storyRef(
         await call("repostStory", {
@@ -1942,7 +2104,10 @@ export function createTelegramStoryOps(
   };
 }
 
-export function createTelegramBusinessOps(call: Call): BusinessOps {
+export function createTelegramBusinessOps(
+  call: Call,
+  chatId: string
+): BusinessOps {
   return {
     availableGifts: async () => {
       const result = await call<{
@@ -1995,7 +2160,10 @@ export function createTelegramBusinessOps(call: Call): BusinessOps {
     },
     chatGifts: async (opts) =>
       giftsPageFromTelegram(
-        await call("getChatGifts", asTelegramParams(opts ?? {}))
+        await call("getChatGifts", {
+          chat_id: chatId,
+          ...asTelegramParams(opts ?? {}),
+        })
       ),
     connection: async (businessConnectionId) => {
       const conn = await call<{

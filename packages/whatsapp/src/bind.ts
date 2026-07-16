@@ -431,6 +431,7 @@ function createBinder(host: SkylineHost, projectId: string) {
     pin: async () => host.unsupported("whatsapp", "pin"),
     shareLocation: async () => host.unsupported("whatsapp", "shareLocation"),
     stopLocation: async () => host.unsupported("whatsapp", "stopLocation"),
+    updateLocation: async () => host.unsupported("whatsapp", "updateLocation"),
     unpin: async () => host.unsupported("whatsapp", "unpin"),
     to,
     typing: async () => host.unsupported("whatsapp", "typing"),

@@ -414,6 +414,7 @@ function createBinder(host: SkylineHost) {
     pin: async () => host.unsupported("slack", "pin"),
     shareLocation: async () => host.unsupported("slack", "shareLocation"),
     stopLocation: async () => host.unsupported("slack", "stopLocation"),
+    updateLocation: async () => host.unsupported("slack", "updateLocation"),
     unpin: async () => host.unsupported("slack", "unpin"),
     to,
     typing: async () => {},

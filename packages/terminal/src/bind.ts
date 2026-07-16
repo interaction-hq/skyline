@@ -327,6 +327,7 @@ function createBinder(host: SkylineHost) {
     pin: async () => host.unsupported("terminal", "pin"),
     shareLocation: async () => host.unsupported("terminal", "shareLocation"),
     stopLocation: async () => host.unsupported("terminal", "stopLocation"),
+    updateLocation: async () => host.unsupported("terminal", "updateLocation"),
     unpin: async () => host.unsupported("terminal", "unpin"),
   };
 

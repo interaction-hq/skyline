@@ -13,6 +13,7 @@ import type {
   GroupContext,
   Message,
   MessageAttachment,
+  MessageStatus,
   Platform,
   User,
   VisualAssetInput,
@@ -748,6 +749,25 @@ function createBinder(host: SkylineHost, projectId: string) {
           inboundToMessage(channel, raw, to, grpcFor(), toGroupCtx, senderUser)
         );
       },
+      messageStatus: async (messageGuid): Promise<MessageStatus | null> => {
+        const res = await grpcFor().getMessageStatus(messageGuid);
+        if (!res?.guid) {
+          return null;
+        }
+        const at = (secs?: number) =>
+          secs && secs > 0 ? new Date(secs * 1000) : undefined;
+        return {
+          deliveredAt: at(res.time_delivered),
+          errorCode: res.error_code,
+          guid: res.guid,
+          isDelivered: Boolean(res.is_delivered),
+          isFromMe: Boolean(res.is_from_me),
+          isRead: Boolean(res.is_read),
+          isSent: Boolean(res.is_sent),
+          playedAt: at(res.time_played),
+          readAt: at(res.time_read),
+        };
+      },
       poll: {
         addOption: (pollMessageGuid, optionText) =>
           grpcFor().addPollOption(chatGuid, pollMessageGuid, optionText),
@@ -856,6 +876,7 @@ function createBinder(host: SkylineHost, projectId: string) {
       pin: async () => host.unsupported("imessage", "pin"),
       shareLocation: (locOpts) => grpcFor().shareLocation(chatGuid, locOpts),
       stopLocation: () => grpcFor().stopLocation(chatGuid),
+      updateLocation: async () => host.unsupported("imessage", "updateLocation"),
       unpin: async () => host.unsupported("imessage", "unpin"),
       to,
       typing: async (on = true) => {
@@ -905,6 +926,20 @@ function createBinder(host: SkylineHost, projectId: string) {
           }),
         ]);
       },
+      onDelivered(receipt, senderId, date, group) {
+        host.emit(
+          "delivered",
+          {
+            deliveredAt: receipt.at,
+            group: toGroupCtx(to, group),
+            messageGuid: receipt.messageGuid,
+            platform: "imessage",
+            sender: senderUser(senderId, to),
+            timestamp: date,
+          },
+          channel
+        );
+      },
       onEdit(edit, senderId, date, group) {
         host.emit(
           "edited",
@@ -948,6 +983,20 @@ function createBinder(host: SkylineHost, projectId: string) {
             platform: "imessage",
             reaction: reaction.reaction,
             removed: reaction.removed,
+            sender: senderUser(senderId, to),
+            timestamp: date,
+          },
+          channel
+        );
+      },
+      onReadReceipt(receipt, senderId, date, group) {
+        host.emit(
+          "read",
+          {
+            group: toGroupCtx(to, group),
+            messageGuid: receipt.messageGuid,
+            platform: "imessage",
+            readAt: receipt.at,
             sender: senderUser(senderId, to),
             timestamp: date,
           },

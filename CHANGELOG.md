@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+### Added
+- `channel.updateLocation(messageGuid, { latitude, longitude, livePeriod?, horizontalAccuracy?, heading?, proximityAlertRadius? })` — move an in-flight live location (`editMessageLiveLocation`). Other providers throw `unsupported`.
+- `Message.albumMessageGuids` — for albums (`sendMediaGroup`), the guids of every item sent together (in order; `guid` is the first), plus `Message.mediaGroupId` on the outbound message. Lets callers edit/delete individual album items instead of only the first.
+- New `OrderInfo` type (`name` / `phoneNumber` / `email` / `shippingAddress`) shared by the payment success/pre-checkout shapes.
+- `InvoiceLinkInput` reaches full `createInvoiceLink` parity: `businessConnectionId`, `subscriptionPeriod` (Stars subscriptions), `sendPhoneNumberToProvider`, `sendEmailToProvider`.
+
+### Changed
+- **`stickers.uploadFile` input is now a file, not a string** (breaking): `uploadFile({ data | path | url, mimeType?, name?, stickerFormat, userId })`. The previous `{ sticker: string }` shape could never upload bytes.
+
+### Fixed
+- **`stickers.uploadFile` now actually uploads** — it was sending JSON (`"inputFile is not specified"`); it now does a real multipart upload. Verified live end-to-end alongside the full set lifecycle (create → add → reorder → setEmojiList → setKeywords → replace → setTitle → setThumbnail → deleteFromSet → deleteSet).
+- **`profile.avatar(...)` (`setMyProfilePhoto`) now works** — it was dead code (it branched on a `type` field that `VisualAssetInput` never has, so every real photo fell through to `unsupported`, and even the matched path sent JSON). It now reads the asset and does a real multipart upload. `profile.avatar("clear")` (`removeMyProfilePhoto`) unchanged. Verified live.
+- `sendMediaGroup` previously dropped items `2..N` of its return array, surfacing only the first message id. All item ids are now returned via `message.albumMessageGuids`.
+- **Payment inbound shapes now match the Bot API 10.2 spec (were shallow):** `successful_payment` system event gained `subscriptionExpirationDate`, `isRecurring`, `isFirstRecurring`, `shippingOptionId`, `orderInfo`; `refunded_payment` gained `providerPaymentChargeId`; the `preCheckout` signal gained `shippingOptionId` + `orderInfo`. Stars `createInvoiceLink` (incl. subscriptions) and the `answerShipping` / `answerPreCheckout` / `refundPayment` wire shapes verified live.
+
 ## [0.6.0] - 2026-07-15
 
 ### Added

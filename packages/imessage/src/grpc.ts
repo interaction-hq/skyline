@@ -75,6 +75,25 @@ export interface InboundRead {
   isRead: boolean;
 }
 
+/** A delivered/read transition on one of our own sent messages. */
+export interface InboundReceipt {
+  at?: Date;
+  messageGuid: string;
+}
+
+/** Wire shape of `GetMessageStatus`. Times are Unix epoch seconds (from the helper's `timeIntervalSince1970`). */
+export interface MessageStatusWire {
+  error_code?: number;
+  guid: string;
+  is_delivered?: boolean;
+  is_from_me?: boolean;
+  is_read?: boolean;
+  is_sent?: boolean;
+  time_delivered?: number;
+  time_played?: number;
+  time_read?: number;
+}
+
 export interface InboundContact {
   address?: string;
   emails?: string[];
@@ -504,6 +523,18 @@ export class ImessageGrpcClient {
     });
   }
 
+  getMessageStatus(messageGuid: string): Promise<MessageStatusWire> {
+    return new Promise((resolve, reject) => {
+      this.chat.GetMessageStatus(
+        { message_guid: messageGuid },
+        this.metadata(),
+        { deadline: new Date(Date.now() + 15_000) },
+        (err: grpc.ServiceError | null, res: MessageStatusWire) =>
+          err ? reject(err) : resolve(res)
+      );
+    });
+  }
+
     private unaryVoid(
     // biome-ignore lint/suspicious/noExplicitAny: dynamic proto service.
     service: any,
@@ -668,6 +699,18 @@ export class ImessageGrpcClient {
       date: Date,
       group?: InboundGroup
     ) => void;
+        onDelivered?: (
+      receipt: InboundReceipt,
+      senderId: string | undefined,
+      date: Date,
+      group?: InboundGroup
+    ) => void;
+        onReadReceipt?: (
+      receipt: InboundReceipt,
+      senderId: string | undefined,
+      date: Date,
+      group?: InboundGroup
+    ) => void;
         onSendError?: (err: {
       code?: string;
       message?: string;
@@ -755,6 +798,18 @@ export class ImessageGrpcClient {
         date: Date,
         group?: InboundGroup
       ) => void;
+      onDelivered?: (
+        receipt: InboundReceipt,
+        senderId: string | undefined,
+        date: Date,
+        group?: InboundGroup
+      ) => void;
+      onReadReceipt?: (
+        receipt: InboundReceipt,
+        senderId: string | undefined,
+        date: Date,
+        group?: InboundGroup
+      ) => void;
     }
   ): void {
     const msg = updated.message;
@@ -785,6 +840,12 @@ export class ImessageGrpcClient {
       );
     } else if (kind === "unsent") {
       handlers.onUnsend?.(guid, senderId, date, group);
+    } else if (kind === "delivered") {
+      const at = toDate(msg.date_delivered) ?? undefined;
+      handlers.onDelivered?.({ at, messageGuid: guid }, senderId, at ?? date, group);
+    } else if (kind === "read") {
+      const at = toDate(msg.date_read) ?? undefined;
+      handlers.onReadReceipt?.({ at, messageGuid: guid }, senderId, at ?? date, group);
     }
   }
 

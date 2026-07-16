@@ -13,6 +13,7 @@ import type {
   GiftEventInfo,
   MessageQuote,
   MessageSystemEvent,
+  OrderInfo,
   PollInfo,
   PollMediaInfo,
   User,
@@ -27,11 +28,36 @@ import type {
   TelegramClient,
   TelegramMessage,
   TelegramMessageEntity,
+  TelegramOrderInfo,
   TelegramPoll,
   TelegramPollMedia,
   TelegramUpdate,
   TelegramUser,
 } from "./client.js";
+
+function orderInfoFromTelegram(info?: TelegramOrderInfo): OrderInfo | undefined {
+  if (!info) {
+    return;
+  }
+  const address = info.shipping_address;
+  return {
+    ...(info.email ? { email: info.email } : {}),
+    ...(info.name ? { name: info.name } : {}),
+    ...(info.phone_number ? { phoneNumber: info.phone_number } : {}),
+    ...(address
+      ? {
+          shippingAddress: {
+            city: address.city,
+            countryCode: address.country_code,
+            postCode: address.post_code,
+            state: address.state,
+            streetLine1: address.street_line1,
+            streetLine2: address.street_line2,
+          },
+        }
+      : {}),
+  };
+}
 
 const pollByMessage = new Map<string, PollInfo>();
 const messageKeyByPollId = new Map<string, string>();
@@ -258,8 +284,10 @@ export type InboundResult =
       chatId: string;
       currency: string;
       invoicePayload: string;
+      orderInfo?: OrderInfo;
       queryId: string;
       senderId: string;
+      shippingOptionId?: string;
       timestamp: Date;
       totalAmount: number;
     }
@@ -1105,8 +1133,11 @@ export function resultsFromUpdate(
       from: { id: number };
       id: string;
       invoice_payload: string;
+      order_info?: TelegramOrderInfo;
+      shipping_option_id?: string;
       total_amount: number;
     };
+    const orderInfo = orderInfoFromTelegram(q.order_info);
     out.push({
       kind: "preCheckout",
       chatId: String(q.from.id),
@@ -1116,6 +1147,10 @@ export function resultsFromUpdate(
       senderId: String(q.from.id),
       timestamp: new Date(),
       totalAmount: q.total_amount,
+      ...(orderInfo ? { orderInfo } : {}),
+      ...(q.shipping_option_id
+        ? { shippingOptionId: q.shipping_option_id }
+        : {}),
     });
   }
 
@@ -1330,9 +1365,6 @@ export function dispatchTelegramUpdate(
   includeRaw = false
 ): void {
   const chatId = chatIdFromUpdate(update);
-  if (!chatId && !update.poll && !update.poll_answer) {
-    return;
-  }
   const channel = makeChannel(chatId ?? fallbackKey);
   if (chatId && !host.live.has(chatId)) {
     host.live.set(chatId, {
@@ -1350,6 +1382,9 @@ export function dispatchTelegramUpdate(
     botId,
     includeRaw
   );
+  if (results.length === 0) {
+    return;
+  }
   for (const result of results) {
     const resultChannel =
       result.chatId === channel.to ? channel : makeChannel(result.chatId);
@@ -1460,6 +1495,10 @@ export function dispatchTelegramUpdate(
             queryId: result.queryId,
             timestamp: result.timestamp,
             totalAmount: result.totalAmount,
+            ...(result.orderInfo ? { orderInfo: result.orderInfo } : {}),
+            ...(result.shippingOptionId
+              ? { shippingOptionId: result.shippingOptionId }
+              : {}),
           },
           resultChannel
         );
@@ -2100,11 +2139,25 @@ function systemEventFromMessage(
   }
   if (msg.successful_payment) {
     const payment = msg.successful_payment;
+    const orderInfo = orderInfoFromTelegram(payment.order_info);
     return {
       type: "successful_payment",
       currency: payment.currency,
       invoicePayload: payment.invoice_payload,
       totalAmount: payment.total_amount,
+      ...(payment.is_first_recurring != null
+        ? { isFirstRecurring: payment.is_first_recurring }
+        : {}),
+      ...(payment.is_recurring != null
+        ? { isRecurring: payment.is_recurring }
+        : {}),
+      ...(orderInfo ? { orderInfo } : {}),
+      ...(payment.shipping_option_id
+        ? { shippingOptionId: payment.shipping_option_id }
+        : {}),
+      ...(payment.subscription_expiration_date != null
+        ? { subscriptionExpirationDate: payment.subscription_expiration_date }
+        : {}),
       ...(payment.telegram_payment_charge_id
         ? { telegramPaymentChargeId: payment.telegram_payment_charge_id }
         : {}),
@@ -2124,6 +2177,9 @@ function systemEventFromMessage(
         : {}),
       ...(payment.telegram_payment_charge_id
         ? { telegramPaymentChargeId: payment.telegram_payment_charge_id }
+        : {}),
+      ...(payment.provider_payment_charge_id
+        ? { providerPaymentChargeId: payment.provider_payment_charge_id }
         : {}),
     };
   }

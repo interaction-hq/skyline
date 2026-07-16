@@ -24,6 +24,7 @@ export interface TelegramClientOptions {
 export interface SentMessage {
   chat: { id: number; type?: string };
   date: number;
+  media_group_id?: string;
   message_id: number;
   message_thread_id?: number;
   text?: string;
@@ -104,6 +105,22 @@ export interface TelegramPoll {
   question_entities?: TelegramMessageEntity[];
   total_voter_count?: number;
   type?: string;
+}
+
+export interface TelegramShippingAddress {
+  city: string;
+  country_code: string;
+  post_code: string;
+  state: string;
+  street_line1: string;
+  street_line2: string;
+}
+
+export interface TelegramOrderInfo {
+  email?: string;
+  name?: string;
+  phone_number?: string;
+  shipping_address?: TelegramShippingAddress;
 }
 
 export interface TelegramMessage {
@@ -272,6 +289,7 @@ export interface TelegramMessage {
   refunded_payment?: {
     currency: string;
     invoice_payload?: string;
+    provider_payment_charge_id?: string;
     telegram_payment_charge_id?: string;
     total_amount: number;
   };
@@ -335,7 +353,12 @@ export interface TelegramMessage {
   successful_payment?: {
     currency: string;
     invoice_payload: string;
+    is_first_recurring?: boolean;
+    is_recurring?: boolean;
+    order_info?: TelegramOrderInfo;
     provider_payment_charge_id?: string;
+    shipping_option_id?: string;
+    subscription_expiration_date?: number;
     telegram_payment_charge_id?: string;
     total_amount: number;
   };

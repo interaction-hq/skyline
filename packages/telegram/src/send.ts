@@ -682,13 +682,17 @@ async function readThumbnail(
  * Unified Content → Bot API. Telegram-only Bot API shapes go through
  * Escape hatch for rare Bot API methods: `custom({ method, params })`.
  */
+export type SendContentResult =
+  | string
+  | { guid: string; albumGuids: string[]; mediaGroupId?: string };
+
 export async function sendContent(
   client: TelegramClient,
   chatId: string,
   content: Content,
   sendOpts: SendOptions | undefined,
   unsupported: (verb: string) => never
-): Promise<string | undefined> {
+): Promise<SendContentResult | undefined> {
   switch (content.type) {
     case "text": {
       const res = await client.sendMessage(chatId, content.text, {
@@ -1193,7 +1197,10 @@ export async function sendContent(
     case "story":
     case "giveaway":
     case "giveaway_winners":
-      throw new Error(`Telegram outbound does not support content type ${content.type}`);
+      throw new UnsupportedError(
+        "telegram",
+        `sending ${content.type} content — bots receive these inbound but cannot create them (post business stories via channel.stories.post)`
+      );
     case "live_photo": {
       const photoBytes = await readMediaBytes(content.photo);
       const videoBytes = await readMediaBytes(content.video);
@@ -1286,9 +1293,18 @@ export async function sendContent(
         "sendMediaGroup",
         form
       );
-      return res?.[0]?.message_id != null
-        ? String(res[0].message_id)
-        : undefined;
+      const guids = (res ?? [])
+        .map((m) => (m?.message_id != null ? String(m.message_id) : undefined))
+        .filter((id): id is string => id != null);
+      const [first] = guids;
+      if (!first) {
+        return;
+      }
+      return {
+        albumGuids: guids,
+        guid: first,
+        mediaGroupId: res?.[0]?.media_group_id,
+      };
     }
     case "custom": {
       const raw = content.raw as {
@@ -1322,7 +1338,7 @@ export async function sendContent(
       return undefined;
     }
     case "group": {
-      let last: string | undefined;
+      let last: SendContentResult | undefined;
       for (const item of content.items) {
         last = await sendContent(
           client,

@@ -216,6 +216,7 @@ export function unsupportedChatExtras(
   | "info"
   | "invite"
   | "invoiceLink"
+  | "messageStatus"
   | "posts"
   | "profile"
   | "promote"
@@ -268,6 +269,7 @@ export function unsupportedChatExtras(
       revoke: d("invite.revoke"),
     },
     invoiceLink: d("invoiceLink"),
+    messageStatus: async () => null,
     posts: unsupportedPosts(unsupported),
     profile: unsupportedProfile(unsupported),
     promote: d("promote"),
@@ -286,6 +288,7 @@ export function unsupportedChatExtras(
       create: d("topic.create"),
       delete: d("topic.delete"),
       edit: d("topic.edit"),
+      editGeneral: d("topic.editGeneral"),
       hideGeneral: d("topic.hideGeneral"),
       iconStickers: d("topic.iconStickers"),
       reopen: d("topic.reopen"),

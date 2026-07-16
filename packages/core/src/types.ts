@@ -331,7 +331,7 @@ export interface GameScoreOptions {
 
 export interface GameHighScoresOptions {
   inlineMessageId?: string;
-  userId?: string;
+  messageGuid?: string;
 }
 
 export interface MaskPosition {
@@ -373,8 +373,12 @@ export interface StickerReplaceInput {
 }
 
 export interface StickerUploadInput {
-  sticker: string;
+  data?: Uint8Array;
+  mimeType?: string;
+  name?: string;
+  path?: string;
   stickerFormat: "static" | "animated" | "video";
+  url?: string;
   userId: string;
 }
 
@@ -399,15 +403,25 @@ export interface StickerSet {
   title: string;
 }
 
+/** A story photo/video source: in-memory bytes, a filesystem path, or a URL. */
+export interface StoryMediaInput {
+  data?: ArrayBuffer | Uint8Array;
+  mimeType?: string;
+  path?: string;
+  url?: string;
+}
+
 export interface StoryContentPhoto {
-  photo: string;
+  photo: StoryMediaInput;
   type: "photo";
 }
 
 export interface StoryContentVideo {
   coverFrameTimestamp?: number;
+  duration?: number;
+  isAnimation?: boolean;
   type: "video";
-  video: string;
+  video: StoryMediaInput;
 }
 
 export type StoryContent = StoryContentPhoto | StoryContentVideo;
@@ -447,10 +461,12 @@ export interface StoryDeleteOptions {
 }
 
 export interface StoryRepostInput {
+  activePeriod: number;
   businessConnectionId?: string;
   fromChatId: string | number;
   fromStoryId: number;
   postToChatPage?: boolean;
+  protectContent?: boolean;
 }
 
 export interface BusinessConnectionIdOptions {
@@ -803,6 +819,13 @@ export interface ShippingAddress {
   streetLine2: string;
 }
 
+export interface OrderInfo {
+  email?: string;
+  name?: string;
+  phoneNumber?: string;
+  shippingAddress?: ShippingAddress;
+}
+
 export interface ChecklistEdit {
   items: { id?: string; text: string }[];
   othersCanAddTasks?: boolean;
@@ -1149,7 +1172,12 @@ export type MessageSystemEvent =
       type: "successful_payment";
       currency: string;
       invoicePayload: string;
+      isFirstRecurring?: boolean;
+      isRecurring?: boolean;
+      orderInfo?: OrderInfo;
       providerPaymentChargeId?: string;
+      shippingOptionId?: string;
+      subscriptionExpirationDate?: number;
       telegramPaymentChargeId?: string;
       totalAmount: number;
     }
@@ -1157,6 +1185,7 @@ export type MessageSystemEvent =
       type: "refunded_payment";
       currency: string;
       invoicePayload?: string;
+      providerPaymentChargeId?: string;
       telegramPaymentChargeId?: string;
       totalAmount: number;
     }
@@ -1277,11 +1306,27 @@ export interface GameHighScore {
 }
 
 export interface StickerInfo {
+  customEmojiId?: string;
   emoji?: string;
   fileId: string;
+  fileSize?: number;
+  fileUniqueId?: string;
+  height?: number;
   isAnimated?: boolean;
   isVideo?: boolean;
+  maskPosition?: MaskPosition;
+  needsRepainting?: boolean;
+  premiumAnimation?: { fileId: string; fileUniqueId?: string };
   setName?: string;
+  thumbnail?: {
+    fileId: string;
+    fileSize?: number;
+    fileUniqueId?: string;
+    height?: number;
+    width?: number;
+  };
+  type?: "regular" | "mask" | "custom_emoji";
+  width?: number;
 }
 
 export interface BusinessConnectionInfo {
@@ -1337,6 +1382,22 @@ export interface MessageAttachment {
   transferName?: string;
 }
 
+/** Per-message delivery / read state (sent → delivered → read). */
+export interface MessageStatus {
+  /** When the recipient's device confirmed delivery. */
+  deliveredAt?: Date;
+  errorCode?: number;
+  guid: string;
+  isDelivered: boolean;
+  isFromMe: boolean;
+  isRead: boolean;
+  isSent: boolean;
+  /** When an audio message was played (audio messages only). */
+  playedAt?: Date;
+  /** When the recipient read the message (needs their read receipts on). */
+  readAt?: Date;
+}
+
 /** Direct-messages topic when the chat is a channel DM thread. */
 export interface DirectMessagesTopic {
   topicId: number | string;
@@ -1351,6 +1412,11 @@ export interface SuggestedPostInfo {
 }
 
 export interface Message {
+  /**
+   * For albums, the message guids of every item sent together (in order).
+   * `guid` is the first; use these to edit/delete individual album items.
+   */
+  albumMessageGuids?: string[];
   attachments?: MessageAttachment[];
   authorSignature?: string;
   businessConnectionId?: string;
@@ -1474,6 +1540,21 @@ export interface TypingSignal {
 
 export interface ReadSignal {
   group?: GroupContext;
+  /** Set when the receipt is for a specific message (per-message read). */
+  messageGuid?: string;
+  platform: Platform;
+  /** When the recipient read it (may differ from `timestamp`). */
+  readAt?: Date;
+  sender: User;
+  timestamp: Date;
+}
+
+/** A sent message reached the recipient's device. */
+export interface DeliveredSignal {
+  /** When delivery was confirmed (may differ from `timestamp`). */
+  deliveredAt?: Date;
+  group?: GroupContext;
+  messageGuid: string;
   platform: Platform;
   sender: User;
   timestamp: Date;
@@ -1573,8 +1654,10 @@ export interface PreCheckoutSignal {
   currency: string;
   from: User;
   invoicePayload: string;
+  orderInfo?: OrderInfo;
   platform: Platform;
   queryId: string;
+  shippingOptionId?: string;
   timestamp: Date;
   totalAmount: number;
 }
@@ -1649,6 +1732,7 @@ export interface SignalMap {
   boost: BoostSignal;
   business: BusinessSignal;
   callback: CallbackSignal;
+  delivered: DeliveredSignal;
   edited: EditSignal;
   error: SendErrorSignal;
   group: GroupChangeSignal;
@@ -1724,6 +1808,7 @@ export interface InviteOps {
 }
 
 export interface InvoiceLinkInput {
+  businessConnectionId?: string;
   currency: string;
   description: string;
   isFlexible?: boolean;
@@ -1740,6 +1825,9 @@ export interface InvoiceLinkInput {
   prices: { amount: number; label: string }[];
   providerData?: string;
   providerToken?: string;
+  sendEmailToProvider?: boolean;
+  sendPhoneNumberToProvider?: boolean;
+  subscriptionPeriod?: number;
   suggestedTipAmounts?: number[];
   title: string;
 }
@@ -1753,6 +1841,7 @@ export interface TopicOps {
   ): Promise<{ threadId: string }>;
   delete(threadId: number | string): Promise<void>;
   edit(threadId: number | string, opts?: TopicEditOptions): Promise<void>;
+  editGeneral(name: string): Promise<void>;
   hideGeneral(): Promise<void>;
   iconStickers(): Promise<TopicIconSticker[]>;
   reopen(threadId: number | string): Promise<void>;
@@ -1814,7 +1903,7 @@ export interface ProfileOps {
 
 export interface GameOps {
   highScores(
-    messageGuid: string,
+    userId: string,
     opts?: GameHighScoresOptions
   ): Promise<GameHighScore[]>;
   setScore(
@@ -2013,6 +2102,12 @@ export interface Channel {
   invoiceLink(input: InvoiceLinkInput): Promise<string>;
   leave(): Promise<void>;
   listMessages(opts?: ListMessagesOptions): Promise<Message[]>;
+  /**
+   * Delivery / read state for a sent message. Returns `null` when the platform
+   * exposes no receipts for it. iMessage reports sent/delivered/read (+ played
+   * for audio) with timestamps; most bot platforms cannot see receipts.
+   */
+  messageStatus(messageGuid: string): Promise<MessageStatus | null>;
   pin(
     messageGuid: string,
     opts?: { silent?: boolean }
@@ -2094,6 +2189,20 @@ export interface Channel {
   unpin(messageGuid?: string): Promise<void>;
   unsend(messageGuid: string): Promise<void>;
   unsendMany(messageGuids: string[]): Promise<void>;
+  /** Move an in-flight live location to new coordinates. */
+  updateLocation(
+    messageGuid: string,
+    opts: UpdateLiveLocationOptions
+  ): Promise<void>;
+}
+
+export interface UpdateLiveLocationOptions {
+  heading?: number;
+  horizontalAccuracy?: number;
+  latitude: number;
+  livePeriod?: number;
+  longitude: number;
+  proximityAlertRadius?: number;
 }
 
 export interface ListMessagesOptions {

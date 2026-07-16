@@ -72,8 +72,10 @@ export function bindMessage(channel: Channel, data: MessageData): Message {
 export function bindOutboundMessage(
   channel: Channel,
   opts: {
+    albumMessageGuids?: string[];
     content: MessageContent;
     guid?: string;
+    mediaGroupId?: string;
     replyTo?: Message["replyTo"];
     senderId?: string;
     service?: string;
@@ -83,10 +85,12 @@ export function bindOutboundMessage(
   }
 ): Message {
   return bindMessage(channel, {
+    albumMessageGuids: opts.albumMessageGuids,
     content: opts.content,
     direction: "outbound",
     guid: opts.guid,
     isFromMe: true,
+    mediaGroupId: opts.mediaGroupId,
     platform: channel.platform,
     replyTo: opts.replyTo,
     sender: { id: opts.senderId ?? channel.to },
@@ -102,6 +106,8 @@ export function messageFromSend(
   content: Content,
   guid: string | undefined,
   extras?: {
+    albumMessageGuids?: string[];
+    mediaGroupId?: string;
     replyTo?: Message["replyTo"];
     senderId?: string;
     service?: string;
@@ -114,8 +120,10 @@ export function messageFromSend(
     return undefined;
   }
   return bindOutboundMessage(channel, {
+    albumMessageGuids: extras?.albumMessageGuids,
     content,
     guid,
+    mediaGroupId: extras?.mediaGroupId,
     replyTo: extras?.replyTo,
     senderId: extras?.senderId,
     service: extras?.service,

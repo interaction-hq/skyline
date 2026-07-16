@@ -486,7 +486,8 @@ message MessageReceivedEvent {
 
 message MessageUpdatedEvent {
   MessageResponse message = 1;
-  string update_type = 2;  // currently: "edited" | "unsent" | "notified" | "reaction"
+  // "edited" | "unsent" | "notified" | "reaction" | "delivered" | "read"
+  string update_type = 2;
   string chat_guid = 3;
 }
 
