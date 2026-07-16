@@ -74,6 +74,7 @@ export function bindOutboundMessage(
   opts: {
     albumMessageGuids?: string[];
     content: MessageContent;
+    discord?: Message["discord"];
     guid?: string;
     mediaGroupId?: string;
     replyTo?: Message["replyTo"];
@@ -88,6 +89,7 @@ export function bindOutboundMessage(
     albumMessageGuids: opts.albumMessageGuids,
     content: opts.content,
     direction: "outbound",
+    discord: opts.discord,
     guid: opts.guid,
     isFromMe: true,
     mediaGroupId: opts.mediaGroupId,
@@ -107,6 +109,7 @@ export function messageFromSend(
   guid: string | undefined,
   extras?: {
     albumMessageGuids?: string[];
+    discord?: Message["discord"];
     mediaGroupId?: string;
     replyTo?: Message["replyTo"];
     senderId?: string;
@@ -122,6 +125,7 @@ export function messageFromSend(
   return bindOutboundMessage(channel, {
     albumMessageGuids: extras?.albumMessageGuids,
     content,
+    discord: extras?.discord,
     guid,
     mediaGroupId: extras?.mediaGroupId,
     replyTo: extras?.replyTo,

@@ -63,8 +63,12 @@
   },
   "dependencies": {
     "@skyline-ts/core": "0.7.0",
+    "@skyline-ts/discord": "0.7.0",
+    "@skyline-ts/googlechat": "0.7.0",
     "@skyline-ts/imessage": "0.7.0",
+    "@skyline-ts/line": "0.7.0",
     "@skyline-ts/slack": "0.7.0",
+    "@skyline-ts/teams": "0.7.0",
     "@skyline-ts/telegram": "0.7.0",
     "@skyline-ts/terminal": "0.7.0",
     "@skyline-ts/whatsapp": "0.7.0",
@@ -84,6 +88,7 @@
     "imessage",
     "whatsapp",
     "slack",
+    "discord",
     "telegram",
     "typescript"
   ]

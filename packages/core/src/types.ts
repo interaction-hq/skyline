@@ -1019,6 +1019,10 @@ export interface PassportElementError {
 export type Platform =
   | "imessage"
   | "slack"
+  | "discord"
+  | "line"
+  | "googlechat"
+  | "teams"
   | "whatsapp"
   | "whatsapp_business"
   | "terminal"
@@ -1353,6 +1357,45 @@ export interface SlackMessageMeta {
   ts?: string;
 }
 
+export interface DiscordMessageMeta {
+  channelId: string;
+  /** Guild (server) id; absent for DMs. */
+  guildId?: string;
+  /** Author is a bot/webhook account. */
+  isBot?: boolean;
+  /** Message type code (0 = default, 19 = reply, …). */
+  messageType?: number;
+  /** Thread id when the message lives in a thread. */
+  threadId?: string;
+  /** Webhook id when sent via a webhook. */
+  webhookId?: string;
+}
+
+export interface LineMessageMeta {
+  /** Reply token valid for a single reply within the response window. */
+  replyToken?: string;
+  /** `user` | `group` | `room`. */
+  sourceType?: string;
+}
+
+export interface GoogleChatMessageMeta {
+  /** Space resource name, e.g. `spaces/AAAA`. */
+  spaceName?: string;
+  /** Space type: `DM` | `ROOM`. */
+  spaceType?: string;
+  /** Thread resource name for threaded replies. */
+  threadName?: string;
+}
+
+export interface TeamsMessageMeta {
+  /** Bot Framework conversation id (used for proactive sends). */
+  conversationId?: string;
+  /** Service URL for the tenant's Bot Connector. */
+  serviceUrl?: string;
+  /** Azure AD tenant id. */
+  tenantId?: string;
+}
+
 export interface CommandOps {
   clear(opts?: CommandScopeOptions): Promise<void>;
   get(opts?: CommandScopeOptions): Promise<{ command: string; description: string }[]>;
@@ -1506,7 +1549,11 @@ export interface Message {
   /** Carrier / wire service label (e.g. iMessage). Not a chat system event. */
   service?: string;
   showCaptionAboveMedia?: boolean;
+  discord?: DiscordMessageMeta;
+  googlechat?: GoogleChatMessageMeta;
+  line?: LineMessageMeta;
   slack?: SlackMessageMeta;
+  teams?: TeamsMessageMeta;
   /** Suggested-post info when this is a channel DM suggested post. */
   suggestedPostInfo?: SuggestedPostInfo;
   /** Chat system/service event (members, payments, topics, video chats, …). */
@@ -2433,7 +2480,39 @@ export interface ResolvedLine {
     accessToken: string;
     apiVersion?: string;
   };
+  discord?: {
+    applicationId?: string;
+    baseUrl?: string;
+    botToken: string;
+    guildId?: string;
+    /** Gateway intents bitfield; the provider picks a sensible default. */
+    intents?: number;
+  };
+  googlechat?: {
+    /** Bearer audience / project number used to verify inbound JWTs. */
+    audience?: string;
+    baseUrl?: string;
+    /** Service-account JSON key (stringified) for outbound REST auth. */
+    serviceAccountJson: string;
+  };
+  line?: {
+    baseUrl?: string;
+    /** Long-lived channel access token (Messaging API). */
+    channelAccessToken: string;
+    /** Channel secret used to verify the `x-line-signature` header. */
+    channelSecret?: string;
+    dataBaseUrl?: string;
+  };
   phone: string;
+  teams?: {
+    /** Bot Framework app (client) id. */
+    appId: string;
+    /** Bot Framework app password (client secret). */
+    appPassword: string;
+    baseUrl?: string;
+    /** Azure AD tenant id for single-tenant bots. */
+    tenantId?: string;
+  };
   slack?: {
     accessToken?: string;
     appToken?: string;

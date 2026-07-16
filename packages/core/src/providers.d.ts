@@ -12,6 +12,34 @@ declare module "@skyline-ts/slack" {
   ): void;
 }
 
+declare module "@skyline-ts/discord" {
+  export function bind(
+    host: import("./host").SkylineHost,
+    config: import("./types").ProviderConfig
+  ): void;
+}
+
+declare module "@skyline-ts/line" {
+  export function bind(
+    host: import("./host").SkylineHost,
+    config: import("./types").ProviderConfig
+  ): void;
+}
+
+declare module "@skyline-ts/googlechat" {
+  export function bind(
+    host: import("./host").SkylineHost,
+    config: import("./types").ProviderConfig
+  ): void;
+}
+
+declare module "@skyline-ts/teams" {
+  export function bind(
+    host: import("./host").SkylineHost,
+    config: import("./types").ProviderConfig
+  ): void;
+}
+
 declare module "@skyline-ts/whatsapp" {
   export function bind(
     host: import("./host").SkylineHost,
