@@ -1,6 +1,6 @@
 # @skyline-ts/terminal
 
-Terminal provider for [skyline-ts](https://github.com/interactions-hq/skyline) — chat with your agent from the command line. No credentials required.
+Terminal provider for [skyline-ts](https://github.com/interaction-hq/skyline) — chat with your agent from the command line. No credentials required.
 
 ## Install
 

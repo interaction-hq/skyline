@@ -1,6 +1,6 @@
 # @skyline-ts/whatsapp
 
-WhatsApp provider for [skyline-ts](https://github.com/interactions-hq/skyline).
+WhatsApp provider for [skyline-ts](https://github.com/interaction-hq/skyline).
 
 ## Install
 

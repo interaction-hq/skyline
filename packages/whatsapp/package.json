@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/interactions-hq/skyline.git",
+    "url": "git+https://github.com/interaction-hq/skyline.git",
     "directory": "packages/whatsapp"
   },
   "publishConfig": {

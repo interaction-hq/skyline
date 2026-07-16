@@ -241,12 +241,12 @@ bun add @skyline-ts/core @skyline-ts/imessage
 - Provider subpath exports (`skyline-ts/providers/imessage`, `/providers/terminal`).
 - Cloud and terminal agent examples.
 
-[Unreleased]: https://github.com/interactions-hq/skyline/compare/v0.3.2...main
-[0.3.2]: https://github.com/interactions-hq/skyline/compare/v0.3.1...v0.3.2
-[0.3.1]: https://github.com/interactions-hq/skyline/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/interactions-hq/skyline/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/interactions-hq/skyline/compare/v0.1.3...v0.2.0
-[0.1.3]: https://github.com/interactions-hq/skyline/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/interactions-hq/skyline/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/interactions-hq/skyline/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/interactions-hq/skyline/releases/tag/v0.1.0
+[Unreleased]: https://github.com/interaction-hq/skyline/compare/v0.3.2...main
+[0.3.2]: https://github.com/interaction-hq/skyline/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/interaction-hq/skyline/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/interaction-hq/skyline/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/interaction-hq/skyline/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/interaction-hq/skyline/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/interaction-hq/skyline/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/interaction-hq/skyline/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/interaction-hq/skyline/releases/tag/v0.1.0

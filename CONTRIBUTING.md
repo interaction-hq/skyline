@@ -90,4 +90,4 @@ First time: `npm login`. You need publish access for the `skyline-ts` and `@skyl
 
 ## Questions
 
-Open an issue at [github.com/interactions-hq/skyline/issues](https://github.com/interactions-hq/skyline/issues).
+Open an issue at [github.com/interaction-hq/skyline/issues](https://github.com/interaction-hq/skyline/issues).

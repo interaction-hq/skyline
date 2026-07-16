@@ -1,6 +1,6 @@
 # @skyline-ts/imessage
 
-iMessage provider for [skyline-ts](https://github.com/interactions-hq/skyline), supporting managed lines and bring-your-own endpoints — including tapbacks, effects, attachments, and mini-apps.
+iMessage provider for [skyline-ts](https://github.com/interaction-hq/skyline), supporting managed lines and bring-your-own endpoints — including tapbacks, effects, attachments, and mini-apps.
 
 ## Install
 

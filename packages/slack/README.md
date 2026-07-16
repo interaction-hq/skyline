@@ -1,6 +1,6 @@
 # @skyline-ts/slack
 
-Slack provider for [skyline-ts](https://github.com/interactions-hq/skyline).
+Slack provider for [skyline-ts](https://github.com/interaction-hq/skyline).
 
 ## Install
 
