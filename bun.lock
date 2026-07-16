@@ -37,6 +37,18 @@
         "@skyline-ts/core": "^0.7.0",
       },
     },
+    "packages/googlechat": {
+      "name": "@skyline-ts/googlechat",
+      "version": "0.7.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "^22.0.0",
+        "typescript": "^5.8.3",
+      },
+      "peerDependencies": {
+        "@skyline-ts/core": "^0.7.0",
+      },
+    },
     "packages/imessage": {
       "name": "@skyline-ts/imessage",
       "version": "0.7.0",
@@ -55,14 +67,29 @@
         "@skyline-ts/core": "^0.7.0",
       },
     },
+    "packages/line": {
+      "name": "@skyline-ts/line",
+      "version": "0.7.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "^22.0.0",
+        "typescript": "^5.8.3",
+      },
+      "peerDependencies": {
+        "@skyline-ts/core": "^0.7.0",
+      },
+    },
     "packages/skyline-ts": {
       "name": "skyline-ts",
       "version": "0.7.0",
       "dependencies": {
         "@skyline-ts/core": "0.7.0",
         "@skyline-ts/discord": "0.7.0",
+        "@skyline-ts/googlechat": "0.7.0",
         "@skyline-ts/imessage": "0.7.0",
+        "@skyline-ts/line": "0.7.0",
         "@skyline-ts/slack": "0.7.0",
+        "@skyline-ts/teams": "0.7.0",
         "@skyline-ts/telegram": "0.7.0",
         "@skyline-ts/terminal": "0.7.0",
         "@skyline-ts/whatsapp": "0.7.0",
@@ -81,6 +108,18 @@
       "peerDependencies": {
         "@grpc/grpc-js": "^1.12.0",
         "@grpc/proto-loader": "^0.7.13",
+        "@skyline-ts/core": "^0.7.0",
+      },
+    },
+    "packages/teams": {
+      "name": "@skyline-ts/teams",
+      "version": "0.7.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "^22.0.0",
+        "typescript": "^5.8.3",
+      },
+      "peerDependencies": {
         "@skyline-ts/core": "^0.7.0",
       },
     },
@@ -213,9 +252,15 @@
 
     "@skyline-ts/discord": ["@skyline-ts/discord@workspace:packages/discord"],
 
+    "@skyline-ts/googlechat": ["@skyline-ts/googlechat@workspace:packages/googlechat"],
+
     "@skyline-ts/imessage": ["@skyline-ts/imessage@workspace:packages/imessage"],
 
+    "@skyline-ts/line": ["@skyline-ts/line@workspace:packages/line"],
+
     "@skyline-ts/slack": ["@skyline-ts/slack@workspace:packages/slack"],
+
+    "@skyline-ts/teams": ["@skyline-ts/teams@workspace:packages/teams"],
 
     "@skyline-ts/telegram": ["@skyline-ts/telegram@workspace:packages/telegram"],
 

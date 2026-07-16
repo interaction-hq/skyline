@@ -13,11 +13,14 @@ export interface StreamHandle {
 
 export interface LiveLine {
   discord?: unknown;
+  googlechat?: unknown;
   grpc?: unknown;
   /** When true, providers may attach a JSON-safe wire snapshot on `message.raw`. */
   includeRaw?: boolean;
+  line?: unknown;
   platform: Platform;
   slack?: unknown;
+  teams?: unknown;
   slackBotUserId?: string;
   slackTeamId?: string;
   streams: StreamHandle[];

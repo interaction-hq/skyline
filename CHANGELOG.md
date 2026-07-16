@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ### Added
 - **New provider `@skyline-ts/discord`** — Discord via the Gateway (WebSocket, self-managed heartbeat / resume / jittered backoff) for inbound and the REST API for outbound, mapped onto the unified Channel / Content / signal surface. Configure with `discord.config({ botToken })` or cloud `projectId` / `projectSecret`. Send text / markdown / attachments / voice / albums, reply, edit, delete, react, pin, typing, list/get messages, rename channels, and remove/ban guild members; inbound messages, reactions, edits, deletes, and typing arrive as unified `app.incoming` + `app.on(...)`. Discord-only fields under `message.discord`.
+- **New provider `@skyline-ts/line`** — LINE Messaging API. Inbound over the signed webhook (`x-line-signature` verified); outbound uses the reply token inside the response window and push otherwise (automatic). Send text and image/video/audio (by hosted url); mount `lineWebhookFetch` on your server. LINE-only fields under `message.line`.
+- **New provider `@skyline-ts/googlechat`** — Google Chat. Inbound over the app webhook (Google bearer-JWT verified against Google's certs); outbound over the Chat REST API with service-account OAuth (JWT-bearer exchange, cached). Send text/markdown, reply in-thread, edit, delete; mount `googlechatWebhookFetch`. Google-Chat-only fields under `message.googlechat`.
+- **New provider `@skyline-ts/teams`** — Microsoft Teams (Bot Framework). Inbound over the Activities webhook (JWT verified against the Bot Framework JWKS); outbound over the Bot Connector REST API with client-credentials OAuth. Captures the conversation reference from inbound Activities for sends; send text/markdown, reply, edit, delete; mount `teamsWebhookFetch`. Teams-only fields under `message.teams`.
 
 ## [0.7.0] - 2026-07-17
 
